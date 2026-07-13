@@ -2,9 +2,9 @@ import { google } from 'googleapis';
 import { getAdminDb } from './firebase-admin';
 import { db } from './firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { canUseFeature } from './billing-entitlements-server';
 
 export async function getGoogleClient(workspaceId: string, requiredScope?: string) {
-  const { canUseFeature } = require('./billing-entitlements-server');
   const allowed = await canUseFeature(workspaceId, 'booking');
   if (!allowed) {
     throw new Error('Upgrade required: Google Calendar/Booking integrations are not allowed on your current plan.');

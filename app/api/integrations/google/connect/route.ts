@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { canUseFeature } from '@/lib/billing-entitlements-server';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +14,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workspaceId or scope' }, { status: 400 });
     }
 
-    const { canUseFeature } = require('@/lib/billing-entitlements-server');
     const allowed = await canUseFeature(workspaceId, 'booking');
     if (!allowed) {
       return NextResponse.json({ error: 'Upgrade required: Google Calendar/Booking integrations are not allowed on your current plan.' }, { status: 403 });

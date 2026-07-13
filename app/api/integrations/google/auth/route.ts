@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import { canUseFeature } from '@/lib/billing-entitlements-server';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +14,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
 
-    const { canUseFeature } = require('@/lib/billing-entitlements-server');
     const allowed = await canUseFeature(workspaceId, 'booking');
     if (!allowed) {
       return NextResponse.redirect(new URL('/dashboard/integration?error=upgrade_required', req.url));

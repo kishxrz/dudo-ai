@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initClient, getQR } from '@/lib/whatsapp-client';
 import QRCode from 'qrcode';
+import { canUseFeature } from '@/lib/billing-entitlements-server';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +18,6 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const { canUseFeature } = require('@/lib/billing-entitlements-server');
     const allowed = await canUseFeature(workspaceId, 'channels.whatsapp');
     if (!allowed) {
       return NextResponse.json({ error: 'Upgrade required: WhatsApp channel is not supported on your current plan.' }, { status: 403 });
