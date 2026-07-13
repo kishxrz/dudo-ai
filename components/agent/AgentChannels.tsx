@@ -103,10 +103,7 @@ export default function AgentChannels() {
     loadConfig();
   }, [workspaceId]);
 
-  // Poll WhatsApp status and QR code (reduced frequency to lower CPU/memory)
   useEffect(() => {
-    let checkInterval: NodeJS.Timeout;
-
     const checkStatusAndQr = async () => {
       try {
         const res = await fetch('/api/whatsapp/status');
@@ -150,10 +147,10 @@ export default function AgentChannels() {
     };
 
     checkStatusAndQr();
-    checkInterval = setInterval(checkStatusAndQr, 10000);
+    const checkInterval = setInterval(checkStatusAndQr, 10000);
 
     return () => {
-      if (checkInterval) clearInterval(checkInterval);
+      clearInterval(checkInterval);
     };
   }, [connectStartTime]);
 
@@ -195,15 +192,14 @@ export default function AgentChannels() {
     setErrorMessage('');
 
     try {
-      const payload = {
-        status: 'connected',
-        token: botToken,
-        platform: 'telegram',
-      };
-
-      if (db && workspaceId) {
-        const docRef = doc(db, 'workspaces', workspaceId, 'channels', channelId);
-        await setDoc(docRef, payload, { merge: true });
+      const response = await fetch('/api/telegram/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, token: botToken }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to connect Telegram.');
       }
 
       if (typeof window !== 'undefined') {
@@ -214,27 +210,12 @@ export default function AgentChannels() {
         window.dispatchEvent(new Event('dudo-config-changed'));
       }
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-      const webhookUrl = `${appUrl}/api/webhooks/telegram/${workspaceId}`;
-      
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url: webhookUrl }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('Telegram setWebhook failed:', errText);
-      }
-
       setSuccessMessage('Telegram connected!');
       setIsConnected(true);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      setErrorMessage(e.message || 'Failed to connect Telegram.');
+      const msg = e instanceof Error ? e.message : 'Failed to connect Telegram.';
+      setErrorMessage(msg);
     } finally {
       setConnecting(false);
     }
@@ -247,15 +228,14 @@ export default function AgentChannels() {
     setErrorMessage('');
 
     try {
-      const payload = {
-        status: 'disconnected',
-        token: '',
-        platform: 'telegram',
-      };
-
-      if (db && workspaceId) {
-        const docRef = doc(db, 'workspaces', workspaceId, 'channels', channelId);
-        await setDoc(docRef, payload, { merge: true });
+      const response = await fetch('/api/telegram/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to disconnect Telegram.');
       }
 
       if (typeof window !== 'undefined') {
@@ -266,21 +246,12 @@ export default function AgentChannels() {
         window.dispatchEvent(new Event('dudo-config-changed'));
       }
 
-      if (token) {
-        try {
-          await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`, {
-            method: 'POST',
-          });
-        } catch (err) {
-          console.error('Telegram deleteWebhook failed:', err);
-        }
-      }
-
       setIsConnected(false);
       setToken('');
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      setErrorMessage(e.message || 'Failed to disconnect Telegram.');
+      const msg = e instanceof Error ? e.message : 'Failed to disconnect Telegram.';
+      setErrorMessage(msg);
     } finally {
       setConnecting(false);
     }

@@ -37,16 +37,30 @@ function AgentPageInner() {
   const { workspaceId } = useWorkspace();
 
   // Backward compatibility tab redirect mapping
-  const rawTab = searchParams.get('tab') || 'skills';
-  let activeTab = rawTab;
-  if (rawTab === 'general' || rawTab === 'behaviour') activeTab = 'personality';
-  else if (rawTab === 'knowledge' || rawTab === 'publish') activeTab = 'skills';
+  const getMappedTab = (tab: string | null) => {
+    const raw = tab || 'skills';
+    if (raw === 'general' || raw === 'behaviour') return 'personality';
+    if (raw === 'knowledge' || raw === 'publish') return 'skills';
+    return raw;
+  };
+
+  const mappedTab = getMappedTab(searchParams.get('tab'));
+  const [activeTab, setActiveTab] = useState(mappedTab);
+  const [prevTab, setPrevTab] = useState(mappedTab);
+
+  if (mappedTab !== prevTab) {
+    setActiveTab(mappedTab);
+    setPrevTab(mappedTab);
+  }
 
   const [name, setName] = useState(mockAssistant.name);
   const [status, setStatus] = useState(mockAssistant.status);
 
   const handleTabChange = (value: string) => {
-    router.push(`/dashboard/agent?tab=${value}`, { scroll: false });
+    setActiveTab(value);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', value);
+    router.push(`/dashboard/agent?${params.toString()}`, { scroll: false });
   };
 
   const loadHeaderDetails = async () => {
@@ -70,7 +84,7 @@ function AgentPageInner() {
 
     if (typeof window !== 'undefined') {
       const localStatus = localStorage.getItem('__dudo_dev_status');
-      if (localStatus) currentStatus = localStatus as any;
+      if (localStatus) currentStatus = localStatus as "live" | "paused" | "draft";
 
       const localAss = localStorage.getItem('__dudo_dev_assistant');
       if (localAss) {
@@ -86,6 +100,7 @@ function AgentPageInner() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadHeaderDetails();
 
     window.addEventListener('dudo-config-changed', loadHeaderDetails);
@@ -102,6 +117,7 @@ function AgentPageInner() {
       window.removeEventListener('dudo-status-changed', loadHeaderDetails);
       window.removeEventListener('dudo-switch-tab', handleSwitch);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, workspaceId]);
 
   return (

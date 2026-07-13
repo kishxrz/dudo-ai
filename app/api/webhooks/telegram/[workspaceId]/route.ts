@@ -129,11 +129,13 @@ async function loadBotConfig(workspaceId: string): Promise<{
   systemPrompt: string;
   provider: string;
   model: string;
+  webhookSecretToken?: string;
 } | null> {
   let token = '';
   let systemPrompt = 'You are a helpful customer support assistant. Be concise and friendly.';
   let provider = 'openai';
   let model = 'gpt-4o-mini';
+  let webhookSecretToken = '';
   const adminDb = getAdminDb();
 
   if (!adminDb && !db) return null;
@@ -148,6 +150,7 @@ async function loadBotConfig(workspaceId: string): Promise<{
       return null; // Channel not connected for this workspace
     }
     token = channelSnap.data()?.token || '';
+    webhookSecretToken = channelSnap.data()?.webhookSecretToken || '';
 
     // Load assistant system prompt
     const assistantSnap = adminDb
@@ -203,7 +206,7 @@ async function loadBotConfig(workspaceId: string): Promise<{
   }
 
   if (!token) return null;
-  return { token, systemPrompt, provider, model };
+  return { token, systemPrompt, provider, model, webhookSecretToken };
 }
 
 /**
@@ -283,6 +286,13 @@ export async function POST(
   if (!config) {
     console.warn(`No active Telegram config for workspace: ${workspaceId}`);
     return NextResponse.json({ ok: true });
+  }
+
+  // Verify secret token to identify and secure the incoming update
+  const incomingSecretToken = req.headers.get('x-telegram-bot-api-secret-token');
+  if (config.webhookSecretToken && incomingSecretToken !== config.webhookSecretToken) {
+    console.error(`[Telegram Webhook] Unauthorized request. Token mismatch.`);
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const conversationId = `tg-${chatId}`;
