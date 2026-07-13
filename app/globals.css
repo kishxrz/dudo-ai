@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-badge: float-badge 5s ease-in-out infinite;
+  --animate-float-slow: float-slow 8s ease-in-out infinite;
+  --animate-flicker: flicker 1s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -10px, 0);
+    }
+  }
+
+  @keyframes float-slow {
+    0%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -6px, 0);
+    }
+  }
+
+  @keyframes float-badge {
+    0%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -16px, 0);
+    }
+  }
+
+  @keyframes flicker {
+    0%, 100% {
+      transform: scale(1) rotate(-1deg);
+      filter: drop-shadow(0 0 1px rgba(239, 68, 68, 0.2));
+    }
+    20% {
+      transform: scale(1.15) rotate(2deg);
+      filter: drop-shadow(0 0 3px rgba(249, 115, 22, 0.4));
+    }
+    40% {
+      transform: scale(0.95) rotate(-1deg);
+      filter: drop-shadow(0 0 1px rgba(239, 68, 68, 0.2));
+    }
+    60% {
+      transform: scale(1.2) rotate(1deg);
+      filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.5));
+    }
+    80% {
+      transform: scale(1.05) rotate(-2deg);
+      filter: drop-shadow(0 0 2px rgba(249, 115, 22, 0.3));
+    }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
