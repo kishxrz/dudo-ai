@@ -34,6 +34,7 @@ interface ClientState {
 const registry = new Map<string, ClientState>();
 const initializationPromises = new Map<string, Promise<void>>();
 const restoringWorkspaces = new Set<string>();
+let isShuttingDown = false;
 
 // Secure endpoint middleware validating BOTH internal secret and Firebase token
 async function authenticate(req: Request, res: Response, next: NextFunction) {
@@ -557,6 +558,11 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   });
 
   client.on('auth_failure', (msg) => {
+    if (isShuttingDown) {
+      console.log(`[Event] Ignoring auth_failure for workspace ${workspaceId} during server shutdown`);
+      return;
+    }
+
     state.status = 'disconnected';
     state.qr = null;
     state.error = `Authentication failure: ${msg}`;
@@ -594,6 +600,11 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   });
 
   client.on('disconnected', (reason) => {
+    if (isShuttingDown) {
+      console.log(`[Event] Ignoring disconnect for workspace ${workspaceId} during server shutdown (reason: ${reason})`);
+      return;
+    }
+
     state.status = 'disconnected';
     state.qr = null;
     state.error = `Disconnected: ${reason}`;
@@ -1022,6 +1033,48 @@ async function restoreSessions() {
     }
   }
 }
+
+// Global error handlers to prevent unhandled Puppeteer/Chromium rejections from crashing the process
+process.on('unhandledRejection', (reason: any, promise) => {
+  console.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err: any) => {
+  console.error('[Process] Uncaught Exception thrown:', err);
+});
+
+// Graceful shutdown handling to protect active sessions during redeployment
+async function handleShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`[Shutdown] Received ${signal}. Gracefully shutting down active clients...`);
+
+  // Close the server to stop accepting new requests
+  server.close(() => {
+    console.log('[Shutdown] HTTP server closed.');
+  });
+
+  const destroyPromises: Promise<void>[] = [];
+  for (const [workspaceId, state] of registry.entries()) {
+    console.log(`[Shutdown] Destroying client for workspace: ${workspaceId}`);
+    if (state.watchdogInterval) {
+      clearInterval(state.watchdogInterval);
+    }
+    // We do NOT update Firestore status here, leaving it as 'connected' so it can restore on restart!
+    destroyPromises.push(
+      state.client.destroy().catch((err) => {
+        console.error(`[Shutdown] Error destroying client for ${workspaceId}:`, err.message || err);
+      })
+    );
+  }
+
+  await Promise.all(destroyPromises);
+  console.log('[Shutdown] All active clients destroyed. Exiting process.');
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 // Start Server
 export const server = app.listen(PORT, () => {
