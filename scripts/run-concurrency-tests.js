@@ -30,7 +30,7 @@ child.stderr.on('data', (data) => {
 child.on('close', (code) => {
   console.log(`\nChild process closed with exit code: ${code}`);
   
-  const passedString = '=== ALL CONCURRENCY TESTS COMPLETED: 12 PASSED, 0 FAILED ===';
+  const passedString = '=== ALL CONCURRENCY TESTS COMPLETED: 22 PASSED, 0 FAILED ===';
   if (stdout.includes(passedString)) {
     console.log('✅ ALL WHATSAPP CONCURRENCY & RELIABILITY TESTS PASSED!');
     process.exit(0);

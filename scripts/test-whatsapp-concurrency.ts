@@ -283,6 +283,112 @@ async function runTests() {
     const numListeners = activeClient.listenerCount('message');
     assert(numListeners === 1, 'Reconnecting does not duplicate the message event listener');
 
+    // ─── TEST 8: 20 CONCURRENT STATUS REQUESTS DURING INITIALIZATION ───
+    console.log('\n--- Test 8: 20 concurrent status requests during initialization ---');
+    mockDbState['workspaces/ws-concurrent-status'] = { ownerId: 'user-valid' };
+    mockDbState['workspaces/ws-concurrent-status/billing/subscription'] = { planId: 'monthly', status: 'active' };
+    
+    fetch('http://localhost:4007/v1/workspaces/ws-concurrent-status/connect', { method: 'POST', headers });
+
+    const statusPromises = [];
+    for (let i = 0; i < 20; i++) {
+      statusPromises.push(
+        fetch('http://localhost:4007/v1/workspaces/ws-concurrent-status/status', { method: 'GET', headers })
+          .then((res: any) => res.json())
+      );
+    }
+    const results = await Promise.all(statusPromises);
+    const concurrentClientsCount = capturedClients.filter(c => c.authStrategy.clientId === 'whatsapp-ws-concurrent-status').length;
+    assert(concurrentClientsCount <= 1, 'Only one client is created under concurrent status requests');
+    assert(results.every(r => r.status === 'initializing' || r.status === 'connected' || r.status === 'qr_ready' || r.status === 'disconnected'), 'Status requests return valid state codes');
+
+    // ─── TEST 9: REPEATED STATUS POLLING AFTER READY ───
+    console.log('\n--- Test 9: Repeated status polling after READY ---');
+    const pollPromises = [];
+    for (let i = 0; i < 10; i++) {
+      pollPromises.push(
+        fetch('http://localhost:4007/v1/workspaces/ws-concurrency/status', { method: 'GET', headers })
+          .then((res: any) => res.json())
+      );
+    }
+    const pollResults = await Promise.all(pollPromises);
+    assert(pollResults.every(r => r.status === 'connected'), 'Status polling after READY does not mutate connection state');
+
+    // ─── TEST 10: DUPLICATE INITIALIZE / CONNECT REQUESTS ───
+    console.log('\n--- Test 10: Duplicate initialize/connect requests ---');
+    const oldClientCount = capturedClients.length;
+    
+    const connectPromises = [];
+    for (let i = 0; i < 5; i++) {
+      connectPromises.push(
+        fetch('http://localhost:4007/v1/workspaces/ws-concurrency/connect', { method: 'POST', headers })
+          .then((res: any) => res.json())
+      );
+    }
+    await Promise.all(connectPromises);
+    assert(capturedClients.length === oldClientCount, 'Duplicate connect requests do not spawn new Client instances');
+
+    // ─── TEST 11: CLIENT MAP OVERWRITE ATTEMPTS ───
+    console.log('\n--- Test 11: Client Map overwrite attempts ---');
+    const firstClient = capturedClients.find(c => c.authStrategy.clientId === 'whatsapp-ws-concurrency');
+    
+    await fetch('http://localhost:4007/v1/workspaces/ws-concurrency/connect', { method: 'POST', headers });
+    const currentClient = capturedClients.find(c => c.authStrategy.clientId === 'whatsapp-ws-concurrency');
+    assert(firstClient === currentClient, 'Idempotent lock prevents registry Map client overwrite');
+
+    // ─── TEST 12: STALE CLIENT INSTANCE LISTENER SCENARIO ───
+    console.log('\n--- Test 12: Stale client instance listener scenario ---');
+    await fetch('http://localhost:4007/v1/workspaces/ws-concurrency/disconnect', { method: 'POST', headers });
+    
+    await fetch('http://localhost:4007/v1/workspaces/ws-concurrency/connect', { method: 'POST', headers });
+    const newActiveClient = capturedClients[capturedClients.length - 1];
+    
+    assert(newActiveClient !== activeClient, 'A new Client instance is created after disconnection');
+    const newMsgListener = newActiveClient.listeners('message')[0] as any;
+    assert(newMsgListener !== undefined, 'Message listener remains attached to the new client instance');
+
+    // ─── TEST 13: MESSAGE EVENT AFTER REPEATED STATUS POLLING ───
+    console.log('\n--- Test 13: Message event after repeated status polling ---');
+    sentMessages.length = 0;
+    
+    const mockMsgNew = {
+      from: 'user-2',
+      body: 'Hello after poll',
+      type: 'chat',
+      timestamp: Math.floor(Date.now() / 1000) + 10,
+      author: 'user-2',
+      id: {
+        id: 'msg-post-poll',
+        _serialized: 'false_user-2_msg-post-poll',
+        fromMe: false,
+        remote: 'user-2',
+      },
+      sendMessage: async (m: string) => {
+        await newActiveClient.sendMessage('user-2', m);
+      }
+    };
+    await newMsgListener(mockMsgNew);
+    assert(sentMessages.length === 1 && sentMessages[0].message === 'AI Success Response', 'Message event is handled successfully after repeated status polling');
+
+    // ─── TEST 14: MESSAGE_CREATE EVENT AFTER REPEATED STATUS POLLING ───
+    console.log('\n--- Test 14: Message_create event after repeated status polling ---');
+    const msgCreateListener = newActiveClient.listeners('message_create')[0] as any;
+    assert(msgCreateListener !== undefined, 'message_create listener is registered successfully on the new client');
+    
+    let messageCreateLogged: boolean = false;
+    const originalConsoleLog = console.log;
+    console.log = (...args: any[]) => {
+      const logStr = args.join(' ');
+      if (logStr.includes('[WA_TRACE] message_create')) {
+        messageCreateLogged = true;
+      }
+      originalConsoleLog.apply(console, args);
+    };
+
+    await msgCreateListener(mockMsgNew);
+    console.log = originalConsoleLog;
+    assert(!!messageCreateLogged, 'message_create event logs diagnostic output successfully after status polling');
+
     console.log(`\n=== ALL CONCURRENCY TESTS COMPLETED: ${passed} PASSED, ${failed} FAILED ===`);
     
     // Clean up temporary sessions directory
