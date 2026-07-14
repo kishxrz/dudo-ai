@@ -309,9 +309,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
     '--disable-blink-features=AutomationControlled',
-    '--disable-gpu',
-    '--no-zygote',
-    '--single-process'
+    '--disable-gpu'
   ];
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     console.log(`[Puppeteer] Using executable path: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
