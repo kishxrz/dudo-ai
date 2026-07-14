@@ -60,13 +60,23 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error('[WhatsApp Connect Proxy Error] Upstream connect failed:', {
+        route: '/api/whatsapp/connect',
+        workspaceId,
+        status: response.status,
+        responseBody: errText
+      });
       return NextResponse.json({ error: errText || 'Failed to connect WhatsApp' }, { status: response.status });
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (err: any) {
-    console.error('Error in WhatsApp connect proxy route:', err);
+    console.error('[WhatsApp Connect Proxy Error] Exception in connect route:', {
+      route: '/api/whatsapp/connect',
+      message: err.message,
+      stack: err.stack
+    });
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

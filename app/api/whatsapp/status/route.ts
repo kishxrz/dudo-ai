@@ -53,13 +53,23 @@ export async function GET(req: NextRequest) {
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error('[WhatsApp Status Proxy Error] Upstream status check failed:', {
+        route: '/api/whatsapp/status',
+        workspaceId,
+        status: response.status,
+        responseBody: errText
+      });
       return NextResponse.json({ error: errText || 'Failed to get status' }, { status: response.status });
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (err: any) {
-    console.error('Error in WhatsApp status proxy route:', err);
+    console.error('[WhatsApp Status Proxy Error] Exception in status route:', {
+      route: '/api/whatsapp/status',
+      message: err.message,
+      stack: err.stack
+    });
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }
