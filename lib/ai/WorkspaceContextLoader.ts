@@ -44,8 +44,8 @@ export class WorkspaceContextLoader {
 
     // 1. Load Assistant Config
     let assistant = {
-      name: "My AI Assistant",
-      systemPrompt: "You are a helpful customer support agent for Dudo reception desk. Keep responses simple and concise.",
+      name: "AI Assistant",
+      systemPrompt: "You are a helpful customer support agent. Keep responses simple and concise.",
       timezone: 'Asia/Kolkata',
       status: 'draft' as const,
       whatsappAdmins: '',
@@ -78,13 +78,13 @@ export class WorkspaceContextLoader {
         if (assistantExists) {
           const data = assSnap.data();
           if (data) {
-            const rawName = data.name || assistant.name;
-            const cleanedName = rawName.replace(/dodo/gi, 'Dudo');
-            const rawPrompt = data.systemPrompt || assistant.systemPrompt;
-            const cleanedPrompt = rawPrompt.replace(/dodo/gi, 'Dudo');
+            const rawName = data.name;
+            const name = (rawName && typeof rawName === 'string' && rawName.trim().length > 0)
+              ? rawName
+              : 'AI Assistant';
             assistant = {
-              name: cleanedName,
-              systemPrompt: cleanedPrompt,
+              name,
+              systemPrompt: data.systemPrompt || assistant.systemPrompt,
               timezone: data.timezone || assistant.timezone,
               status: data.status || assistant.status,
               whatsappAdmins: data.whatsappAdmins || '',
