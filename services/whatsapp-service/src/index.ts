@@ -387,7 +387,8 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
 
       try {
         const waVersion = await page.evaluate(() => {
-          return (window as any).Debug?.VERSION || (window as any).mR?.sections?.VERSION || 'unknown';
+          const g = globalThis as any;
+          return g.Debug?.VERSION || g.mR?.sections?.VERSION || 'unknown';
         });
         console.log(`[WA_PAGE_TRACE] whatsapp_web_version workspaceId=${workspaceId} version=${waVersion}`);
       } catch {}
@@ -418,15 +419,16 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       // Msg store checking and observer injection
       try {
         const storeDiagnostics = await page.evaluate(() => {
-          const storeAvailable = typeof (window as any).Store !== 'undefined';
-          const msgAvailable = storeAvailable && typeof (window as any).Store.Msg !== 'undefined';
-          const msgCount = msgAvailable ? (window as any).Store.Msg.length : -1;
+          const g = globalThis as any;
+          const storeAvailable = typeof g.Store !== 'undefined';
+          const msgAvailable = storeAvailable && typeof g.Store.Msg !== 'undefined';
+          const msgCount = msgAvailable ? g.Store.Msg.length : -1;
           const exposedCallbacks = [
             'onAddMessageEvent',
             'onAddMessageCiphertextEvent',
             'onChangeMessageTypeEvent'
           ].reduce((acc, name) => {
-            acc[name] = typeof (window as any)[name] === 'function';
+            acc[name] = typeof g[name] === 'function';
             return acc;
           }, {} as Record<string, boolean>);
 
@@ -438,9 +440,10 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
         console.log(`[WA_PAGE_TRACE] exposed_callbacks_available workspaceId=${workspaceId} callbacks=${JSON.stringify(storeDiagnostics.exposedCallbacks)}`);
         
         await page.evaluate(() => {
-          if (typeof (window as any).Store !== 'undefined' && typeof (window as any).Store.Msg !== 'undefined') {
+          const g = globalThis as any;
+          if (typeof g.Store !== 'undefined' && typeof g.Store.Msg !== 'undefined') {
             console.log('[WA_OBSERVER_MSG] Msg collection found, registering observer...');
-            (window as any).Store.Msg.on('add', (msg: any) => {
+            g.Store.Msg.on('add', (msg: any) => {
               const msgId = msg.id?._serialized || msg.id?.id || 'unknown';
               const timestamp = msg.t || msg.timestamp || Math.floor(Date.now() / 1000);
               const bodyLen = msg.body ? msg.body.length : 0;
