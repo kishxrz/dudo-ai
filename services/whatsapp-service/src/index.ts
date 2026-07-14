@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import QRCode from 'qrcode';
-import { getAdminDb, getAuth } from './firebase-admin';
+import { getAdminDb, getAuth, Firestore } from './firebase-admin';
 import { canUseWhatsapp } from './billing';
 
 dotenv.config();
@@ -33,6 +33,7 @@ interface ClientState {
 
 const registry = new Map<string, ClientState>();
 const initializationPromises = new Map<string, Promise<void>>();
+const restoringWorkspaces = new Set<string>();
 
 // Secure endpoint middleware validating BOTH internal secret and Firebase token
 async function authenticate(req: Request, res: Response, next: NextFunction) {
@@ -375,7 +376,27 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     state.status = 'connected';
     state.qr = null;
     state.error = null;
+
+    // Update channel status in Firestore
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      await adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+        status: 'connected',
+        platform: 'whatsapp',
+        connectedAt: new Date()
+      }, { merge: true }).catch(dbErr => {
+        console.error(`[Firestore Error] Failed to update status to connected for ${workspaceId}:`, dbErr);
+      });
+    }
+
     addToManifest(workspaceId); // Save to manifest ONLY when ready/connected!
+    
+    if (restoringWorkspaces.has(workspaceId)) {
+      console.log(`[WA_RESTORE_SUCCESS] workspaceId=${workspaceId}`);
+      restoringWorkspaces.delete(workspaceId);
+    }
+    
+    console.log(`[WA_CLIENT_READY] workspaceId=${workspaceId}`);
     console.log(`[WA_TRACE] ready workspaceId=${workspaceId} instanceId=${instanceId}`);
     logDiagnostics('ready_details').catch(() => {});
 
@@ -522,7 +543,28 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     state.error = `Authentication failure: ${msg}`;
     console.log(`[WA_TRACE] auth_failure workspaceId=${workspaceId} instanceId=${instanceId} error=${msg}`);
     console.error(`[Event] Auth failure for workspace ${workspaceId}:`, msg);
-    removeFromManifest(workspaceId); // Remove from manifest on auth failure
+    
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+        status: 'disconnected',
+        disconnectedAt: new Date(),
+        platform: 'whatsapp',
+        error: `Authentication failure: ${msg}`
+      }, { merge: true }).catch(dbErr => {
+        console.error(`[Firestore Error] Failed to update status to disconnected for ${workspaceId}:`, dbErr);
+      });
+    }
+
+    removeFromManifest(workspaceId);
+    
+    if (restoringWorkspaces.has(workspaceId)) {
+      console.log(`[WA_RESTORE_FAILED] workspaceId=${workspaceId} reason=auth_failure_${msg}`);
+      restoringWorkspaces.delete(workspaceId);
+    }
+
+    console.log(`[WA_CLIENT_DISCONNECTED] workspaceId=${workspaceId}`);
+
     if (state.watchdogInterval) {
       clearInterval(state.watchdogInterval);
     }
@@ -538,7 +580,27 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     state.error = `Disconnected: ${reason}`;
     console.log(`[WA_TRACE] disconnected workspaceId=${workspaceId} instanceId=${instanceId} reason=${reason}`);
     console.log(`[Event] Client disconnected for workspace: ${workspaceId}, reason: ${reason}`);
-    removeFromManifest(workspaceId); // Remove from manifest on disconnect
+    
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+        status: 'disconnected',
+        disconnectedAt: new Date(),
+        platform: 'whatsapp',
+        error: `Disconnected: ${reason}`
+      }, { merge: true }).catch(dbErr => {
+        console.error(`[Firestore Error] Failed to update status to disconnected for ${workspaceId}:`, dbErr);
+      });
+    }
+
+    removeFromManifest(workspaceId);
+    
+    if (restoringWorkspaces.has(workspaceId)) {
+      console.log(`[WA_RESTORE_FAILED] workspaceId=${workspaceId} reason=disconnected_${reason}`);
+      restoringWorkspaces.delete(workspaceId);
+    }
+
+    console.log(`[WA_CLIENT_DISCONNECTED] workspaceId=${workspaceId}`);
     
     if (state.watchdogInterval) {
       clearInterval(state.watchdogInterval);
@@ -654,6 +716,26 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   } catch (err: any) {
     console.error(`[Registry] Failed to initialize client for workspace: ${workspaceId}`, err);
     state.error = err.message || 'Initialization failed';
+
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      await adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+        status: 'disconnected',
+        disconnectedAt: new Date(),
+        platform: 'whatsapp',
+        error: err.message || 'Initialization failed'
+      }, { merge: true }).catch(dbErr => {
+        console.error(`[Firestore Error] Failed to update status to disconnected for ${workspaceId}:`, dbErr);
+      });
+    }
+
+    if (restoringWorkspaces.has(workspaceId)) {
+      console.log(`[WA_RESTORE_FAILED] workspaceId=${workspaceId} reason=initialize_failed_${err.message || err}`);
+      restoringWorkspaces.delete(workspaceId);
+    }
+    
+    console.log(`[WA_CLIENT_DISCONNECTED] workspaceId=${workspaceId}`);
+
     if (state.watchdogInterval) {
       clearInterval(state.watchdogInterval);
     }
@@ -779,8 +861,48 @@ app.post('/v1/workspaces/:workspaceId/disconnect', authenticate, authorizeWorksp
   const { workspaceId } = req.params;
   const state = registry.get(workspaceId);
   
+  console.log(`[Disconnect] Initiating manual disconnect for workspace: ${workspaceId}`);
+
   // Remove from manifest
   removeFromManifest(workspaceId);
+
+  // Update Firestore status to disconnected
+  const adminDb = getAdminDb();
+  if (adminDb) {
+    await adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+      status: 'disconnected',
+      disconnectedAt: new Date(),
+      platform: 'whatsapp'
+    }, { merge: true }).catch(err => {
+      console.error(`[Firestore Error] Failed to update status to disconnected for ${workspaceId}:`, err);
+    });
+  }
+
+  if (state) {
+    console.log(`[WA_TRACE] before_destroy workspaceId=${workspaceId} instanceId=${state.instanceId}`);
+    if (state.watchdogInterval) {
+      clearInterval(state.watchdogInterval);
+    }
+
+    // Log out from WhatsApp if connected
+    try {
+      if (state.status === 'connected') {
+        console.log(`[Disconnect] Logging out client for workspace: ${workspaceId}`);
+        await state.client.logout();
+      }
+    } catch (logoutErr) {
+      console.error(`[Disconnect] Error during logout for ${workspaceId}:`, logoutErr);
+    }
+
+    try {
+      await state.client.destroy();
+      console.log(`[WA_TRACE] after_destroy workspaceId=${workspaceId} instanceId=${state.instanceId}`);
+    } catch (err) {
+      console.error(`[Disconnect] Error destroying client for ${workspaceId}:`, err);
+    }
+    
+    registry.delete(workspaceId);
+  }
 
   // Delete LocalAuth session directory
   const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
@@ -793,38 +915,90 @@ app.post('/v1/workspaces/:workspaceId/disconnect', authenticate, authorizeWorksp
     console.error(`[Disconnect] Error deleting session directory for ${workspaceId}:`, err);
   }
 
-  if (state) {
-    console.log(`[WA_TRACE] before_destroy workspaceId=${workspaceId} instanceId=${state.instanceId}`);
-    if (state.watchdogInterval) {
-      clearInterval(state.watchdogInterval);
-    }
-    try {
-      await state.client.destroy();
-      console.log(`[WA_TRACE] after_destroy workspaceId=${workspaceId} instanceId=${state.instanceId}`);
-    } catch (err) {
-      console.error(`[Disconnect] Error destroying client for ${workspaceId}:`, err);
-    }
-    registry.delete(workspaceId);
-  }
-
+  console.log(`[WA_CLIENT_DISCONNECTED] workspaceId=${workspaceId}`);
   res.json({ success: true });
 });
 
 // ─── SESSION RESTORATION ON STARTUP ────────────────────────────────────
 
-function restoreSessions() {
-  console.log('[Startup] Restoring sessions from workspaces-manifest.json...');
-  const list = readManifest();
+async function discoverConnectedWorkspaces(adminDb: Firestore): Promise<string[]> {
+  const workspaceIds: string[] = [];
+  try {
+    console.log('[Startup] Attempting Collection Group query for connected WhatsApp channels...');
+    const snap = await adminDb.collectionGroup('channels')
+      .where('platform', '==', 'whatsapp')
+      .where('status', '==', 'connected')
+      .get();
+    snap.forEach(doc => {
+      const wsId = doc.ref.parent.parent?.id;
+      if (wsId) {
+        workspaceIds.push(wsId);
+      }
+    });
+    console.log(`[Startup] Collection Group query succeeded. Found ${workspaceIds.length} connected workspaces.`);
+    return workspaceIds;
+  } catch (err: any) {
+    console.warn('[Startup] Collection Group query failed or index required, falling back to workspace collection scan:', err.message || err);
+    try {
+      const workspacesSnap = await adminDb.collection('workspaces').get();
+      const promises = workspacesSnap.docs.map(async (wsDoc) => {
+        const wsId = wsDoc.id;
+        const channelSnap = await adminDb.doc(`workspaces/${wsId}/channels/ch-wa`).get();
+        if (channelSnap.exists && channelSnap.data()?.status === 'connected') {
+          return wsId;
+        }
+        return null;
+      });
+      const results = await Promise.all(promises);
+      const filtered = results.filter((id): id is string => id !== null);
+      console.log(`[Startup] Workspace collection scan succeeded. Found ${filtered.length} connected workspaces.`);
+      return filtered;
+    } catch (fallbackErr: any) {
+      console.error('[Startup] Fallback workspace scan also failed:', fallbackErr.message || fallbackErr);
+      return [];
+    }
+  }
+}
+
+async function getConnectedWorkspaces(): Promise<string[]> {
+  const adminDb = getAdminDb();
+  if (!adminDb) {
+    console.log('[Startup] Firestore Admin DB not available. Falling back to local manifest.');
+    return readManifest();
+  }
+  return discoverConnectedWorkspaces(adminDb);
+}
+
+async function restoreSessions() {
+  console.log('[Startup] Restoring connected sessions from durable storage...');
+  const list = await getConnectedWorkspaces();
   console.log(`[Startup] Found ${list.length} sessions to restore:`, list);
+  
   for (const workspaceId of list) {
     const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
     if (fs.existsSync(sessionDir)) {
-      console.log(`[Startup] Auto-restoring session for workspace: ${workspaceId}`);
+      console.log(`[WA_RESTORE_START] workspaceId=${workspaceId}`);
+      restoringWorkspaces.add(workspaceId);
+      
       startClient(workspaceId).catch((err) => {
-        console.error(`[Startup] Failed to restore workspace ${workspaceId}:`, err);
+        console.error(`[WA_RESTORE_FAILED] workspaceId=${workspaceId} reason=${err.message || err}`);
+        restoringWorkspaces.delete(workspaceId);
       });
     } else {
       console.log(`[Startup] Session directory not found for ${workspaceId}, skipping auto-restore and removing from manifest.`);
+      restoringWorkspaces.delete(workspaceId);
+      
+      // Update status to disconnected in Firestore
+      const adminDb = getAdminDb();
+      if (adminDb) {
+        await adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+          status: 'disconnected',
+          disconnectedAt: new Date()
+        }, { merge: true }).catch(dbErr => {
+          console.error(`[Firestore Error] Failed to update status to disconnected for ${workspaceId}:`, dbErr);
+        });
+      }
+      
       removeFromManifest(workspaceId);
     }
   }
