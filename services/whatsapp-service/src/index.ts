@@ -23,7 +23,7 @@ const WHATSAPP_INTERNAL_SECRET = process.env.WHATSAPP_INTERNAL_SECRET || '';
 interface ClientState {
   client: Client;
   qr: string | null;
-  status: 'disconnected' | 'qr_ready' | 'connected';
+  status: 'disconnected' | 'connecting' | 'qr_ready' | 'connected';
   error: string | null;
   startupTime: number;
   inFlightMessages: Set<string>;
@@ -301,8 +301,6 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   const instanceId = require('crypto').randomUUID();
   console.log(`[WA_TRACE] client_created workspaceId=${workspaceId} instanceId=${instanceId}`);
 
-  addToManifest(workspaceId);
-
   const clientId = `whatsapp-${workspaceId}`;
   
   const puppeteerArgs = [
@@ -334,7 +332,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   const state: ClientState = {
     client,
     qr: null,
-    status: 'disconnected',
+    status: 'connecting',
     error: null,
     startupTime: Math.floor(Date.now() / 1000) - 60, // 60s clock skew buffer
     inFlightMessages: new Set<string>(),
@@ -377,6 +375,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     state.status = 'connected';
     state.qr = null;
     state.error = null;
+    addToManifest(workspaceId); // Save to manifest ONLY when ready/connected!
     console.log(`[WA_TRACE] ready workspaceId=${workspaceId} instanceId=${instanceId}`);
     logDiagnostics('ready_details').catch(() => {});
 
@@ -523,9 +522,14 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     state.error = `Authentication failure: ${msg}`;
     console.log(`[WA_TRACE] auth_failure workspaceId=${workspaceId} instanceId=${instanceId} error=${msg}`);
     console.error(`[Event] Auth failure for workspace ${workspaceId}:`, msg);
+    removeFromManifest(workspaceId); // Remove from manifest on auth failure
     if (state.watchdogInterval) {
       clearInterval(state.watchdogInterval);
     }
+    try {
+      client.destroy().catch(() => {});
+    } catch {}
+    registry.delete(workspaceId);
   });
 
   client.on('disconnected', (reason) => {
@@ -534,6 +538,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     state.error = `Disconnected: ${reason}`;
     console.log(`[WA_TRACE] disconnected workspaceId=${workspaceId} instanceId=${instanceId} reason=${reason}`);
     console.log(`[Event] Client disconnected for workspace: ${workspaceId}, reason: ${reason}`);
+    removeFromManifest(workspaceId); // Remove from manifest on disconnect
     
     if (state.watchdogInterval) {
       clearInterval(state.watchdogInterval);
@@ -812,10 +817,16 @@ function restoreSessions() {
   const list = readManifest();
   console.log(`[Startup] Found ${list.length} sessions to restore:`, list);
   for (const workspaceId of list) {
-    console.log(`[Startup] Auto-restoring session for workspace: ${workspaceId}`);
-    startClient(workspaceId).catch((err) => {
-      console.error(`[Startup] Failed to restore workspace ${workspaceId}:`, err);
-    });
+    const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
+    if (fs.existsSync(sessionDir)) {
+      console.log(`[Startup] Auto-restoring session for workspace: ${workspaceId}`);
+      startClient(workspaceId).catch((err) => {
+        console.error(`[Startup] Failed to restore workspace ${workspaceId}:`, err);
+      });
+    } else {
+      console.log(`[Startup] Session directory not found for ${workspaceId}, skipping auto-restore and removing from manifest.`);
+      removeFromManifest(workspaceId);
+    }
   }
 }
 

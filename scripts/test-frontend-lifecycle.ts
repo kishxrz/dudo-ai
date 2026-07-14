@@ -74,9 +74,15 @@ class MockAgentChannelsComponent {
       this.activeIntervals = this.activeIntervals.filter(x => x !== id);
     };
 
+    const realSetTimeout = global.setTimeout;
     global.setTimeout = (cb: any, time: number) => {
       const id = { cb, time, type: 'timeout' };
       this.activeTimeouts.push(id);
+      realSetTimeout(() => {
+        if (this.activeTimeouts.includes(id)) {
+          cb();
+        }
+      }, time);
       return id as any;
     };
     global.clearTimeout = (id: any) => {
