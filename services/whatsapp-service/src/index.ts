@@ -309,7 +309,10 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
-    '--disable-blink-features=AutomationControlled'
+    '--disable-blink-features=AutomationControlled',
+    '--disable-gpu',
+    '--no-zygote',
+    '--single-process'
   ];
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     console.log(`[Puppeteer] Using executable path: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
@@ -423,14 +426,31 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
         }
       });
 
+      const selfHeal = (reason: string) => {
+        console.log(`[WA_TRACE] page_crash_detected workspaceId=${workspaceId} instanceId=${instanceId} reason="${reason}" - destroying client for self-healing`);
+        state.status = 'disconnected';
+        state.error = `Page crashed/closed: ${reason}`;
+        if (state.watchdogInterval) {
+          clearInterval(state.watchdogInterval);
+        }
+        try {
+          client.destroy().catch(() => {});
+        } catch {}
+        registry.delete(workspaceId);
+      };
+
       page.on('error', (err: any) => {
-        console.log(`[WA_PAGE_TRACE] page_error workspaceId=${workspaceId} error="${err?.message || err}"`);
+        const msg = err?.message || String(err);
+        console.log(`[WA_PAGE_TRACE] page_error workspaceId=${workspaceId} error="${msg}"`);
+        selfHeal(`error: ${msg}`);
       });
       page.on('pageerror', (err: any) => {
-        console.log(`[WA_PAGE_TRACE] page_error workspaceId=${workspaceId} pageerror="${err?.message || err}"`);
+        const msg = err?.message || String(err);
+        console.log(`[WA_PAGE_TRACE] page_error workspaceId=${workspaceId} pageerror="${msg}"`);
       });
       page.on('close', () => {
         console.log(`[WA_PAGE_TRACE] page_closed workspaceId=${workspaceId}`);
+        selfHeal('page_closed');
       });
       page.on('framenavigated', (frame) => {
         console.log(`[WA_PAGE_TRACE] frame_navigated workspaceId=${workspaceId} url=${frame.url()}`);
