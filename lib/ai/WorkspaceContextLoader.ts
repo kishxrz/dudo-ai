@@ -53,55 +53,49 @@ export class WorkspaceContextLoader {
       bossCode: ''
     };
 
-    if (adminDb || db) {
-      try {
-        const assSnap = adminDb
-          ? await adminDb.doc(`workspaces/${workspaceId}/assistants/assistant-1`).get()
-          : await getDoc(doc(db!, 'workspaces', workspaceId, 'assistants', 'assistant-1'));
-        const assistantExists = typeof assSnap.exists === 'function' ? assSnap.exists() : assSnap.exists;
-        if (assistantExists) {
-          const data = assSnap.data();
-          const systemPrompt = data.systemPrompt || assistant.systemPrompt;
-          
-          enabledSkills = await SkillService.resolveEnabledSkills(workspaceId);
-
-          assistant = {
-            name: data.name || assistant.name,
-            systemPrompt: systemPrompt,
-            timezone: data.timezone || assistant.timezone,
-            status: data.status || assistant.status,
-            whatsappAdmins: data.whatsappAdmins || '',
-            telegramAdmins: data.telegramAdmins || '',
-            bossCode: data.bossCode || ''
-          };
-        }
-      } catch (e) {
-        console.error('Failed to load assistant settings:', e);
-      }
-    }
-
-    // 2. Load Provider Config
     let provider = {
       name: requestedProviderName || 'openai',
       model: '',
       apiKey: ''
     };
     let activeProvDoc: { name: string; model?: string; apiKey?: string } | null = null;
-
-    // Use the client-supplied API key directly when available.
-    // The client loads it with the user's Firebase auth token; the server has no auth context.
-    if (clientApiKey && requestedProviderName) {
-      console.log('[WorkspaceContextLoader] Using client-supplied apiKey for:', requestedProviderName);
-      provider.apiKey = clientApiKey;
-    }
+    let providerDocs: any[] = [];
+    let knowledge = '';
 
     if (adminDb || db) {
       try {
-        const providerCollectionPath = `workspaces/${workspaceId}/providers`;
-        console.log('[WorkspaceContextLoader] Reading providers from path: ' + providerCollectionPath);
-        const providerDocs = adminDb
-          ? (await adminDb.collection(providerCollectionPath).get()).docs
-          : (await getDocs(collection(db!, 'workspaces', workspaceId, 'providers'))).docs;
+        const assistantPath = `workspaces/${workspaceId}/assistants/assistant-1`;
+        const providerPath = `workspaces/${workspaceId}/providers`;
+
+        const [assSnap, resolvedSkills, providersSnap, loadedKnowledge] = await Promise.all([
+          adminDb ? adminDb.doc(assistantPath).get() : getDoc(doc(db!, 'workspaces', workspaceId, 'assistants', 'assistant-1')),
+          SkillService.resolveEnabledSkills(workspaceId),
+          adminDb ? adminDb.collection(providerPath).get() : getDocs(collection(db!, 'workspaces', workspaceId, 'providers')),
+          KnowledgeService.getStaticKnowledge(workspaceId)
+        ]);
+
+        const assistantExists = typeof assSnap.exists === 'function' ? assSnap.exists() : assSnap.exists;
+        if (assistantExists) {
+          const data = assSnap.data();
+          if (data) {
+            assistant = {
+              name: data.name || assistant.name,
+              systemPrompt: data.systemPrompt || assistant.systemPrompt,
+              timezone: data.timezone || assistant.timezone,
+              status: data.status || assistant.status,
+              whatsappAdmins: data.whatsappAdmins || '',
+              telegramAdmins: data.telegramAdmins || '',
+              bossCode: data.bossCode || ''
+            };
+          }
+        }
+
+        enabledSkills = resolvedSkills;
+        providerDocs = providersSnap.docs || [];
+        knowledge = loadedKnowledge;
+
+        // Process providers from parallel load
+        console.log('[WorkspaceContextLoader] Reading providers from path: ' + providerPath);
         console.log('[WorkspaceContextLoader] Provider docs found:', providerDocs.length);
         providerDocs.forEach((providerDoc) => {
           const data = providerDoc.data();
@@ -148,11 +142,18 @@ export class WorkspaceContextLoader {
         } else {
           console.warn('[WorkspaceContextLoader] No provider with apiKey found in Firestore.');
         }
+
       } catch (e) {
-        console.error('[WorkspaceContextLoader] Firestore read FAILED (check security rules):', e);
+        console.error('[WorkspaceContextLoader] Firestore parallel read FAILED:', e);
       }
     } else {
       console.error('[WorkspaceContextLoader] db is null — Firebase not initialized on server.');
+    }
+
+    // Use the client-supplied API key directly when available if it wasn't resolved
+    if (clientApiKey && requestedProviderName && !provider.apiKey) {
+      console.log('[WorkspaceContextLoader] Using client-supplied apiKey for:', requestedProviderName);
+      provider.apiKey = clientApiKey;
     }
 
     // 3. Environment variable fallback
@@ -179,9 +180,7 @@ export class WorkspaceContextLoader {
       else if (provider.name === 'mistral') provider.model = 'mistral-large-latest';
     }
 
-    // 4. Load dynamic context from Knowledge Base
-    const knowledge = await KnowledgeService.getFormattedKnowledge(workspaceId);
-    console.log('[WorkspaceContextLoader] Knowledge loaded from KnowledgeService.getFormattedKnowledge()', {
+    console.log('[WorkspaceContextLoader] Knowledge loaded statically', {
       workspaceId,
       knowledgeLength: knowledge.length,
       knowledge,

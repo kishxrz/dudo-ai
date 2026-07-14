@@ -157,4 +157,61 @@ export class KnowledgeService {
 
     return formattedKnowledge;
   }
+
+  static async getStaticKnowledge(workspaceId: string): Promise<string> {
+    if (!workspaceId) return '';
+    const adminDb = getAdminDb();
+    const sections: string[] = [];
+
+    try {
+      const businessProfilePath = `workspaces/${workspaceId}/knowledge/business-profile`;
+      const legacyPath = `workspaces/${workspaceId}/knowledge/knowledge-base`;
+
+      const [bizSnap, legacySnap] = await Promise.all([
+        adminDb ? adminDb.doc(businessProfilePath).get() : (db ? getDoc(doc(db, 'workspaces', workspaceId, 'knowledge', 'business-profile')) : null),
+        adminDb ? adminDb.doc(legacyPath).get() : (db ? getDoc(doc(db, 'workspaces', workspaceId, 'knowledge', 'knowledge-base')) : null)
+      ]);
+
+      if (bizSnap) {
+        const businessExists = typeof bizSnap.exists === 'function' ? bizSnap.exists() : bizSnap.exists;
+        if (businessExists) {
+          const d = bizSnap.data();
+          if (d) {
+            const bizLines: string[] = [];
+            if (d.businessName?.trim()) bizLines.push(`Business Name: ${d.businessName.trim()}`);
+            if (d.description?.trim()) bizLines.push(`Business Description: ${d.description.trim()}`);
+            if (d.industry?.trim()) bizLines.push(`Industry: ${d.industry.trim()}`);
+            if (d.productsServices?.trim()) bizLines.push(`Products / Services: ${d.productsServices.trim()}`);
+            if (d.supportPhone?.trim()) bizLines.push(`Support Phone: ${d.supportPhone.trim()}`);
+            if (d.supportEmail?.trim()) bizLines.push(`Support Email: ${d.supportEmail.trim()}`);
+            if (d.website?.trim()) bizLines.push(`Website: ${d.website.trim()}`);
+            if (bizLines.length > 0) {
+              sections.push(`=== BUSINESS PROFILE ===\n${bizLines.join('\n')}`);
+            }
+          }
+        }
+      }
+
+      if (legacySnap) {
+        const legacyExists = typeof legacySnap.exists === 'function' ? legacySnap.exists() : legacySnap.exists;
+        if (legacyExists) {
+          const d = legacySnap.data();
+          if (d) {
+            const texts: string[] = [];
+            if (d.businessDetails?.trim())   texts.push(`[Business Details]\n${d.businessDetails.trim()}`);
+            if (d.productsServices?.trim())  texts.push(`[Products & Services]\n${d.productsServices.trim()}`);
+            if (d.commonQuestions?.trim())   texts.push(`[Common Questions]\n${d.commonQuestions.trim()}`);
+            if (d.policies?.trim())          texts.push(`[Policies]\n${d.policies.trim()}`);
+            if (texts.length > 0) {
+              sections.push(`=== TEXT KNOWLEDGE ===\n${texts.join('\n\n')}`);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('KnowledgeService: failed to load static knowledge:', e);
+    }
+
+    return sections.join('\n\n').trim();
+  }
 }

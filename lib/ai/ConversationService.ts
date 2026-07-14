@@ -63,12 +63,17 @@ export class ConversationService {
 
         // Retrieve relevant RAG vector chunks dynamically using semantic search
         try {
+          const startRAG = Date.now();
           const retrievedChunks = await KnowledgeRetrievalService.retrieve(
             context.workspaceId,
             message,
             4,
-            0.45
+            0.45,
+            context.provider
           );
+          const durationRAG = Date.now() - startRAG;
+          console.log(`[Timer] Knowledge retrieval (RAG) took ${durationRAG}ms`);
+          
           const ragContext = RAGContextBuilder.buildUntrustedRAGContext(retrievedChunks);
           if (ragContext) {
             knowledgeForPrompt = knowledgeForPrompt 
@@ -84,7 +89,6 @@ export class ConversationService {
         workspaceId: context.workspaceId,
         knowledgeEnabled: options.knowledgeEnabled !== false,
         knowledgeLength: knowledgeForPrompt.length,
-        knowledge: knowledgeForPrompt,
       });
 
       // 1. Select relevant active skills using SkillService.routeRelevantSkills
@@ -149,16 +153,17 @@ Ensure your response contains nothing else when executing a tool. Once the tool 
         temperature: temp,
       };
 
-      console.log('[ConversationService] Final prompt sent to the LLM', {
+      console.log('[ConversationService] Final prompt config', {
         workspaceId: context.workspaceId,
         provider: providerName,
         model,
-        systemPrompt,
-        messages: requestMessages,
       });
 
       // Execute via ProviderRegistry
+      const startLLM = Date.now();
       let response = await ProviderRegistry.generate(providerName, apiKey, request);
+      const durationLLM = Date.now() - startLLM;
+      console.log(`[Timer] LLM response generation took ${durationLLM}ms`);
 
       let toolsExecuted: string[] = [];
       let executionErrors: string[] = [];

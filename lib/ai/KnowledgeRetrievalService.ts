@@ -11,7 +11,8 @@ export class KnowledgeRetrievalService {
     workspaceId: string,
     queryText: string,
     topK = 4,
-    threshold = 0.45
+    threshold = 0.45,
+    providerInfo?: { name: string; apiKey: string; model: string }
   ): Promise<VectorItem[]> {
     if (!queryText || queryText.trim() === '') return [];
 
@@ -22,12 +23,15 @@ export class KnowledgeRetrievalService {
         .toLowerCase()
         .replace(/\s+/g, ' ');
 
-      // Load active workspace credentials
-      const context = await WorkspaceContextLoader.load(workspaceId);
-      const providerInfo = context.provider;
+      // Load active workspace credentials only if providerInfo not passed
+      let activeProvider = providerInfo;
+      if (!activeProvider) {
+        const context = await WorkspaceContextLoader.load(workspaceId);
+        activeProvider = context.provider;
+      }
 
       // Generate embedding vector
-      const queryEmbedding = await EmbeddingService.getEmbedding(normalizedQuery, providerInfo);
+      const queryEmbedding = await EmbeddingService.getEmbedding(normalizedQuery, activeProvider);
 
       // Search tenant's vector store
       const results = await VectorStore.query(workspaceId, queryEmbedding, topK, threshold);
