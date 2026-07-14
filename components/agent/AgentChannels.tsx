@@ -43,15 +43,16 @@ export default function AgentChannels() {
   const [errorMessage, setErrorMessage] = useState('');
 
   // WhatsApp states
-  const [waStatus, setWaStatus] = useState<'disconnected' | 'qr_ready' | 'connected'>('disconnected');
+  const [waStatus, setWaStatus] = useState<'disconnected' | 'qr_ready' | 'connected' | 'connecting'>('disconnected');
   const [waQrCode, setWaQrCode] = useState<string | null>(null);
   const [waConnecting, setWaConnecting] = useState(false);
   const [waError, setWaError] = useState('');
-  const [qrLoading, setQrLoading] = useState(true);
+  const [qrLoading, setQrLoading] = useState(false);
   const [connectStartTime, setConnectStartTime] = useState<number | null>(null);
   const [qrTimeout, setQrTimeout] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const lastQrRef = useRef<string | null>(null);
+  const connectInFlightRef = useRef(false);
 
   useEffect(() => {
     async function checkPlan() {
@@ -104,72 +105,111 @@ export default function AgentChannels() {
   }, [workspaceId]);
 
   useEffect(() => {
+    if (!workspaceId) return;
+
+    const controller = new AbortController();
+    let isMounted = true;
+    let timerId: NodeJS.Timeout | null = null;
+
     const checkStatusAndQr = async () => {
-      if (!workspaceId) return;
       try {
         const headers: Record<string, string> = {};
         if (user) {
           const idToken = await user.getIdToken();
           headers['Authorization'] = `Bearer ${idToken}`;
         }
-        const res = await fetch(`/api/whatsapp/status?workspaceId=${workspaceId}`, { headers });
-        let currentStatus: string = 'disconnected';
-        if (res.ok) {
-          const data = await res.json();
-          setWaStatus(data.status);
-          currentStatus = data.status;
-          if (data.status === 'connected') {
-            if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
-              URL.revokeObjectURL(lastQrRef.current);
-            }
-            lastQrRef.current = null;
-            setWaQrCode(null);
-            setQrLoading(false);
-            setQrTimeout(false);
-            setConnectStartTime(null);
-            return;
-          }
+        const res = await fetch(`/api/whatsapp/status?workspaceId=${workspaceId}`, {
+          headers,
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error(`Failed to check WhatsApp status: ${res.status}`);
+        }
+        const data = await res.json();
+        if (!isMounted) return;
 
-          // If server indicates QR is ready, set image src to the QR route (binary PNG)
-          if (data.status === 'qr_ready') {
-            try {
-              const qrRes = await fetch(`/api/whatsapp/qr?workspaceId=${workspaceId}&ts=${Date.now()}`, { headers });
-              if (qrRes.ok && qrRes.status !== 204) {
-                const blob = await qrRes.blob();
+        const currentStatus = data.status || 'disconnected';
+        setWaStatus(currentStatus);
+
+        if (currentStatus === 'connected') {
+          if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
+            URL.revokeObjectURL(lastQrRef.current);
+          }
+          lastQrRef.current = null;
+          setWaQrCode(null);
+          setQrLoading(false);
+          setQrTimeout(false);
+          setConnectStartTime(null);
+          setWaConnecting(false);
+          return;
+        }
+
+        if (currentStatus === 'qr_ready') {
+          try {
+            const qrRes = await fetch(`/api/whatsapp/qr?workspaceId=${workspaceId}&ts=${Date.now()}`, {
+              headers,
+              signal: controller.signal
+            });
+            if (qrRes.ok && qrRes.status !== 204) {
+              const blob = await qrRes.blob();
+              if (isMounted) {
                 const objectUrl = URL.createObjectURL(blob);
                 if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
                   URL.revokeObjectURL(lastQrRef.current);
                 }
                 lastQrRef.current = objectUrl;
                 setWaQrCode(objectUrl);
+                setQrLoading(false);
+                setQrTimeout(false);
               }
-            } catch (err) {
-              console.error('Failed to fetch secure QR image:', err);
             }
-            setWaStatus('qr_ready');
+          } catch (err) {
+            console.error('Failed to fetch secure QR image:', err);
+          }
+        } else if (currentStatus === 'connecting') {
+          setQrLoading(true);
+        } else {
+          if (!connectStartTime) {
             setQrLoading(false);
-            setQrTimeout(false);
-            setConnectStartTime(null);
-          } else {
-            if (currentStatus === 'disconnected' && !connectStartTime) {
-              setQrLoading(false);
-            }
           }
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
         console.error('Error polling WhatsApp status/QR:', e);
-        if (!connectStartTime) {
+        if (isMounted) {
+          setWaError(e.message || 'Status check failed');
           setQrLoading(false);
+          setWaConnecting(false);
         }
       }
     };
 
+    if (connectStartTime) {
+      const elapsed = Date.now() - connectStartTime;
+      if (elapsed > 60000) {
+        setQrTimeout(true);
+        setQrLoading(false);
+        setWaConnecting(false);
+        setConnectStartTime(null);
+        setWaStatus('disconnected');
+        return;
+      }
+    }
+
     checkStatusAndQr();
-    const intervalTime = (waStatus === 'qr_ready' || connectStartTime) ? 3000 : 15000;
-    const checkInterval = setInterval(checkStatusAndQr, intervalTime);
+    const intervalTime = (waStatus === 'qr_ready' || waStatus === 'connecting' || connectStartTime) ? 2000 : 15000;
+    timerId = setInterval(() => {
+      if (isMounted) {
+        checkStatusAndQr();
+      }
+    }, intervalTime);
 
     return () => {
-      clearInterval(checkInterval);
+      isMounted = false;
+      controller.abort();
+      if (timerId) {
+        clearInterval(timerId);
+      }
     };
   }, [connectStartTime, waStatus, workspaceId, user]);
 
@@ -279,6 +319,9 @@ export default function AgentChannels() {
   // WhatsApp Connect
   const handleConnectWhatsApp = async () => {
     if (!workspaceId) return;
+    if (connectInFlightRef.current || waConnecting) return;
+
+    connectInFlightRef.current = true;
     setWaConnecting(true);
     setWaError('');
     setQrLoading(true);
@@ -308,10 +351,8 @@ export default function AgentChannels() {
           setWaStatus('qr_ready');
           setQrLoading(false);
           setConnectStartTime(null);
-        } else if (data.status === 'initializing') {
-          console.log('WhatsApp client is initializing, waiting for QR code generation...');
         } else {
-          console.log('No QR code returned.');
+          setWaStatus('connecting');
         }
       } else {
         const errText = await res.text();
@@ -326,6 +367,7 @@ export default function AgentChannels() {
       setConnectStartTime(null);
     } finally {
       setWaConnecting(false);
+      connectInFlightRef.current = false;
     }
   };
 
@@ -354,6 +396,9 @@ export default function AgentChannels() {
         setWaStatus('disconnected');
         lastQrRef.current = null;
         setWaQrCode(null);
+        setQrLoading(false);
+        setQrTimeout(false);
+        setConnectStartTime(null);
       } else {
         const errText = await res.text();
         setWaError(errText || 'Failed to disconnect WhatsApp.');
@@ -533,11 +578,7 @@ export default function AgentChannels() {
                         <img
                           key={waQrCode}
                           src={waQrCode}
-                          onLoad={() => setImgLoaded(true)}
-                          className={cn(
-                            "w-40 h-40 border border-zinc-200 rounded p-1 bg-white transition-opacity duration-500 ease-in-out",
-                            imgLoaded ? "opacity-100" : "opacity-0"
-                          )}
+                          className="w-40 h-40 border border-zinc-200 rounded p-1 bg-white"
                           alt="WhatsApp QR Code"
                         />
                       </div>
