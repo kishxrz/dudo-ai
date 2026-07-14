@@ -291,7 +291,12 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
 
   const clientId = `whatsapp-${workspaceId}`;
   
-  const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
+  const puppeteerArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-blink-features=AutomationControlled'
+  ];
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     console.log(`[Puppeteer] Using executable path: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
   }
@@ -305,7 +310,8 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: puppeteerArgs
-    }
+    },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
   });
 
   const state: ClientState = {
@@ -313,7 +319,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     qr: null,
     status: 'disconnected',
     error: null,
-    startupTime: Math.floor(Date.now() / 1000),
+    startupTime: Math.floor(Date.now() / 1000) - 60, // 60s clock skew buffer
     inFlightMessages: new Set<string>(),
     instanceId
   };
