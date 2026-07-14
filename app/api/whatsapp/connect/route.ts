@@ -1,21 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initClient, getQR } from '@/lib/whatsapp-client';
-import QRCode from 'qrcode';
+import { getAuth } from 'firebase-admin/auth';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { canUseFeature } from '@/lib/billing-entitlements-server';
 
 export const runtime = 'nodejs';
 
+async function authorizeOwner(req: NextRequest, workspaceId: string): Promise<boolean> {
+  const adminDb = getAdminDb();
+  if (!adminDb) return true; // mock mode bypass in local dev
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
+  const token = authHeader.substring(7);
+  try {
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken.uid === workspaceId;
+  } catch (e) {
+    console.error('[Auth Error] verifyIdToken failed for connect proxy:', e);
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { workspaceId } = await req.json();
+    const body = await req.json();
+    const { workspaceId } = body;
     if (!workspaceId) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
 
-    if (process.env.VERCEL) {
-      return NextResponse.json({ 
-        error: "Vercel Deployment: WhatsApp Web client (whatsapp-web.js) requires a persistent server to run Puppeteer/Chromium, and cannot run inside Vercel's Serverless Functions. Please host Dudo on a VM/container, or use Telegram which is fully supported." 
-      }, { status: 400 });
+    const isAuthorized = await authorizeOwner(req, workspaceId);
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const allowed = await canUseFeature(workspaceId, 'channels.whatsapp');
@@ -23,24 +38,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Upgrade required: WhatsApp channel is not supported on your current plan.' }, { status: 403 });
     }
 
-    // Call initClient to start connection asynchronously
-    initClient(workspaceId).catch((err) => {
-      console.error('Async initClient error:', err);
-    });
-
-    // Wait 5 seconds for QR code to be generated
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    const qr = getQR();
-    if (!qr) {
-      return NextResponse.json({ status: "initializing" });
+    const serviceUrl = process.env.WHATSAPP_SERVICE_URL;
+    const serviceSecret = process.env.WHATSAPP_SERVICE_SECRET;
+    if (!serviceUrl || !serviceSecret) {
+      return NextResponse.json({ error: 'WhatsApp service is not configured' }, { status: 500 });
     }
 
-    // Convert string QR code to base64 image URL
-    const qrBase64 = await QRCode.toDataURL(qr);
-    return NextResponse.json({ qr: qrBase64 });
+    const response = await fetch(`${serviceUrl}/v1/workspaces/${workspaceId}/connect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceSecret}`
+      }
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return NextResponse.json({ error: errText || 'Failed to connect WhatsApp' }, { status: response.status });
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (err: any) {
-    console.error('Error in WhatsApp connect route:', err);
+    console.error('Error in WhatsApp connect proxy route:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

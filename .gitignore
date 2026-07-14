@@ -56,3 +56,7 @@ scratch*
 service-account*.json
 credentials*.json
 firebase-key*.json
+
+# WhatsApp microservice build / dependencies
+services/whatsapp-service/node_modules/
+services/whatsapp-service/dist/

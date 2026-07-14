@@ -105,14 +105,23 @@ export default function AgentChannels() {
 
   useEffect(() => {
     const checkStatusAndQr = async () => {
+      if (!workspaceId) return;
       try {
-        const res = await fetch('/api/whatsapp/status');
+        const headers: Record<string, string> = {};
+        if (user) {
+          const idToken = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
+        const res = await fetch(`/api/whatsapp/status?workspaceId=${workspaceId}`, { headers });
         let currentStatus: string = 'disconnected';
         if (res.ok) {
           const data = await res.json();
           setWaStatus(data.status);
           currentStatus = data.status;
           if (data.status === 'connected') {
+            if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
+              URL.revokeObjectURL(lastQrRef.current);
+            }
             lastQrRef.current = null;
             setWaQrCode(null);
             setQrLoading(false);
@@ -123,10 +132,19 @@ export default function AgentChannels() {
 
           // If server indicates QR is ready, set image src to the QR route (binary PNG)
           if (data.status === 'qr_ready') {
-            const qrUrl = `/api/whatsapp/qr?ts=${Date.now()}`;
-            if (lastQrRef.current !== qrUrl) {
-              lastQrRef.current = qrUrl;
-              setWaQrCode(qrUrl);
+            try {
+              const qrRes = await fetch(`/api/whatsapp/qr?workspaceId=${workspaceId}&ts=${Date.now()}`, { headers });
+              if (qrRes.ok && qrRes.status !== 204) {
+                const blob = await qrRes.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
+                  URL.revokeObjectURL(lastQrRef.current);
+                }
+                lastQrRef.current = objectUrl;
+                setWaQrCode(objectUrl);
+              }
+            } catch (err) {
+              console.error('Failed to fetch secure QR image:', err);
             }
             setWaStatus('qr_ready');
             setQrLoading(false);
@@ -147,12 +165,13 @@ export default function AgentChannels() {
     };
 
     checkStatusAndQr();
-    const checkInterval = setInterval(checkStatusAndQr, 10000);
+    const intervalTime = (waStatus === 'qr_ready' || connectStartTime) ? 3000 : 15000;
+    const checkInterval = setInterval(checkStatusAndQr, intervalTime);
 
     return () => {
       clearInterval(checkInterval);
     };
-  }, [connectStartTime]);
+  }, [connectStartTime, waStatus, workspaceId, user]);
 
   // Reset imgLoaded when QR code changes, and set a fallback timeout to force show the image
   useEffect(() => {
@@ -259,22 +278,31 @@ export default function AgentChannels() {
 
   // WhatsApp Connect
   const handleConnectWhatsApp = async () => {
+    if (!workspaceId) return;
     setWaConnecting(true);
     setWaError('');
     setQrLoading(true);
     setQrTimeout(false);
     setConnectStartTime(Date.now());
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (user) {
+        const idToken = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
       const res = await fetch('/api/whatsapp/connect', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ workspaceId }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.qr) {
+          if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
+            URL.revokeObjectURL(lastQrRef.current);
+          }
           lastQrRef.current = data.qr;
           setWaQrCode(data.qr);
           setWaStatus('qr_ready');
@@ -303,13 +331,26 @@ export default function AgentChannels() {
 
   // WhatsApp Disconnect
   const handleDisconnectWhatsApp = async () => {
+    if (!workspaceId) return;
     setWaConnecting(true);
     setWaError('');
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (user) {
+        const idToken = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
       const res = await fetch('/api/whatsapp/disconnect', {
         method: 'POST',
+        headers,
+        body: JSON.stringify({ workspaceId }),
       });
       if (res.ok) {
+        if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
+          URL.revokeObjectURL(lastQrRef.current);
+        }
         setWaStatus('disconnected');
         lastQrRef.current = null;
         setWaQrCode(null);
