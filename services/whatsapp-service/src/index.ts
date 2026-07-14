@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import QRCode from 'qrcode';
+import { getAdminDb, getAuth } from './firebase-admin';
+import { canUseWhatsapp } from './billing';
 
 dotenv.config();
 
@@ -27,19 +29,70 @@ interface ClientState {
 
 const registry = new Map<string, ClientState>();
 
-// Secure endpoint middleware
-function authenticate(req: Request, res: Response, next: NextFunction) {
+// Secure endpoint middleware validating BOTH internal secret and Firebase token
+async function authenticate(req: Request, res: Response, next: NextFunction) {
+  // 1. Service-to-service internal secret check
+  const internalSecret = req.headers['x-whatsapp-internal-secret'] || req.headers['x-internal-secret'];
+  if (!internalSecret || (internalSecret !== WHATSAPP_INTERNAL_SECRET && internalSecret !== WHATSAPP_SERVICE_SECRET)) {
+    res.status(401).json({ error: 'Unauthorized: Invalid or missing internal service secret' });
+    return;
+  }
+
+  // 2. User Firebase ID token check
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).send('Unauthorized: Missing bearer token');
+    res.status(401).json({ error: 'Unauthorized: Missing bearer token' });
     return;
   }
   const token = authHeader.substring(7);
-  if (token !== WHATSAPP_SERVICE_SECRET || !WHATSAPP_SERVICE_SECRET) {
-    res.status(401).send('Unauthorized: Invalid secret key');
+
+  try {
+    const auth = getAuth();
+    const decodedToken = await auth.verifyIdToken(token);
+    (req as any).user = decodedToken;
+    next();
+  } catch (err: any) {
+    console.error('[Auth Error] verifyIdToken failed in Railway service:', err.message || err);
+    res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID token' });
+  }
+}
+
+// Workspace ownership validation middleware
+async function authorizeWorkspace(req: Request, res: Response, next: NextFunction) {
+  const { workspaceId } = req.params;
+  if (!workspaceId) {
+    res.status(400).json({ error: 'Missing workspaceId' });
     return;
   }
-  next();
+
+  const adminDb = getAdminDb();
+  if (!adminDb) {
+    // Mock/dev bypass
+    console.log('[Auth] Mock mode database bypass in workspace authorization');
+    return next();
+  }
+
+  const user = (req as any).user;
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized: Authenticated user details missing' });
+    return;
+  }
+
+  const uid = user.uid;
+  if (uid === workspaceId) {
+    return next();
+  }
+
+  try {
+    const wsSnap = await adminDb.doc(`workspaces/${workspaceId}`).get();
+    if (wsSnap.exists && wsSnap.data()?.ownerId === uid) {
+      return next();
+    }
+    res.status(403).json({ error: 'Forbidden: User does not own this workspace' });
+  } catch (err: any) {
+    console.error('[Auth Error] Workspace ownership check failed:', err);
+    res.status(500).json({ error: 'Internal database verification error' });
+  }
 }
 
 // Ensure sessions directory exists
@@ -49,6 +102,7 @@ if (!fs.existsSync(WHATSAPP_SESSION_PATH)) {
 
 const MANIFEST_PATH = path.join(WHATSAPP_SESSION_PATH, 'workspaces-manifest.json');
 
+// Read manifest helper
 function readManifest(): string[] {
   try {
     if (fs.existsSync(MANIFEST_PATH)) {
@@ -64,6 +118,7 @@ function readManifest(): string[] {
   return [];
 }
 
+// Add workspace to manifest helper
 function addToManifest(workspaceId: string) {
   try {
     const list = readManifest();
@@ -77,6 +132,7 @@ function addToManifest(workspaceId: string) {
   }
 }
 
+// Remove workspace from manifest helper
 function removeFromManifest(workspaceId: string) {
   try {
     const list = readManifest();
@@ -88,8 +144,7 @@ function removeFromManifest(workspaceId: string) {
   }
 }
 
-// ─── UTILITIES & HELPER FUNCTIONS ──────────────────────────────────────
-
+// Call Dudo Next.js webhook with retry
 async function callDudoWebhookWithRetry(
   workspaceId: string,
   payload: any,
@@ -272,9 +327,16 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // Connect Workspace WhatsApp Client
-app.post('/v1/workspaces/:workspaceId/connect', authenticate, async (req: Request, res: Response) => {
+app.post('/v1/workspaces/:workspaceId/connect', authenticate, authorizeWorkspace, async (req: Request, res: Response) => {
   const { workspaceId } = req.params;
   
+  // Enforce plan/entitlement checks
+  const allowed = await canUseWhatsapp(workspaceId);
+  if (!allowed) {
+    res.status(403).json({ error: 'Upgrade required: WhatsApp channel is not supported on your current plan.' });
+    return;
+  }
+
   const existing = registry.get(workspaceId);
   if (existing) {
     if (existing.status === 'connected') {
@@ -319,7 +381,7 @@ app.post('/v1/workspaces/:workspaceId/connect', authenticate, async (req: Reques
 });
 
 // Get status
-app.get('/v1/workspaces/:workspaceId/status', authenticate, (req: Request, res: Response) => {
+app.get('/v1/workspaces/:workspaceId/status', authenticate, authorizeWorkspace, (req: Request, res: Response) => {
   const { workspaceId } = req.params;
   const state = registry.get(workspaceId);
   if (!state) {
@@ -330,7 +392,7 @@ app.get('/v1/workspaces/:workspaceId/status', authenticate, (req: Request, res: 
 });
 
 // Get QR binary PNG
-app.get('/v1/workspaces/:workspaceId/qr', authenticate, async (req: Request, res: Response) => {
+app.get('/v1/workspaces/:workspaceId/qr', authenticate, authorizeWorkspace, async (req: Request, res: Response) => {
   const { workspaceId } = req.params;
   const state = registry.get(workspaceId);
   if (!state || !state.qr) {
@@ -350,7 +412,7 @@ app.get('/v1/workspaces/:workspaceId/qr', authenticate, async (req: Request, res
 });
 
 // Disconnect Workspace Client
-app.post('/v1/workspaces/:workspaceId/disconnect', authenticate, async (req: Request, res: Response) => {
+app.post('/v1/workspaces/:workspaceId/disconnect', authenticate, authorizeWorkspace, async (req: Request, res: Response) => {
   const { workspaceId } = req.params;
   const state = registry.get(workspaceId);
   
@@ -395,7 +457,7 @@ function restoreSessions() {
 }
 
 // Start Server
-app.listen(PORT, () => {
+export const server = app.listen(PORT, () => {
   console.log(`==================================================`);
   console.log(`Dudo WhatsApp Microservice running on port ${PORT}`);
   console.log(`Session path: ${WHATSAPP_SESSION_PATH}`);
