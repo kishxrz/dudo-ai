@@ -350,12 +350,111 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     console.log(`[Event] QR Code generated for workspace: ${workspaceId}`);
   });
 
-  client.on('ready', () => {
+  client.on('ready', async () => {
     state.status = 'connected';
     state.qr = null;
     state.error = null;
     console.log(`[WA_TRACE] ready workspaceId=${workspaceId} instanceId=${instanceId}`);
     logDiagnostics('ready_details').catch(() => {});
+
+    // Perform page diagnostics and hook observers
+    const page = client.pupPage;
+    if (page) {
+      console.log(`[WA_PAGE_TRACE] page_url workspaceId=${workspaceId} url=${page.url()}`);
+      console.log(`[WA_PAGE_TRACE] browser_connected workspaceId=${workspaceId} connected=${client.pupBrowser?.isConnected()}`);
+      console.log(`[WA_PAGE_TRACE] main_frame_url workspaceId=${workspaceId} url=${page.mainFrame().url()}`);
+      
+      console.log(`[WA_PAGE_TRACE] node_version workspaceId=${workspaceId} version=${process.version}`);
+      try {
+        const wwebjsPkg = require('whatsapp-web.js/package.json');
+        console.log(`[WA_PAGE_TRACE] wwebjs_version workspaceId=${workspaceId} version=${wwebjsPkg.version}`);
+      } catch {}
+      try {
+        const puppeteerPkg = require('puppeteer/package.json');
+        console.log(`[WA_PAGE_TRACE] puppeteer_version workspaceId=${workspaceId} version=${puppeteerPkg.version}`);
+      } catch {}
+      
+      if (client.pupBrowser) {
+        try {
+          const version = await client.pupBrowser.version();
+          console.log(`[WA_PAGE_TRACE] chromium_version workspaceId=${workspaceId} version=${version}`);
+        } catch {}
+        
+        client.pupBrowser.on('disconnected', () => {
+          console.log(`[WA_PAGE_TRACE] browser_disconnected workspaceId=${workspaceId}`);
+        });
+      }
+
+      try {
+        const waVersion = await page.evaluate(() => {
+          return (window as any).Debug?.VERSION || (window as any).mR?.sections?.VERSION || 'unknown';
+        });
+        console.log(`[WA_PAGE_TRACE] whatsapp_web_version workspaceId=${workspaceId} version=${waVersion}`);
+      } catch {}
+
+      // Track console/errors
+      page.on('console', (msg) => {
+        const text = msg.text();
+        if (text.includes('[WA_OBSERVER_MSG]')) {
+          console.log(`[WA_PAGE_TRACE] observer_msg workspaceId=${workspaceId} info=${text}`);
+        } else if (msg.type() === 'error') {
+          console.log(`[WA_PAGE_TRACE] page_console_error workspaceId=${workspaceId} text="${text}"`);
+        }
+      });
+
+      page.on('error', (err: any) => {
+        console.log(`[WA_PAGE_TRACE] page_error workspaceId=${workspaceId} error="${err?.message || err}"`);
+      });
+      page.on('pageerror', (err: any) => {
+        console.log(`[WA_PAGE_TRACE] page_error workspaceId=${workspaceId} pageerror="${err?.message || err}"`);
+      });
+      page.on('close', () => {
+        console.log(`[WA_PAGE_TRACE] page_closed workspaceId=${workspaceId}`);
+      });
+      page.on('framenavigated', (frame) => {
+        console.log(`[WA_PAGE_TRACE] frame_navigated workspaceId=${workspaceId} url=${frame.url()}`);
+      });
+
+      // Msg store checking and observer injection
+      try {
+        const storeDiagnostics = await page.evaluate(() => {
+          const storeAvailable = typeof (window as any).Store !== 'undefined';
+          const msgAvailable = storeAvailable && typeof (window as any).Store.Msg !== 'undefined';
+          const msgCount = msgAvailable ? (window as any).Store.Msg.length : -1;
+          const exposedCallbacks = [
+            'onAddMessageEvent',
+            'onAddMessageCiphertextEvent',
+            'onChangeMessageTypeEvent'
+          ].reduce((acc, name) => {
+            acc[name] = typeof (window as any)[name] === 'function';
+            return acc;
+          }, {} as Record<string, boolean>);
+
+          return { storeAvailable, msgAvailable, msgCount, exposedCallbacks };
+        });
+        
+        console.log(`[WA_PAGE_TRACE] store_msg_available workspaceId=${workspaceId} storeAvailable=${storeDiagnostics.storeAvailable} msgAvailable=${storeDiagnostics.msgAvailable}`);
+        console.log(`[WA_PAGE_TRACE] store_msg_count workspaceId=${workspaceId} count=${storeDiagnostics.msgCount}`);
+        console.log(`[WA_PAGE_TRACE] exposed_callbacks_available workspaceId=${workspaceId} callbacks=${JSON.stringify(storeDiagnostics.exposedCallbacks)}`);
+        
+        await page.evaluate(() => {
+          if (typeof (window as any).Store !== 'undefined' && typeof (window as any).Store.Msg !== 'undefined') {
+            console.log('[WA_OBSERVER_MSG] Msg collection found, registering observer...');
+            (window as any).Store.Msg.on('add', (msg: any) => {
+              const msgId = msg.id?._serialized || msg.id?.id || 'unknown';
+              const timestamp = msg.t || msg.timestamp || Math.floor(Date.now() / 1000);
+              const bodyLen = msg.body ? msg.body.length : 0;
+              console.log(`[WA_OBSERVER_MSG] observed_new_msg msgId=${msgId} timestamp=${timestamp} bodyLength=${bodyLen}`);
+            });
+            console.log('[WA_OBSERVER_MSG] Msg observer registered successfully.');
+          } else {
+            console.log('[WA_OBSERVER_MSG] Msg collection not available for observer.');
+          }
+        });
+      } catch (err: any) {
+        console.error(`[WA_PAGE_TRACE] failed to evaluate page Msg store diagnostics/observer:`, err);
+      }
+    }
 
     // Start 30-second watchdog
     if (state.watchdogInterval) {
