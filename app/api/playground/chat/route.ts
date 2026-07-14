@@ -80,6 +80,7 @@ function parseLocalKnowledge(val: any): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const startSetup = Date.now();
     const adminDb = getAdminDb();
     const body = await req.json();
     const {
@@ -123,10 +124,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const durationSetup = Date.now() - startSetup;
+    console.log(`[Timer] Playground setup/auth checks took ${durationSetup}ms`);
+
     const startTime = Date.now();
 
     // 1. Load workspace context ONCE — the clientApiKey is injected so no
     //    unauthenticated Firestore re-read is needed anywhere downstream.
+    const startContext = Date.now();
     let context;
     try {
       context = await WorkspaceContextLoader.load(workspaceId, provider, apiKey);
@@ -135,6 +140,8 @@ export async function POST(req: NextRequest) {
       console.error('[Chat Route] WorkspaceContextLoader failed:', e);
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
+    const durationContext = Date.now() - startContext;
+    console.log(`[Timer] Playground WorkspaceContextLoader.load took ${durationContext}ms`);
 
     const activeProvider = provider || context.provider.name;
     const activeModel    = model    || context.provider.model;
@@ -160,6 +167,9 @@ export async function POST(req: NextRequest) {
       context.knowledge = customKnowledgeText;
     }
 
+    // Bound Playground conversation history to the latest 15 messages (between 10 and 20) in chronological order
+    const boundedHistory = (history || []).slice(-15);
+
     const result = await ConversationService.generateReply(
       // Merge the selected provider/model overrides into the context so the
       // service always uses whatever the UI has selected.
@@ -172,7 +182,7 @@ export async function POST(req: NextRequest) {
         },
       },
       message,
-      history,
+      boundedHistory,
       {
         model,
         temperature,
@@ -182,9 +192,9 @@ export async function POST(req: NextRequest) {
       }
     );
 
-
     const endTime = Date.now();
     const latency = endTime - startTime;
+    const llmLatency = result.diagnostics?.llmLatency ?? latency;
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
@@ -197,6 +207,7 @@ export async function POST(req: NextRequest) {
     // 3. Log playground session (capped at 50 entries)
     if (adminDb || db) {
       try {
+        const startPersistence = Date.now();
         const sessionPayload = {
           provider: activeProvider,
           model:    activeModel,
@@ -205,7 +216,7 @@ export async function POST(req: NextRequest) {
           knowledgeEnabled,
           message,
           reply:   result.reply,
-          latency,
+          latency: llmLatency,
           tokenUsage: { inputTokens, outputTokens, totalTokens },
           statusCode: 200,
           createdAt:  new Date(),
@@ -231,6 +242,8 @@ export async function POST(req: NextRequest) {
             }
           }
         }
+        const durationPersistence = Date.now() - startPersistence;
+        console.log(`[Timer] Playground session logging took ${durationPersistence}ms`);
       } catch (logError) {
         console.error('Failed to log playground session to Firestore:', logError);
       }
@@ -238,13 +251,17 @@ export async function POST(req: NextRequest) {
 
     await incrementConversationUsage(workspaceId);
 
+    const durationTotal = Date.now() - startSetup;
+    console.log(`[Timer] Playground total API route duration took ${durationTotal}ms`);
+
     // 4. Return response
     return NextResponse.json({
       reply: result.reply,
       diagnostics: {
         provider:     activeProvider,
         model:        activeModel,
-        latency,
+        latency:      llmLatency,
+        totalLatency: durationTotal,
         inputTokens,
         outputTokens,
         totalTokens,

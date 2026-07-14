@@ -78,9 +78,13 @@ export class WorkspaceContextLoader {
         if (assistantExists) {
           const data = assSnap.data();
           if (data) {
+            const rawName = data.name || assistant.name;
+            const cleanedName = rawName.replace(/dodo/gi, 'Dudo');
+            const rawPrompt = data.systemPrompt || assistant.systemPrompt;
+            const cleanedPrompt = rawPrompt.replace(/dodo/gi, 'Dudo');
             assistant = {
-              name: data.name || assistant.name,
-              systemPrompt: data.systemPrompt || assistant.systemPrompt,
+              name: cleanedName,
+              systemPrompt: cleanedPrompt,
               timezone: data.timezone || assistant.timezone,
               status: data.status || assistant.status,
               whatsappAdmins: data.whatsappAdmins || '',

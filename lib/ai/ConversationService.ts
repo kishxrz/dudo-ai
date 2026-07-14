@@ -266,7 +266,8 @@ Ensure your response contains nothing else when executing a tool. Once the tool 
         skillsSelected: activeSkills.map(s => s.name),
         toolsExposed,
         toolsExecuted,
-        executionErrors
+        executionErrors,
+        llmLatency: durationLLM
       };
 
       return response;

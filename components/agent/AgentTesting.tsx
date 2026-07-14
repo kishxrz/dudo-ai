@@ -26,6 +26,7 @@ interface DiagnosticsData {
   provider: string;
   model: string;
   latency: number;
+  totalLatency?: number;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -595,7 +596,8 @@ export default function AgentTesting() {
               {[
                 { label: 'Provider', value: PROVIDER_LABELS[diagnostics.provider as ApiProvider] || diagnostics.provider },
                 { label: 'Model', value: diagnostics.model, isMono: true },
-                { label: 'Latency', value: `${diagnostics.latency}ms`, isHighlight: true },
+                { label: 'LLM Latency', value: `${diagnostics.latency}ms`, isHighlight: true },
+                ...(diagnostics.totalLatency !== undefined ? [{ label: 'Total Latency', value: `${diagnostics.totalLatency}ms` }] : []),
                 { label: 'Input Tokens', value: diagnostics.inputTokens },
                 { label: 'Output Tokens', value: diagnostics.outputTokens },
                 { label: 'Total Tokens', value: diagnostics.totalTokens },

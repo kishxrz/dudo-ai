@@ -10,5 +10,6 @@ export interface ConversationResponse {
     toolsExposed: string[];
     toolsExecuted: string[];
     executionErrors: string[];
+    llmLatency?: number;
   };
 }
