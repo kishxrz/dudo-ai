@@ -379,7 +379,7 @@ async function runTests() {
     const originalConsoleLog = console.log;
     console.log = (...args: any[]) => {
       const logStr = args.join(' ');
-      if (logStr.includes('[WA_TRACE] message_create')) {
+      if (logStr.includes('event=message_create')) {
         messageCreateLogged = true;
       }
       originalConsoleLog.apply(console, args);

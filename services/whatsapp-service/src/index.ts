@@ -9,6 +9,7 @@ import { canUseWhatsapp } from './billing';
 
 dotenv.config();
 
+let eventSequence = 0;
 const app = express();
 app.use(express.json());
 
@@ -194,11 +195,14 @@ function removeFromManifest(workspaceId: string) {
 // Call Dudo Next.js webhook with retry
 async function callDudoWebhookWithRetry(
   workspaceId: string,
+  instanceId: string,
   payload: any,
   retries = 3,
   delay = 1000
 ): Promise<string | null> {
   const url = `${DUDO_BASE_URL}/api/internal/whatsapp/message`;
+  console.log(`[WA_PIPELINE_TRACE] stage=WEBHOOK_START workspaceId=${workspaceId} instanceId=${instanceId} messageId=${payload.messageId} targetUrl=${url}`);
+  
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`[Webhook] Attempting webhook call to Dudo (Attempt ${attempt}/${retries}) for workspace: ${workspaceId}`);
@@ -218,6 +222,15 @@ async function callDudoWebhookWithRetry(
 
       clearTimeout(timeoutId);
 
+      const contentType = response.headers.get('Content-Type') || 'unknown';
+      let bodyPreview = '';
+      try {
+        const text = await response.clone().text();
+        bodyPreview = text.substring(0, 300);
+      } catch {}
+
+      console.log(`[WA_PIPELINE_TRACE] stage=WEBHOOK_RESPONSE workspaceId=${workspaceId} instanceId=${instanceId} messageId=${payload.messageId} status=${response.status} contentType="${contentType}" bodyPreview="${bodyPreview}"`);
+
       if (response.ok) {
         const data = (await response.json()) as any;
         return data.reply || '';
@@ -230,6 +243,7 @@ async function callDudoWebhookWithRetry(
         break;
       }
     } catch (err: any) {
+      console.log(`[WA_PIPELINE_TRACE] stage=WEBHOOK_ERROR workspaceId=${workspaceId} instanceId=${instanceId} messageId=${payload.messageId} errorName="${err?.name || 'Error'}" errorMessage="${err?.message || String(err)}" errorCause="${err?.cause || 'none'}" errorStack="${err?.stack || 'none'}"`);
       console.error(`[Webhook] Error calling Dudo webhook on attempt ${attempt}:`, err.message || err);
     }
 
@@ -513,48 +527,50 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   console.log(`[WA_TRACE] registering_message_listener workspaceId=${workspaceId} instanceId=${instanceId}`);
 
   client.on('message', async (message) => {
+    const seq = ++eventSequence;
     const messageId = message.id._serialized || message.id.id;
-    console.log(`[WA_TRACE] raw_message_event workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} fromMe=${message.fromMe} type=${message.type}`);
+    let clientState = 'unknown';
+    try {
+      const s = await client.getState();
+      clientState = String(s);
+    } catch (e: any) {
+      clientState = `error_${e.message}`;
+    }
+    
+    console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=EVENT_RECEIVED event=message workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} from=${message.from} to=${message.to} fromMe=${message.fromMe} type=${message.type} timestamp=${message.timestamp} clientState=${clientState}`);
 
     // Basic filter guards
     if (message.fromMe) {
-      console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=fromMe result=REJECT`);
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=fromMe workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       return;
     }
-    console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=fromMe result=PASS`);
-
+    
     if (message.from.includes('@g.us')) {
-      console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=groupChat result=REJECT`);
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=group_message workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       return;
     }
-    console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=groupChat result=PASS`);
 
     if (message.type !== 'chat') {
-      console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=messageType result=REJECT`);
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=unsupported_type workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       return;
     }
-    console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=messageType result=PASS`);
     
     // Ignore historical messages generated before this client started
     if (message.timestamp < state.startupTime) {
-      console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=historical result=REJECT`);
-      console.log(`[Filter] Ignored historical message from ${message.from} timestamp ${message.timestamp} (startupTime: ${state.startupTime})`);
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=historical workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       return;
     }
-    console.log(`[WA_TRACE] filter_check messageId=${messageId} instanceId=${instanceId} filter=historical result=PASS`);
 
     // Deduplication check: check if this message is already in progress locally
     const inFlight = state.inFlightMessages.has(messageId);
-    console.log(`[WA_TRACE] local_dedup_check messageId=${messageId} instanceId=${instanceId} inFlight=${inFlight}`);
     if (inFlight) {
-      console.log(`[Deduplication] Message ${messageId} is already in-flight locally. Ignoring duplicate event.`);
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=duplicate_in_flight workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       return;
     }
 
     let removedFromInFlight = false;
     try {
       state.inFlightMessages.add(messageId);
-      console.log(`[WA_TRACE] webhook_start messageId=${messageId} instanceId=${instanceId}`);
       
       const payload = {
         externalChatId: message.from,
@@ -565,36 +581,41 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       };
 
       // Call Next.js endpoint to process AI reply
-      const reply = await callDudoWebhookWithRetry(workspaceId, payload);
-      console.log(`[WA_TRACE] webhook_result messageId=${messageId} instanceId=${instanceId} status=${reply !== null ? '200_OR_SUCCESS' : 'FAILURE'}`);
-
+      const reply = await callDudoWebhookWithRetry(workspaceId, instanceId, payload);
       const hasReply = reply !== null && reply.trim().length > 0;
-      console.log(`[WA_TRACE] webhook_reply_state messageId=${messageId} instanceId=${instanceId} hasReply=${hasReply}`);
 
       if (hasReply) {
-        console.log(`[WA_TRACE] send_start messageId=${messageId} instanceId=${instanceId}`);
+        console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=SEND_START workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
         await client.sendMessage(message.from, reply!);
-        console.log(`[WA_TRACE] send_success messageId=${messageId} instanceId=${instanceId}`);
+        console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=SEND_SUCCESS workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       } else {
-        console.log(`[Message] No reply generated or empty response for message ${messageId}`);
+        console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=empty_reply_or_no_ai_response workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       }
     } catch (err: any) {
       const errorName = err.name || 'Error';
       const errorMessage = err.message || String(err);
-      console.log(`[WA_TRACE] send_failure messageId=${messageId} instanceId=${instanceId} errorName=${errorName} errorMessage=${errorMessage}`);
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=SEND_ERROR workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} errorName=${errorName} errorMessage=${errorMessage}`);
       console.error(`[Message] Error processing message ${messageId} for workspace ${workspaceId}:`, err.message || err);
     } finally {
       state.inFlightMessages.delete(messageId);
       removedFromInFlight = !state.inFlightMessages.has(messageId);
-      console.log(`[WA_TRACE] finally_cleanup messageId=${messageId} instanceId=${instanceId} removedFromInFlight=${removedFromInFlight}`);
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FINALLY_CLEANUP workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} removedFromInFlight=${removedFromInFlight}`);
     }
   });
 
   // Diagnostic message_create listener
-  client.on('message_create', (message) => {
+  client.on('message_create', async (message) => {
+    const seq = ++eventSequence;
     const messageId = message.id._serialized || message.id.id;
-    const bodyLength = message.body ? message.body.length : 0;
-    console.log(`[WA_TRACE] message_create workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} from=${message.from} to=${message.to} fromMe=${message.fromMe} type=${message.type} bodyLength=${bodyLength}`);
+    let clientState = 'unknown';
+    try {
+      const s = await client.getState();
+      clientState = String(s);
+    } catch (e: any) {
+      clientState = `error_${e.message}`;
+    }
+    
+    console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=EVENT_RECEIVED event=message_create workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} from=${message.from} to=${message.to} fromMe=${message.fromMe} type=${message.type} timestamp=${message.timestamp} clientState=${clientState}`);
   });
 
   const messageListenersCount = client.listenerCount('message');

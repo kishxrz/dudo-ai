@@ -159,26 +159,27 @@ export async function POST(req: NextRequest) {
   const senderId = body?.senderId || 'unknown';
   const messageText = body?.messageText || '';
 
-  console.log(`[WA_WEBHOOK_TRACE] request_received workspaceId=${workspaceId} messageId=${messageId}`);
+  console.log(`[WA_WEBHOOK_TRACE] stage=REQUEST_RECEIVED workspaceId=${workspaceId} messageId=${messageId} externalChatId=${externalChatId}`);
 
   // 1. Authenticate server-to-server webhook request
   const authHeader = req.headers.get('Authorization');
   const secret = process.env.WHATSAPP_INTERNAL_SECRET;
   
   if (!authHeader || !authHeader.startsWith('Bearer ') || !secret) {
-    console.log(`[WA_WEBHOOK_TRACE] auth_result messageId=${messageId} result=REJECT (missing/invalid header)`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=AUTH_RESULT status=REJECT reason="missing/invalid Authorization header or secret" messageId=${messageId}`);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const token = authHeader.substring(7);
   if (token !== secret) {
-    console.log(`[WA_WEBHOOK_TRACE] auth_result messageId=${messageId} result=REJECT (invalid credentials)`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=AUTH_RESULT status=REJECT reason="invalid secret token verification" messageId=${messageId}`);
     return NextResponse.json({ error: 'Unauthorized: Invalid credentials' }, { status: 401 });
   }
 
-  console.log(`[WA_WEBHOOK_TRACE] auth_result messageId=${messageId} result=PASS`);
+  console.log(`[WA_WEBHOOK_TRACE] stage=AUTH_RESULT status=PASS messageId=${messageId}`);
 
   if (!body || !workspaceId || !externalChatId || !messageId || !messageText) {
+    console.log(`[WA_WEBHOOK_TRACE] stage=REQUEST_RECEIVED status=REJECT reason="missing required payload parameters" messageId=${messageId}`);
     return NextResponse.json({ error: 'Missing required payload parameters' }, { status: 400 });
   }
 
@@ -186,13 +187,14 @@ export async function POST(req: NextRequest) {
 
   try {
     // 2. Perform lease-based idempotency checks
+    console.log(`[WA_WEBHOOK_TRACE] stage=WORKSPACE_LOOKUP status=START workspaceId=${workspaceId} messageId=${messageId}`);
     const lease = await acquireLease(workspaceId, messageId);
     if (!lease.success) {
-      console.log(`[WA_WEBHOOK_TRACE] lease_result messageId=${messageId} result=REJECTED`);
+      console.log(`[WA_WEBHOOK_TRACE] stage=WORKSPACE_LOOKUP status=REJECT reason="lease acquisition failed (duplicate message)" messageId=${messageId}`);
       return NextResponse.json({ reply: '' });
     }
     leaseAcquired = true;
-    console.log(`[WA_WEBHOOK_TRACE] lease_result messageId=${messageId} result=ACQUIRED`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=WORKSPACE_LOOKUP status=ACQUIRED messageId=${messageId}`);
 
     // 3. Process administrative commands
     const commandResult = await processAdminCommand(
@@ -204,28 +206,26 @@ export async function POST(req: NextRequest) {
       messageText
     );
     if (commandResult.isCommand) {
-      console.log(`[WA_WEBHOOK_TRACE] conversation_result messageId=${messageId} result=admin_command`);
+      console.log(`[WA_WEBHOOK_TRACE] stage=AGENT_LOOKUP status=SHORT_CIRCUIT reason="admin command processed" messageId=${messageId}`);
       await logConversation(workspaceId, externalChatId, senderId, messageText, commandResult.replyMessage);
       await completeLease(workspaceId, messageId);
-      console.log(`[WA_WEBHOOK_TRACE] lease_complete messageId=${messageId}`);
       leaseAcquired = false;
-      console.log(`[WA_WEBHOOK_TRACE] response_sent messageId=${messageId} hasReply=true`);
+      console.log(`[WA_WEBHOOK_TRACE] stage=HTTP_RESPONSE status=SUCCESS hasReply=true messageId=${messageId}`);
       return NextResponse.json({ reply: commandResult.replyMessage });
     }
 
     // 4. Check human takeover state
     const inTakeover = await isConversationInTakeover(workspaceId, externalChatId);
     if (inTakeover) {
-      console.log(`[WA_WEBHOOK_TRACE] conversation_result messageId=${messageId} result=human_takeover`);
+      console.log(`[WA_WEBHOOK_TRACE] stage=AGENT_LOOKUP status=SHORT_CIRCUIT reason="human takeover active" messageId=${messageId}`);
       await logConversation(workspaceId, externalChatId, senderId, messageText, '[Human Operator Active]');
       await completeLease(workspaceId, messageId);
-      console.log(`[WA_WEBHOOK_TRACE] lease_complete messageId=${messageId}`);
       leaseAcquired = false;
-      console.log(`[WA_WEBHOOK_TRACE] response_sent messageId=${messageId} hasReply=false`);
+      console.log(`[WA_WEBHOOK_TRACE] stage=HTTP_RESPONSE status=SUCCESS hasReply=false messageId=${messageId}`);
       return NextResponse.json({ reply: '' });
     }
 
-    console.log(`[WA_WEBHOOK_TRACE] conversation_result messageId=${messageId} result=ai_conversation`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=AGENT_LOOKUP status=START workspaceId=${workspaceId} messageId=${messageId}`);
 
     // 5. Load workspace contexts and Google status in parallel
     const adminDb = getAdminDb();
@@ -288,6 +288,7 @@ export async function POST(req: NextRequest) {
     })();
 
     const [context, history] = await Promise.all([contextPromise, historyPromise]);
+    console.log(`[WA_WEBHOOK_TRACE] stage=AGENT_LOOKUP status=PASS agentName=${context.assistant?.name || 'unknown'} messageId=${messageId}`);
 
     // 6. Execute skills and intents
     let actionResultContext = '';
@@ -325,7 +326,7 @@ export async function POST(req: NextRequest) {
       systemPromptOverride += actionResultContext;
     }
 
-    console.log(`[WA_WEBHOOK_TRACE] ai_generation_start messageId=${messageId}`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=AI_PROVIDER_START provider=${context.provider?.name || 'unknown'} model=${context.provider?.model || 'unknown'} messageId=${messageId}`);
 
     // 7. Call shared ConversationService
     const result = await ConversationService.generateReply(
@@ -342,23 +343,23 @@ export async function POST(req: NextRequest) {
     );
 
     if (result.error) {
+      console.log(`[WA_WEBHOOK_TRACE] stage=AI_PROVIDER_RESPONSE status=ERROR reason="${result.error}" messageId=${messageId}`);
       throw new Error(result.error);
     }
 
     const reply = result.reply || '';
     const hasReply = reply.trim().length > 0;
-    console.log(`[WA_WEBHOOK_TRACE] ai_generation_result messageId=${messageId} hasReply=${hasReply}`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=AI_PROVIDER_RESPONSE status=PASS replyLength=${reply.length} messageId=${messageId}`);
     
     // 8. Log the dialogue and complete the lease
     await logConversation(workspaceId, externalChatId, senderId, messageText, reply);
     await completeLease(workspaceId, messageId);
-    console.log(`[WA_WEBHOOK_TRACE] lease_complete messageId=${messageId}`);
     leaseAcquired = false;
 
-    console.log(`[WA_WEBHOOK_TRACE] response_sent messageId=${messageId} hasReply=${hasReply}`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=HTTP_RESPONSE status=SUCCESS hasReply=${hasReply} messageId=${messageId}`);
     return NextResponse.json({ reply });
   } catch (err: any) {
-    console.log(`[WA_WEBHOOK_TRACE] processing_error messageId=${messageId} errorName=${err.name || 'Error'} errorMessage=${err.message || String(err)}`);
+    console.log(`[WA_WEBHOOK_TRACE] stage=HTTP_RESPONSE status=ERROR errorName=${err.name || 'Error'} errorMessage=${err.message || String(err)} messageId=${messageId}`);
     if (leaseAcquired && workspaceId && messageId) {
       try {
         await releaseLease(workspaceId, messageId);
