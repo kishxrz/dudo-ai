@@ -47,6 +47,47 @@ if (!fs.existsSync(WHATSAPP_SESSION_PATH)) {
   fs.mkdirSync(WHATSAPP_SESSION_PATH, { recursive: true });
 }
 
+const MANIFEST_PATH = path.join(WHATSAPP_SESSION_PATH, 'workspaces-manifest.json');
+
+function readManifest(): string[] {
+  try {
+    if (fs.existsSync(MANIFEST_PATH)) {
+      const data = fs.readFileSync(MANIFEST_PATH, 'utf8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed?.activeWorkspaces)) {
+        return parsed.activeWorkspaces;
+      }
+    }
+  } catch (err) {
+    console.error('[Manifest] Error reading manifest:', err);
+  }
+  return [];
+}
+
+function addToManifest(workspaceId: string) {
+  try {
+    const list = readManifest();
+    if (!list.includes(workspaceId)) {
+      list.push(workspaceId);
+      fs.writeFileSync(MANIFEST_PATH, JSON.stringify({ activeWorkspaces: list }, null, 2), 'utf8');
+      console.log(`[Manifest] Added workspace ${workspaceId} to manifest.`);
+    }
+  } catch (err) {
+    console.error('[Manifest] Error adding to manifest:', err);
+  }
+}
+
+function removeFromManifest(workspaceId: string) {
+  try {
+    const list = readManifest();
+    const filtered = list.filter(id => id !== workspaceId);
+    fs.writeFileSync(MANIFEST_PATH, JSON.stringify({ activeWorkspaces: filtered }, null, 2), 'utf8');
+    console.log(`[Manifest] Removed workspace ${workspaceId} from manifest.`);
+  } catch (err) {
+    console.error('[Manifest] Error removing from manifest:', err);
+  }
+}
+
 // ─── UTILITIES & HELPER FUNCTIONS ──────────────────────────────────────
 
 async function callDudoWebhookWithRetry(
@@ -105,6 +146,9 @@ async function startClient(workspaceId: string): Promise<void> {
     console.log(`[Registry] Client already exists for workspace: ${workspaceId}`);
     return;
   }
+
+  // Atomically track session connection intent
+  addToManifest(workspaceId);
 
   console.log(`[Registry] Initializing WhatsApp Client for workspace: ${workspaceId}`);
 
@@ -310,49 +354,43 @@ app.post('/v1/workspaces/:workspaceId/disconnect', authenticate, async (req: Req
   const { workspaceId } = req.params;
   const state = registry.get(workspaceId);
   
-  if (!state) {
-    res.json({ success: true, message: 'Already disconnected' });
-    return;
-  }
+  // Remove from manifest
+  removeFromManifest(workspaceId);
 
+  // Delete LocalAuth session directory
+  const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
   try {
-    await state.client.destroy();
+    if (fs.existsSync(sessionDir)) {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+      console.log(`[Disconnect] Deleted session directory for workspace: ${workspaceId}`);
+    }
   } catch (err) {
-    console.error(`[Disconnect] Error destroying client for ${workspaceId}:`, err);
+    console.error(`[Disconnect] Error deleting session directory for ${workspaceId}:`, err);
   }
 
-  registry.delete(workspaceId);
+  if (state) {
+    try {
+      await state.client.destroy();
+    } catch (err) {
+      console.error(`[Disconnect] Error destroying client for ${workspaceId}:`, err);
+    }
+    registry.delete(workspaceId);
+  }
+
   res.json({ success: true });
 });
 
 // ─── SESSION RESTORATION ON STARTUP ────────────────────────────────────
 
 function restoreSessions() {
-  console.log('[Startup] Scanning WHATSAPP_SESSION_PATH for active sessions to restore...');
-  try {
-    const items = fs.readdirSync(WHATSAPP_SESSION_PATH);
-    const sessionPrefix = 'session-whatsapp-';
-    
-    const workspaceIds: string[] = [];
-    for (const item of items) {
-      if (item.startsWith(sessionPrefix)) {
-        const workspaceId = item.substring(sessionPrefix.length);
-        if (workspaceId && fs.statSync(path.join(WHATSAPP_SESSION_PATH, item)).isDirectory()) {
-          workspaceIds.push(workspaceId);
-        }
-      }
-    }
-
-    console.log(`[Startup] Found ${workspaceIds.length} saved sessions to restore:`, workspaceIds);
-
-    for (const workspaceId of workspaceIds) {
-      console.log(`[Startup] Auto-restoring session for workspace: ${workspaceId}`);
-      startClient(workspaceId).catch((err) => {
-        console.error(`[Startup] Failed to restore workspace ${workspaceId}:`, err);
-      });
-    }
-  } catch (err) {
-    console.error('[Startup] Failed to read sessions directory:', err);
+  console.log('[Startup] Restoring sessions from workspaces-manifest.json...');
+  const list = readManifest();
+  console.log(`[Startup] Found ${list.length} sessions to restore:`, list);
+  for (const workspaceId of list) {
+    console.log(`[Startup] Auto-restoring session for workspace: ${workspaceId}`);
+    startClient(workspaceId).catch((err) => {
+      console.error(`[Startup] Failed to restore workspace ${workspaceId}:`, err);
+    });
   }
 }
 

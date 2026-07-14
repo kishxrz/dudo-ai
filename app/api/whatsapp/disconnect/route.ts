@@ -12,7 +12,13 @@ async function authorizeOwner(req: NextRequest, workspaceId: string): Promise<bo
   const token = authHeader.substring(7);
   try {
     const decodedToken = await getAuth().verifyIdToken(token);
-    return decodedToken.uid === workspaceId;
+    const uid = decodedToken.uid;
+    if (uid === workspaceId) return true;
+    const wsSnap = await adminDb.doc(`workspaces/${workspaceId}`).get();
+    if (wsSnap.exists && wsSnap.data()?.ownerId === uid) {
+      return true;
+    }
+    return false;
   } catch (e) {
     console.error('[Auth Error] verifyIdToken failed for disconnect proxy:', e);
     return false;
