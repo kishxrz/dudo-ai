@@ -146,50 +146,53 @@ async function logConversation(workspaceId: string, chatId: string, senderId: st
 }
 
 export async function POST(req: NextRequest) {
+  let body: any;
+  try {
+    body = await req.clone().json();
+  } catch (err: any) {
+    console.error('[WA_WEBHOOK_TRACE] Failed to parse raw body JSON', err);
+  }
+
+  const workspaceId = body?.workspaceId || 'unknown';
+  const messageId = body?.messageId || 'unknown';
+  const externalChatId = body?.externalChatId || 'unknown';
+  const senderId = body?.senderId || 'unknown';
+  const messageText = body?.messageText || '';
+
+  console.log(`[WA_WEBHOOK_TRACE] request_received workspaceId=${workspaceId} messageId=${messageId}`);
+
   // 1. Authenticate server-to-server webhook request
   const authHeader = req.headers.get('Authorization');
   const secret = process.env.WHATSAPP_INTERNAL_SECRET;
   
   if (!authHeader || !authHeader.startsWith('Bearer ') || !secret) {
+    console.log(`[WA_WEBHOOK_TRACE] auth_result messageId=${messageId} result=REJECT (missing/invalid header)`);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const token = authHeader.substring(7);
   if (token !== secret) {
+    console.log(`[WA_WEBHOOK_TRACE] auth_result messageId=${messageId} result=REJECT (invalid credentials)`);
     return NextResponse.json({ error: 'Unauthorized: Invalid credentials' }, { status: 401 });
   }
 
-  let body: any;
-  try {
-    body = await req.json();
-  } catch (err: any) {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  console.log(`[WA_WEBHOOK_TRACE] auth_result messageId=${messageId} result=PASS`);
 
-  const {
-    workspaceId,
-    externalChatId,
-    messageId,
-    senderId,
-    messageText,
-    timestamp
-  } = body;
-
-  if (!workspaceId || !externalChatId || !messageId || !messageText) {
+  if (!body || !workspaceId || !externalChatId || !messageId || !messageText) {
     return NextResponse.json({ error: 'Missing required payload parameters' }, { status: 400 });
   }
 
   let leaseAcquired = false;
 
   try {
-    console.log(`[Diagnostic] Webhook processing messageId: ${messageId} for workspace: ${workspaceId}`);
     // 2. Perform lease-based idempotency checks
     const lease = await acquireLease(workspaceId, messageId);
     if (!lease.success) {
-      console.log(`[WhatsApp Internal Webhook] Message ${messageId} is already being processed or completed. Skipping.`);
+      console.log(`[WA_WEBHOOK_TRACE] lease_result messageId=${messageId} result=REJECTED`);
       return NextResponse.json({ reply: '' });
     }
     leaseAcquired = true;
+    console.log(`[WA_WEBHOOK_TRACE] lease_result messageId=${messageId} result=ACQUIRED`);
 
     // 3. Process administrative commands
     const commandResult = await processAdminCommand(
@@ -201,21 +204,28 @@ export async function POST(req: NextRequest) {
       messageText
     );
     if (commandResult.isCommand) {
+      console.log(`[WA_WEBHOOK_TRACE] conversation_result messageId=${messageId} result=admin_command`);
       await logConversation(workspaceId, externalChatId, senderId, messageText, commandResult.replyMessage);
       await completeLease(workspaceId, messageId);
+      console.log(`[WA_WEBHOOK_TRACE] lease_complete messageId=${messageId}`);
       leaseAcquired = false;
+      console.log(`[WA_WEBHOOK_TRACE] response_sent messageId=${messageId} hasReply=true`);
       return NextResponse.json({ reply: commandResult.replyMessage });
     }
 
     // 4. Check human takeover state
     const inTakeover = await isConversationInTakeover(workspaceId, externalChatId);
     if (inTakeover) {
-      console.log(`[WhatsApp Internal Webhook] Conversation ${externalChatId} is in Takeover. Skipping AI reply.`);
+      console.log(`[WA_WEBHOOK_TRACE] conversation_result messageId=${messageId} result=human_takeover`);
       await logConversation(workspaceId, externalChatId, senderId, messageText, '[Human Operator Active]');
       await completeLease(workspaceId, messageId);
+      console.log(`[WA_WEBHOOK_TRACE] lease_complete messageId=${messageId}`);
       leaseAcquired = false;
+      console.log(`[WA_WEBHOOK_TRACE] response_sent messageId=${messageId} hasReply=false`);
       return NextResponse.json({ reply: '' });
     }
+
+    console.log(`[WA_WEBHOOK_TRACE] conversation_result messageId=${messageId} result=ai_conversation`);
 
     // 5. Load workspace contexts and Google status in parallel
     const adminDb = getAdminDb();
@@ -315,6 +325,8 @@ export async function POST(req: NextRequest) {
       systemPromptOverride += actionResultContext;
     }
 
+    console.log(`[WA_WEBHOOK_TRACE] ai_generation_start messageId=${messageId}`);
+
     // 7. Call shared ConversationService
     const result = await ConversationService.generateReply(
       context,
@@ -334,20 +346,25 @@ export async function POST(req: NextRequest) {
     }
 
     const reply = result.reply || '';
+    const hasReply = reply.trim().length > 0;
+    console.log(`[WA_WEBHOOK_TRACE] ai_generation_result messageId=${messageId} hasReply=${hasReply}`);
     
     // 8. Log the dialogue and complete the lease
     await logConversation(workspaceId, externalChatId, senderId, messageText, reply);
     await completeLease(workspaceId, messageId);
+    console.log(`[WA_WEBHOOK_TRACE] lease_complete messageId=${messageId}`);
     leaseAcquired = false;
 
+    console.log(`[WA_WEBHOOK_TRACE] response_sent messageId=${messageId} hasReply=${hasReply}`);
     return NextResponse.json({ reply });
   } catch (err: any) {
-    console.error('[WhatsApp Internal Webhook] Error handling internal webhook route:', err);
+    console.log(`[WA_WEBHOOK_TRACE] processing_error messageId=${messageId} errorName=${err.name || 'Error'} errorMessage=${err.message || String(err)}`);
     if (leaseAcquired && workspaceId && messageId) {
       try {
         await releaseLease(workspaceId, messageId);
-      } catch (releaseErr) {
-        console.error('[WhatsApp Internal Webhook] Failed to release lease:', releaseErr);
+        console.log(`[WA_WEBHOOK_TRACE] lease_release_result messageId=${messageId} result=RELEASED`);
+      } catch (releaseErr: any) {
+        console.log(`[WA_WEBHOOK_TRACE] lease_release_result messageId=${messageId} result=RELEASE_FAILED error=${releaseErr.message}`);
       }
     }
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });

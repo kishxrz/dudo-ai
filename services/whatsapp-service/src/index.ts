@@ -271,6 +271,8 @@ async function startClient(workspaceId: string): Promise<void> {
     }
   });
 
+  console.log(`[WA_TRACE] client_created workspaceId=${workspaceId}`);
+
   const state: ClientState = {
     client,
     qr: null,
@@ -284,10 +286,15 @@ async function startClient(workspaceId: string): Promise<void> {
 
   // ─── Client Event Handlers ───
 
+  client.on('authenticated', () => {
+    console.log(`[WA_TRACE] authenticated workspaceId=${workspaceId}`);
+  });
+
   client.on('qr', (qrCode) => {
     state.qr = qrCode;
     state.status = 'qr_ready';
     state.error = null;
+    console.log(`[WA_TRACE] qr_ready workspaceId=${workspaceId}`);
     console.log(`[Event] QR Code generated for workspace: ${workspaceId}`);
   });
 
@@ -295,6 +302,7 @@ async function startClient(workspaceId: string): Promise<void> {
     state.status = 'connected';
     state.qr = null;
     state.error = null;
+    console.log(`[WA_TRACE] ready workspaceId=${workspaceId}`);
     console.log(`[Event] WhatsApp client ready for workspace: ${workspaceId}`);
   });
 
@@ -302,6 +310,7 @@ async function startClient(workspaceId: string): Promise<void> {
     state.status = 'disconnected';
     state.qr = null;
     state.error = `Authentication failure: ${msg}`;
+    console.log(`[WA_TRACE] auth_failure workspaceId=${workspaceId} error=${msg}`);
     console.error(`[Event] Auth failure for workspace ${workspaceId}:`, msg);
   });
 
@@ -309,6 +318,7 @@ async function startClient(workspaceId: string): Promise<void> {
     state.status = 'disconnected';
     state.qr = null;
     state.error = `Disconnected: ${reason}`;
+    console.log(`[WA_TRACE] disconnected workspaceId=${workspaceId} reason=${reason}`);
     console.log(`[Event] Client disconnected for workspace: ${workspaceId}, reason: ${reason}`);
     
     // Cleanup registry
@@ -318,29 +328,51 @@ async function startClient(workspaceId: string): Promise<void> {
     registry.delete(workspaceId);
   });
 
+  console.log(`[WA_TRACE] registering_message_listener workspaceId=${workspaceId}`);
+
   client.on('message', async (message) => {
     const messageId = message.id._serialized || message.id.id;
+    console.log(`[WA_TRACE] raw_message_event workspaceId=${workspaceId} messageId=${messageId} fromMe=${message.fromMe} type=${message.type}`);
 
     // Basic filter guards
-    if (message.fromMe) return;
-    if (message.from.includes('@g.us')) return; // ignore group chats
-    if (message.type !== 'chat') return; // ignore media / voice notes for now
+    if (message.fromMe) {
+      console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=fromMe result=REJECT`);
+      return;
+    }
+    console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=fromMe result=PASS`);
+
+    if (message.from.includes('@g.us')) {
+      console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=groupChat result=REJECT`);
+      return;
+    }
+    console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=groupChat result=PASS`);
+
+    if (message.type !== 'chat') {
+      console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=messageType result=REJECT`);
+      return;
+    }
+    console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=messageType result=PASS`);
     
     // Ignore historical messages generated before this client started
     if (message.timestamp < state.startupTime) {
+      console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=historical result=REJECT`);
       console.log(`[Filter] Ignored historical message from ${message.from} timestamp ${message.timestamp} (startupTime: ${state.startupTime})`);
       return;
     }
+    console.log(`[WA_TRACE] filter_check messageId=${messageId} filter=historical result=PASS`);
 
     // Deduplication check: check if this message is already in progress locally
-    if (state.inFlightMessages.has(messageId)) {
+    const inFlight = state.inFlightMessages.has(messageId);
+    console.log(`[WA_TRACE] local_dedup_check messageId=${messageId} inFlight=${inFlight}`);
+    if (inFlight) {
       console.log(`[Deduplication] Message ${messageId} is already in-flight locally. Ignoring duplicate event.`);
       return;
     }
 
+    let removedFromInFlight = false;
     try {
       state.inFlightMessages.add(messageId);
-      console.log(`[Message] Received from ${message.from} in workspace ${workspaceId}: "${message.body}" (messageId: ${messageId})`);
+      console.log(`[WA_TRACE] webhook_start messageId=${messageId}`);
       
       const payload = {
         externalChatId: message.from,
@@ -352,20 +384,32 @@ async function startClient(workspaceId: string): Promise<void> {
 
       // Call Next.js endpoint to process AI reply
       const reply = await callDudoWebhookWithRetry(workspaceId, payload);
-      
-      if (reply && reply.trim().length > 0) {
-        console.log(`[Message] Sending reply to ${message.from} for workspace ${workspaceId}: "${reply}"`);
-        await client.sendMessage(message.from, reply);
+      console.log(`[WA_TRACE] webhook_result messageId=${messageId} status=${reply !== null ? '200_OR_SUCCESS' : 'FAILURE'}`);
+
+      const hasReply = reply !== null && reply.trim().length > 0;
+      console.log(`[WA_TRACE] webhook_reply_state messageId=${messageId} hasReply=${hasReply}`);
+
+      if (hasReply) {
+        console.log(`[WA_TRACE] send_start messageId=${messageId}`);
+        await client.sendMessage(message.from, reply!);
+        console.log(`[WA_TRACE] send_success messageId=${messageId}`);
       } else {
         console.log(`[Message] No reply generated or empty response for message ${messageId}`);
       }
     } catch (err: any) {
+      const errorName = err.name || 'Error';
+      const errorMessage = err.message || String(err);
+      console.log(`[WA_TRACE] send_failure messageId=${messageId} errorName=${errorName} errorMessage=${errorMessage}`);
       console.error(`[Message] Error processing message ${messageId} for workspace ${workspaceId}:`, err.message || err);
     } finally {
       state.inFlightMessages.delete(messageId);
-      console.log(`[Message] Finished processing message ${messageId}. Lock released.`);
+      removedFromInFlight = !state.inFlightMessages.has(messageId);
+      console.log(`[WA_TRACE] finally_cleanup messageId=${messageId} removedFromInFlight=${removedFromInFlight}`);
     }
   });
+
+  const messageListenersCount = client.listenerCount('message');
+  console.log(`[WA_TRACE] message_listener_count workspaceId=${workspaceId} count=${messageListenersCount}`);
 
   try {
     await client.initialize();
