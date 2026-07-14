@@ -297,12 +297,33 @@ async function startClient(workspaceId: string): Promise<void> {
   return promise;
 }
 
+function cleanChromiumLocks(workspaceId: string) {
+  const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
+  if (!fs.existsSync(sessionDir)) return;
+
+  const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+  for (const file of lockFiles) {
+    const filePath = path.join(sessionDir, file);
+    try {
+      fs.unlinkSync(filePath);
+      console.log(`[Startup] Cleaned stale Chromium lock: ${filePath}`);
+    } catch (err: any) {
+      if (err.code !== 'ENOENT') {
+        console.error(`[Startup] Failed to delete lock file ${filePath}:`, err.message || err);
+      }
+    }
+  }
+}
+
 // Actual client creator, registration, and initialization logic
 async function initializeNewClient(workspaceId: string): Promise<void> {
   const instanceId = require('crypto').randomUUID();
   console.log(`[WA_TRACE] client_created workspaceId=${workspaceId} instanceId=${instanceId}`);
 
   const clientId = `whatsapp-${workspaceId}`;
+  
+  // Clean up any stale Chromium profile locks
+  cleanChromiumLocks(workspaceId);
   
   const puppeteerArgs = [
     '--no-sandbox',
