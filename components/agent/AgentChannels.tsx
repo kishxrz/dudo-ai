@@ -115,8 +115,13 @@ export default function AgentChannels() {
       try {
         const headers: Record<string, string> = {};
         if (user) {
+          console.log('[Diagnostic] Frontend auth.currentUser exists: true');
+          console.log('[Diagnostic] Frontend currentUser.uid:', user.uid);
           const idToken = await user.getIdToken();
+          console.log('[Diagnostic] Frontend token length:', idToken.length);
           headers['Authorization'] = `Bearer ${idToken}`;
+        } else {
+          console.log('[Diagnostic] Frontend auth.currentUser exists: false');
         }
         const res = await fetch(`/api/whatsapp/status?workspaceId=${workspaceId}`, {
           headers,
@@ -332,8 +337,13 @@ export default function AgentChannels() {
         'Content-Type': 'application/json'
       };
       if (user) {
+        console.log('[Diagnostic] Frontend auth.currentUser exists: true');
+        console.log('[Diagnostic] Frontend currentUser.uid:', user.uid);
         const idToken = await user.getIdToken();
+        console.log('[Diagnostic] Frontend token length:', idToken.length);
         headers['Authorization'] = `Bearer ${idToken}`;
+      } else {
+        console.log('[Diagnostic] Frontend auth.currentUser exists: false');
       }
       const res = await fetch('/api/whatsapp/connect', {
         method: 'POST',
@@ -381,8 +391,13 @@ export default function AgentChannels() {
         'Content-Type': 'application/json'
       };
       if (user) {
+        console.log('[Diagnostic] Frontend auth.currentUser exists: true');
+        console.log('[Diagnostic] Frontend currentUser.uid:', user.uid);
         const idToken = await user.getIdToken();
+        console.log('[Diagnostic] Frontend token length:', idToken.length);
         headers['Authorization'] = `Bearer ${idToken}`;
+      } else {
+        console.log('[Diagnostic] Frontend auth.currentUser exists: false');
       }
       const res = await fetch('/api/whatsapp/disconnect', {
         method: 'POST',

@@ -25,6 +25,7 @@ interface ClientState {
   status: 'disconnected' | 'qr_ready' | 'connected';
   error: string | null;
   startupTime: number;
+  inFlightMessages: Set<string>;
 }
 
 const registry = new Map<string, ClientState>();
@@ -38,22 +39,65 @@ async function authenticate(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
+  // Log Firebase Admin Project ID
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'unknown';
+  console.log(`[Diagnostic] Railway Firebase Admin project_id: ${projectId}`);
+
   // 2. User Firebase ID token check
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Unauthorized: Missing bearer token' });
+  if (!authHeader) {
+    console.error('[Diagnostic] Missing Authorization header');
+    res.status(401).json({ error: 'Unauthorized: Missing Authorization header' });
     return;
   }
+
+  if (!authHeader.startsWith('Bearer ')) {
+    console.error('[Diagnostic] Malformed Bearer header');
+    res.status(401).json({ error: 'Unauthorized: Malformed Bearer header' });
+    return;
+  }
+
   const token = authHeader.substring(7);
+  console.log(`[Diagnostic] Received token length: ${token.length}`);
+
+  let authInstance;
+  try {
+    authInstance = getAuth();
+    if (!authInstance) {
+      throw new Error('getAuth() returned null/undefined (Initialization failure)');
+    }
+  } catch (initErr: any) {
+    console.error('[Diagnostic] Firebase Admin initialization failure:', initErr.message || initErr);
+    res.status(500).json({ error: 'Internal Server Error: Firebase Admin initialization failure' });
+    return;
+  }
 
   try {
-    const auth = getAuth();
-    const decodedToken = await auth.verifyIdToken(token);
+    const decodedToken = await authInstance.verifyIdToken(token);
+    console.log(`[Diagnostic] Decoded token uid after successful verification: ${decodedToken.uid}`);
     (req as any).user = decodedToken;
     next();
   } catch (err: any) {
-    console.error('[Auth Error] verifyIdToken failed in Railway service:', err.message || err);
-    res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID token' });
+    const errorCode = err.code || 'unknown';
+    const errorMessage = err.message || String(err);
+    console.error(`[Diagnostic] verifyIdToken error code: ${errorCode}`);
+    console.error(`[Diagnostic] verifyIdToken error message: ${errorMessage}`);
+
+    // Differentiate between known firebase error codes
+    let responseError = 'Unauthorized: Invalid Firebase ID token';
+    if (errorCode === 'auth/id-token-expired') {
+      responseError = 'Unauthorized: Firebase ID token is expired';
+    } else if (errorCode === 'auth/id-token-revoked') {
+      responseError = 'Unauthorized: Firebase ID token has been revoked';
+    } else if (errorCode === 'auth/argument-error') {
+      responseError = 'Unauthorized: Malformed or empty Firebase ID token';
+    } else if (errorMessage.includes('must be a string')) {
+      responseError = 'Unauthorized: Firebase ID token must be a string';
+    } else if (errorMessage.includes('does not match the Firebase project')) {
+      responseError = `Unauthorized: Firebase ID token audience mismatch. Expected project ${projectId}`;
+    }
+
+    res.status(401).json({ error: responseError });
   }
 }
 
@@ -232,7 +276,8 @@ async function startClient(workspaceId: string): Promise<void> {
     qr: null,
     status: 'disconnected',
     error: null,
-    startupTime: Math.floor(Date.now() / 1000)
+    startupTime: Math.floor(Date.now() / 1000),
+    inFlightMessages: new Set<string>()
   };
 
   registry.set(workspaceId, state);
@@ -274,6 +319,8 @@ async function startClient(workspaceId: string): Promise<void> {
   });
 
   client.on('message', async (message) => {
+    const messageId = message.id._serialized || message.id.id;
+
     // Basic filter guards
     if (message.fromMe) return;
     if (message.from.includes('@g.us')) return; // ignore group chats
@@ -281,16 +328,23 @@ async function startClient(workspaceId: string): Promise<void> {
     
     // Ignore historical messages generated before this client started
     if (message.timestamp < state.startupTime) {
-      console.log(`[Filter] Ignored historical message from ${message.from} timestamp ${message.timestamp}`);
+      console.log(`[Filter] Ignored historical message from ${message.from} timestamp ${message.timestamp} (startupTime: ${state.startupTime})`);
+      return;
+    }
+
+    // Deduplication check: check if this message is already in progress locally
+    if (state.inFlightMessages.has(messageId)) {
+      console.log(`[Deduplication] Message ${messageId} is already in-flight locally. Ignoring duplicate event.`);
       return;
     }
 
     try {
-      console.log(`[Message] Received from ${message.from} in workspace ${workspaceId}: "${message.body}"`);
+      state.inFlightMessages.add(messageId);
+      console.log(`[Message] Received from ${message.from} in workspace ${workspaceId}: "${message.body}" (messageId: ${messageId})`);
       
       const payload = {
         externalChatId: message.from,
-        messageId: message.id.id,
+        messageId: messageId,
         senderId: message.author || message.from,
         messageText: message.body,
         timestamp: message.timestamp
@@ -303,10 +357,13 @@ async function startClient(workspaceId: string): Promise<void> {
         console.log(`[Message] Sending reply to ${message.from} for workspace ${workspaceId}: "${reply}"`);
         await client.sendMessage(message.from, reply);
       } else {
-        console.log(`[Message] No reply generated or empty response for message ${message.id.id}`);
+        console.log(`[Message] No reply generated or empty response for message ${messageId}`);
       }
     } catch (err: any) {
-      console.error(`[Message] Error processing message ${message.id.id} for workspace ${workspaceId}:`, err.message || err);
+      console.error(`[Message] Error processing message ${messageId} for workspace ${workspaceId}:`, err.message || err);
+    } finally {
+      state.inFlightMessages.delete(messageId);
+      console.log(`[Message] Finished processing message ${messageId}. Lock released.`);
     }
   });
 

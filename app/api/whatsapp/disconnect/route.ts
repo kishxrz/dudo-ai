@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const authorization = req.headers.get('authorization');
+    if (!authorization || !authorization.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid Authorization header' }, { status: 401 });
     }
 
@@ -24,8 +24,9 @@ export async function POST(req: NextRequest) {
     const response = await fetch(`${serviceUrl}/v1/workspaces/${workspaceId}/disconnect`, {
       method: 'POST',
       headers: {
-        'Authorization': authHeader,
-        'X-WhatsApp-Internal-Secret': internalSecret,
+        'Authorization': authorization,
+        'x-internal-secret': internalSecret,
+        'Content-Type': 'application/json'
       }
     });
 

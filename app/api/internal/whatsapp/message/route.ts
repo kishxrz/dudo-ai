@@ -159,27 +159,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized: Invalid credentials' }, { status: 401 });
   }
 
+  let body: any;
   try {
-    const body = await req.json();
-    const {
-      workspaceId,
-      externalChatId,
-      messageId,
-      senderId,
-      messageText,
-      timestamp
-    } = body;
+    body = await req.json();
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
 
-    if (!workspaceId || !externalChatId || !messageId || !messageText) {
-      return NextResponse.json({ error: 'Missing required payload parameters' }, { status: 400 });
-    }
+  const {
+    workspaceId,
+    externalChatId,
+    messageId,
+    senderId,
+    messageText,
+    timestamp
+  } = body;
 
+  if (!workspaceId || !externalChatId || !messageId || !messageText) {
+    return NextResponse.json({ error: 'Missing required payload parameters' }, { status: 400 });
+  }
+
+  let leaseAcquired = false;
+
+  try {
+    console.log(`[Diagnostic] Webhook processing messageId: ${messageId} for workspace: ${workspaceId}`);
     // 2. Perform lease-based idempotency checks
     const lease = await acquireLease(workspaceId, messageId);
     if (!lease.success) {
       console.log(`[WhatsApp Internal Webhook] Message ${messageId} is already being processed or completed. Skipping.`);
       return NextResponse.json({ reply: '' });
     }
+    leaseAcquired = true;
 
     // 3. Process administrative commands
     const commandResult = await processAdminCommand(
@@ -193,6 +203,7 @@ export async function POST(req: NextRequest) {
     if (commandResult.isCommand) {
       await logConversation(workspaceId, externalChatId, senderId, messageText, commandResult.replyMessage);
       await completeLease(workspaceId, messageId);
+      leaseAcquired = false;
       return NextResponse.json({ reply: commandResult.replyMessage });
     }
 
@@ -202,6 +213,7 @@ export async function POST(req: NextRequest) {
       console.log(`[WhatsApp Internal Webhook] Conversation ${externalChatId} is in Takeover. Skipping AI reply.`);
       await logConversation(workspaceId, externalChatId, senderId, messageText, '[Human Operator Active]');
       await completeLease(workspaceId, messageId);
+      leaseAcquired = false;
       return NextResponse.json({ reply: '' });
     }
 
@@ -326,16 +338,18 @@ export async function POST(req: NextRequest) {
     // 8. Log the dialogue and complete the lease
     await logConversation(workspaceId, externalChatId, senderId, messageText, reply);
     await completeLease(workspaceId, messageId);
+    leaseAcquired = false;
 
     return NextResponse.json({ reply });
   } catch (err: any) {
     console.error('[WhatsApp Internal Webhook] Error handling internal webhook route:', err);
-    try {
-      const body = await req.clone().json();
-      if (body.messageId && body.workspaceId) {
-        await releaseLease(body.workspaceId, body.messageId);
+    if (leaseAcquired && workspaceId && messageId) {
+      try {
+        await releaseLease(workspaceId, messageId);
+      } catch (releaseErr) {
+        console.error('[WhatsApp Internal Webhook] Failed to release lease:', releaseErr);
       }
-    } catch {}
+    }
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }
 }
