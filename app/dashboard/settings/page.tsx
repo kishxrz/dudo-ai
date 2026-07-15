@@ -111,6 +111,23 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Billing & Subscription Quick Link */}
+      <div className="bg-white border border-zinc-200/60 rounded-2xl p-5 shadow-sm space-y-4 text-left select-none">
+        <SectionHeader title="Billing & Subscription" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="text-xs font-bold text-zinc-800">Manage Billing</div>
+            <div className="text-[11px] text-zinc-500 font-semibold mt-0.5">View your invoices, update payment methods, or upgrade your subscription plan.</div>
+          </div>
+          <Button 
+            onClick={() => window.location.href = '/dashboard/settings/billing'}
+            className="h-8.5 px-4 bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 font-bold rounded-xl shadow-sm text-xs cursor-pointer"
+          >
+            Go to Billing Settings
+          </Button>
+        </div>
+      </div>
+
       {/* Danger Zone */}
       <div className="bg-[#FFF3E5]/20 border border-[#EED9B4] rounded-[20px] p-5 text-left select-none">
         <div className="text-xs font-extrabold text-[#8B1A1A] uppercase tracking-wider mb-2">Danger Zone</div>

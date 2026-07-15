@@ -34,7 +34,7 @@ export const pricingPlans: PricingPlan[] = [
       "Standard customer support"
     ],
     actionText: "Get Started",
-    actionHref: "/signup",
+    actionHref: "/signup?plan=monthly",
     note: "Pay as you go"
   },
   {
@@ -53,7 +53,7 @@ export const pricingPlans: PricingPlan[] = [
       "Priority 24/7 customer support"
     ],
     actionText: "Claim Launch Offer",
-    actionHref: "/signup",
+    actionHref: "/signup?plan=6months",
     note: "Only for the first 100 customers",
     popular: true
   }

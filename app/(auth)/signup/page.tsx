@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
@@ -9,8 +10,11 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Logo from '@/components/ui/logo';
 
-export default function SignupPage() {
+function SignupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const plan = searchParams.get('plan');
+  
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +51,12 @@ export default function SignupPage() {
       } else {
         console.log('Firebase fallback mock sign up complete');
       }
-      router.push('/dashboard');
+      
+      if (plan === 'monthly' || plan === '6months') {
+        router.push(`/dashboard/billing?checkout_auto=${plan}`);
+      } else {
+        router.push('/dashboard');
+      }
     } catch (e: any) {
       console.error(e);
       const code = e?.code || '';
@@ -81,7 +90,12 @@ export default function SignupPage() {
       } else {
         console.log('Firebase fallback mock Google sign up');
       }
-      router.push('/dashboard');
+      
+      if (plan === 'monthly' || plan === '6months') {
+        router.push(`/dashboard/billing?checkout_auto=${plan}`);
+      } else {
+        router.push('/dashboard');
+      }
     } catch (e: any) {
       console.error(e);
       setErrorMsg(e?.message || 'Google Sign-Up failed.');
@@ -244,5 +258,20 @@ export default function SignupPage() {
       </div>
 
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <span className="w-1.5 h-1.5 bg-[#22577A] rounded-full animate-bounce shrink-0" />
+          <span className="text-sm text-zinc-500 font-semibold">Loading...</span>
+        </div>
+      </div>
+    }>
+      <SignupContent />
+    </Suspense>
   );
 }

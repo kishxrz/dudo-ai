@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, react-hooks/purity */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -55,6 +56,29 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       router.replace('/login');
     }
   }, [currentUser, loading, router]);
+
+  // Auto-redirect to billing if plan/trial is expired
+  useEffect(() => {
+    if (subData) {
+      const isExpired = subData.status === 'expired';
+      let isTrialExpired = false;
+      if (subData.planId === 'trial') {
+        const expiry = subData.expiryDate?.toDate ? subData.expiryDate.toDate() : subData.expiryDate ? new Date(subData.expiryDate) : null;
+        if (expiry && expiry.getTime() < Date.now()) {
+          isTrialExpired = true;
+        }
+      }
+      
+      if (isExpired || isTrialExpired) {
+        if (typeof window !== 'undefined') {
+          const pathname = window.location.pathname;
+          if (pathname !== '/dashboard/billing' && pathname !== '/dashboard/settings/billing') {
+            router.replace('/dashboard/billing');
+          }
+        }
+      }
+    }
+  }, [subData, router]);
 
   useEffect(() => {
     const loadProfileName = () => {
@@ -123,11 +147,11 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   // Helper to format remaining trial time or current plan
   const getBannerText = () => {
-    if (!subData) return `Welcome, ${profileName} | Free trial - 24 hours left`;
+    if (!subData) return `Welcome, ${profileName} | Free trial - 30 minutes left`;
     
     if (subData.planId === 'trial') {
       const expiry = subData.expiryDate?.toDate ? subData.expiryDate.toDate() : subData.expiryDate ? new Date(subData.expiryDate) : null;
-      if (!expiry) return `Welcome, ${profileName} | Free trial - 24 hours left`;
+      if (!expiry) return `Welcome, ${profileName} | Free trial - 30 minutes left`;
       
       const diffMs = expiry.getTime() - Date.now();
       if (diffMs <= 0 || subData.status === 'expired') {

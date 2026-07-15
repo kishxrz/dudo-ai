@@ -20,7 +20,7 @@ export const PLAN_CONFIGS: Record<string, PlanLimits> = {
     bookingAccess: false,
     supportLevel: 'none',
     conversationLimit: 5,
-    trialDurationMs: 24 * 60 * 60 * 1000,
+    trialDurationMs: 30 * 60 * 1000,
   },
   monthly: {
     allowedChannels: ['telegram', 'whatsapp'],
@@ -51,6 +51,7 @@ async function updateSubscriptionStatus(workspaceId: string, status: string): Pr
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getSubscriptionData(workspaceId: string): Promise<any> {
   const adminDb = getAdminDb();
   if (adminDb) {
@@ -63,9 +64,10 @@ export async function getSubscriptionData(workspaceId: string): Promise<any> {
   return null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getOrInitSubscription(workspaceId: string): Promise<any> {
   if (!workspaceId) return null;
-  let sub = await getSubscriptionData(workspaceId);
+  const sub = await getSubscriptionData(workspaceId);
   if (sub) {
     const expiryDate = sub.expiryDate?.toDate ? sub.expiryDate.toDate() : sub.expiryDate ? new Date(sub.expiryDate) : null;
     if (expiryDate && expiryDate.getTime() < Date.now()) {
@@ -78,7 +80,7 @@ export async function getOrInitSubscription(workspaceId: string): Promise<any> {
   }
 
   const startDate = new Date();
-  const expiryDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+  const expiryDate = new Date(startDate.getTime() + 30 * 60 * 1000);
 
   const defaultSub = {
     planId: 'trial',
@@ -92,7 +94,14 @@ export async function getOrInitSubscription(workspaceId: string): Promise<any> {
     nextBillingDate: expiryDate,
     autoRenew: false,
     conversationLimit: 5,
-    campaignLimit: 0
+    campaignLimit: 0,
+    // Exact schema fields
+    plan: 'trial',
+    renewalDate: expiryDate,
+    trialExpiry: expiryDate,
+    customerId: '',
+    subscriptionId: '',
+    cancelAtPeriodEnd: false
   };
 
   const adminDb = getAdminDb();
@@ -147,6 +156,7 @@ export async function canUseFeature(workspaceId: string, feature: string): Promi
   return false;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getUsageData(workspaceId: string): Promise<any> {
   const adminDb = getAdminDb();
   if (adminDb) {
@@ -181,7 +191,7 @@ export async function incrementConversationUsage(workspaceId: string): Promise<v
 
 export async function upgradeSubscription(workspaceId: string, planId: string): Promise<void> {
   const startDate = new Date();
-  let expiryDate = new Date();
+  const expiryDate = new Date();
   let planName = '';
   let price = 0;
   let billingCycle = '';

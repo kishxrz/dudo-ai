@@ -10,12 +10,12 @@ export async function canUseWhatsapp(workspaceId: string): Promise<boolean> {
 
   try {
     const subRef = adminDb.doc(`workspaces/${workspaceId}/billing/subscription`);
-    let subSnap = await subRef.get();
+    const subSnap = await subRef.get();
 
     if (!subSnap.exists) {
       // Initialize default trial subscription
       const startDate = new Date();
-      const expiryDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+      const expiryDate = new Date(startDate.getTime() + 30 * 60 * 1000);
       const defaultSub = {
         planId: 'trial',
         planName: 'Free Trial',
@@ -28,7 +28,14 @@ export async function canUseWhatsapp(workspaceId: string): Promise<boolean> {
         nextBillingDate: expiryDate,
         autoRenew: false,
         conversationLimit: 5,
-        campaignLimit: 0
+        campaignLimit: 0,
+        // Exact schema fields
+        plan: 'trial',
+        renewalDate: expiryDate,
+        trialExpiry: expiryDate,
+        customerId: '',
+        subscriptionId: '',
+        cancelAtPeriodEnd: false
       };
       await subRef.set(defaultSub);
       await adminDb.doc(`workspaces/${workspaceId}/billing/usage`).set({
