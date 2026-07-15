@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { getGoogleClient } from '@/lib/google-client';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +14,9 @@ export async function GET(req: NextRequest) {
     if (!workspaceId || !spreadsheetId) {
       return NextResponse.json({ error: 'Missing workspaceId or spreadsheetId' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId, 'google');
+    if (denied) return denied;
 
     const authClient = await getGoogleClient(workspaceId, 'sheets');
     const sheets = google.sheets({ version: 'v4', auth: authClient });
@@ -44,6 +48,9 @@ export async function POST(req: NextRequest) {
     if (!workspaceId || !spreadsheetId || !sheetName || !Array.isArray(values)) {
       return NextResponse.json({ error: 'Missing workspaceId, spreadsheetId, sheetName, or values array' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId, 'google');
+    if (denied) return denied;
 
     const authClient = await getGoogleClient(workspaceId, 'sheets');
     const sheets = google.sheets({ version: 'v4', auth: authClient });
@@ -82,6 +89,9 @@ export async function PUT(req: NextRequest) {
     if (!workspaceId || !spreadsheetId || !range || value === undefined) {
       return NextResponse.json({ error: 'Missing workspaceId, spreadsheetId, range, or value' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId, 'google');
+    if (denied) return denied;
 
     const authClient = await getGoogleClient(workspaceId, 'sheets');
     const sheets = google.sheets({ version: 'v4', auth: authClient });

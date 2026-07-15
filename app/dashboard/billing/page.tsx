@@ -259,16 +259,25 @@ export default function BillingPage() {
   const [trialRemainingText, setTrialRemainingText] = useState('');
 
   useEffect(() => {
-    if (subscription?.planId === 'trial' && subscription?.expiryDate) {
+    if (subscription?.expiryDate) {
       const expiry = parseDate(subscription.expiryDate);
       if (!expiry) return;
       const updateText = () => {
         const diffMs = expiry.getTime() - Date.now();
         if (diffMs <= 0) {
-          setTrialRemainingText('Free trial expired');
+          setTrialRemainingText('Expired');
         } else {
-          const diffMins = Math.ceil(diffMs / (60 * 1000));
-          setTrialRemainingText(`Free trial - ${diffMins} minutes remaining`);
+          const totalSecs = Math.floor(diffMs / 1000);
+          const days = Math.floor(totalSecs / 86400);
+          const hours = Math.floor((totalSecs % 86400) / 3600);
+          const mins = Math.floor((totalSecs % 3600) / 60);
+          if (days > 0) {
+            setTrialRemainingText(`${days}d ${hours}h remaining`);
+          } else if (hours > 0) {
+            setTrialRemainingText(`${hours}h ${mins}m remaining`);
+          } else {
+            setTrialRemainingText(`${mins}m remaining`);
+          }
         }
       };
       updateText();
@@ -587,6 +596,21 @@ export default function BillingPage() {
             {/* Dodo Subscription Detail Fields */}
             {subscription && (
               <div className="space-y-0.5 mt-2 pt-2 border-t border-zinc-100">
+                {subscription.startDate && (
+                  <p className="text-[10px] text-zinc-400 font-mono">
+                    Started Date: <span className="text-zinc-650 font-bold">{formatDate(subscription.startDate)}</span>
+                  </p>
+                )}
+                {subscription.expiryDate && (
+                  <p className="text-[10px] text-zinc-400 font-mono">
+                    Expiry Date: <span className="text-zinc-650 font-bold">{formatDate(subscription.expiryDate)}</span>
+                  </p>
+                )}
+                {trialRemainingText && (
+                  <p className="text-[10px] text-zinc-400 font-mono">
+                    Remaining Time: <span className="text-amber-600 font-bold">{trialRemainingText}</span>
+                  </p>
+                )}
                 {subscription.subscriptionId && (
                   <p className="text-[10px] text-zinc-400 font-mono">
                     Subscription ID: <span className="text-zinc-650 font-bold select-all">{subscription.subscriptionId}</span>

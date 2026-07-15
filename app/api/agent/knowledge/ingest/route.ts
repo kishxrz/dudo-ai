@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { DocumentIngestionService } from '@/lib/ai/DocumentIngestionService';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 async function authorizeOwner(req: NextRequest, workspaceId: string): Promise<boolean> {
   const adminDb = getAdminDb();
@@ -38,6 +39,9 @@ export async function POST(req: NextRequest) {
   if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized workspace access' }, { status: 401 });
   }
+
+  const denied = await requireSubscription(req, workspaceId, 'knowledge');
+  if (denied) return denied;
 
   console.log(`[Ingestion API] Initiating ingestion for item: ${itemId} in workspace: ${workspaceId}`);
   const success = await DocumentIngestionService.ingest(workspaceId, itemId);

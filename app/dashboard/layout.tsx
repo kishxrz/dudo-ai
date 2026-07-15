@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import Sidebar from '@/components/layout/Sidebar';
@@ -11,11 +11,15 @@ import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import { SubscriptionProvider, useSubscriptionContext } from '@/contexts/SubscriptionContext';
+import { LockedPage } from '@/components/subscription/FeatureGate';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <DashboardBody>{children}</DashboardBody>
+      <SubscriptionProvider>
+        <DashboardBody>{children}</DashboardBody>
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }
@@ -27,20 +31,22 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   const [assistantName, setAssistantName] = useState("My AI Assistant");
   const [profileName, setProfileName] = useState("User");
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [subData, setSubData] = useState<any>(null);
 
-  useEffect(() => {
-    if (!db || !workspaceId) return;
-    const subRef = doc(db, 'workspaces', workspaceId, 'billing', 'subscription');
-    const unsub = onSnapshot(subRef, (snap) => {
-      if (snap.exists()) {
-        setSubData(snap.data());
-      } else {
-        setSubData(null);
-      }
-    }, () => setSubData(null));
-    return () => unsub();
-  }, [workspaceId]);
+  const { subscription, loading: subLoading, isExpired, isTrial, remainingText, canUse } = useSubscriptionContext();
+  const pathname = usePathname();
+
+  const getRequiredFeature = (path: string): string | null => {
+    if (path.startsWith('/dashboard/knowledge')) return 'knowledge';
+    if (path.startsWith('/dashboard/appointments')) return 'calendar';
+    if (path.startsWith('/dashboard/integration')) return 'google';
+    if (path.startsWith('/dashboard/analytics')) return 'google';
+    if (path.startsWith('/dashboard/schedule')) return 'calendar';
+    if (path.startsWith('/dashboard/logs')) return 'google';
+    return null;
+  };
+
+  const requiredFeature = getRequiredFeature(pathname);
+  const isFeatureAllowed = requiredFeature ? canUse(requiredFeature) : true;
 
   const currentUser = authUser || {
     uid: 'mock-user-id',
@@ -59,26 +65,15 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   // Auto-redirect to billing if plan/trial is expired
   useEffect(() => {
-    if (subData) {
-      const isExpired = subData.status === 'expired';
-      let isTrialExpired = false;
-      if (subData.planId === 'trial') {
-        const expiry = subData.expiryDate?.toDate ? subData.expiryDate.toDate() : subData.expiryDate ? new Date(subData.expiryDate) : null;
-        if (expiry && expiry.getTime() < Date.now()) {
-          isTrialExpired = true;
-        }
-      }
-      
-      if (isExpired || isTrialExpired) {
-        if (typeof window !== 'undefined') {
-          const pathname = window.location.pathname;
-          if (pathname !== '/dashboard/billing' && pathname !== '/dashboard/settings/billing') {
-            router.replace('/dashboard/billing');
-          }
+    if (!subLoading && isExpired) {
+      if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname;
+        if (pathname !== '/dashboard/billing' && pathname !== '/dashboard/settings/billing') {
+          router.replace('/dashboard/billing');
         }
       }
     }
-  }, [subData, router]);
+  }, [subLoading, isExpired, router]);
 
   useEffect(() => {
     const loadProfileName = () => {
@@ -147,35 +142,20 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   // Helper to format remaining trial time or current plan
   const getBannerText = () => {
-    if (!subData) return `Welcome, ${profileName} | Free trial - 30 minutes left`;
+    if (subLoading) return `Welcome, ${profileName} | Loading subscription...`;
+    if (!subscription) return `Welcome, ${profileName} | Free trial - 30 minutes left`;
     
-    if (subData.planId === 'trial') {
-      const expiry = subData.expiryDate?.toDate ? subData.expiryDate.toDate() : subData.expiryDate ? new Date(subData.expiryDate) : null;
-      if (!expiry) return `Welcome, ${profileName} | Free trial - 30 minutes left`;
-      
-      const diffMs = expiry.getTime() - Date.now();
-      if (diffMs <= 0 || subData.status === 'expired') {
-        return `Welcome, ${profileName} | Free trial expired`;
-      }
-      
-      const diffHrs = Math.max(0, Math.floor(diffMs / (60 * 60 * 1000)));
-      const diffMins = Math.max(0, Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000)));
-      if (diffHrs > 0) {
-        return `Welcome, ${profileName} | Free trial - ${diffHrs} hours left`;
-      } else {
-        return `Welcome, ${profileName} | Free trial - ${diffMins} minutes left`;
-      }
-    }
-    
-    if (subData.status === 'expired') {
+    if (isExpired) {
       return `Welcome, ${profileName} | Subscription expired`;
     }
-    
-    return `Welcome, ${profileName} | Active Plan: ${subData.planName || 'Active'}`;
+    if (subscription.plan === 'trial') {
+      return `Welcome, ${profileName} | Free trial - ${remainingText}`;
+    }
+    return `Welcome, ${profileName} | Active Plan: ${subscription.planName} (${remainingText})`;
   };
 
-  const showUpgradeBtn = !subData || subData.planId !== '6months' || subData.status === 'expired';
-  const upgradeBtnText = subData?.planId === 'trial' ? 'Upgrade ₹999' : 'Upgrade';
+  const showUpgradeBtn = subLoading || !subscription || subscription.plan !== 'six_month' || isExpired;
+  const upgradeBtnText = subscription?.plan === 'trial' ? 'Upgrade ₹999' : 'Upgrade';
 
   return (
     <div className="flex h-screen bg-[#FFF8F0] overflow-hidden">
@@ -219,7 +199,9 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
           {/* Main content area */}
           <main className="flex-1 p-6 overflow-y-auto">
-            {children}
+            {isFeatureAllowed ? children : (
+              <LockedPage feature={requiredFeature!} />
+            )}
           </main>
         </div>
       </div>

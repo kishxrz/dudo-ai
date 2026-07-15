@@ -4,6 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { generateSalt, generateSecureCode, hashBossCode } from '@/lib/security';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 const assistantId = 'assistant-1';
 
@@ -46,6 +47,9 @@ export async function GET(req: NextRequest) {
   if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const denied = await requireSubscription(req, workspaceId);
+  if (denied) return denied;
 
   let hasBossCode = false;
   const adminDb = getAdminDb();
@@ -94,6 +98,9 @@ export async function POST(req: NextRequest) {
   if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const denied = await requireSubscription(req, workspaceId);
+  if (denied) return denied;
 
   const secureCode = generateSecureCode();
   const salt = generateSalt();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { getGoogleClient } from '@/lib/google-client';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 export const runtime = 'nodejs';
 
@@ -31,6 +32,9 @@ export async function GET(req: NextRequest) {
     if (!workspaceId) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId, 'google');
+    if (denied) return denied;
 
     const authClient = await getGoogleClient(workspaceId, 'gmail');
     const gmail = google.gmail({ version: 'v1', auth: authClient });
@@ -81,6 +85,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workspaceId, to, subject, or body' }, { status: 400 });
     }
 
+    const denied = await requireSubscription(req, workspaceId, 'google');
+    if (denied) return denied;
+
     const authClient = await getGoogleClient(workspaceId, 'gmail');
     const gmail = google.gmail({ version: 'v1', auth: authClient });
 
@@ -113,6 +120,9 @@ export async function DELETE(req: NextRequest) {
     if (!workspaceId || !id) {
       return NextResponse.json({ error: 'Missing workspaceId or id' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId, 'google');
+    if (denied) return denied;
 
     const authClient = await getGoogleClient(workspaceId, 'gmail');
     const gmail = google.gmail({ version: 'v1', auth: authClient });

@@ -4,7 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { collection, addDoc, query, orderBy, getDocs, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { WorkspaceContextLoader } from '@/lib/ai/WorkspaceContextLoader';
 import { ConversationService } from '@/lib/ai/ConversationService';
-import { checkUsageLimit, incrementConversationUsage, canUseFeature } from '@/lib/billing-entitlements-server';
+import { requireSubscription, checkSubscription, incrementConversationCount } from '@/lib/subscription/SubscriptionService';
 
 function formatKnowledgeDoc(data: any): string {
   if (!data) return '';
@@ -102,15 +102,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace context is missing.' }, { status: 400 });
     }
 
-    const usageAllowed = await checkUsageLimit(workspaceId, 'conversations');
-    if (!usageAllowed) {
-      return NextResponse.json({ error: 'Upgrade required: Conversation limit reached for your plan.' }, { status: 403 });
-    }
+    // Enforce active subscription + conversation limit
+    const subDenied = await requireSubscription(req, workspaceId, 'conversations');
+    if (subDenied) return subDenied;
 
+    // Enforce AI provider entitlement
     const activeProv = provider || 'openai';
-    const providerAllowed = await canUseFeature(workspaceId, `api-providers.${activeProv.toLowerCase()}`);
-    if (!providerAllowed) {
-      return NextResponse.json({ error: `Upgrade required: The provider '${activeProv}' is not allowed on your current plan.` }, { status: 403 });
+    const providerCheck = await checkSubscription(workspaceId, `api-providers.${activeProv.toLowerCase()}`);
+    if (!providerCheck.allowed) {
+      return NextResponse.json({ error: providerCheck.reason ?? `The provider '${activeProv}' is not available on your plan.`, code: providerCheck.code }, { status: 403 });
     }
 
     if (!message || !message.trim()) {
@@ -249,7 +249,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await incrementConversationUsage(workspaceId);
+    await incrementConversationCount(workspaceId);
 
     const durationTotal = Date.now() - startSetup;
     console.log(`[Timer] Playground total API route duration took ${durationTotal}ms`);

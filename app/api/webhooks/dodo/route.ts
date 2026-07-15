@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminDb, FieldValue } from '@/lib/firebase-admin';
 import crypto from 'crypto';
+import { normalizePlanId, PLAN_META, PLAN_LIMITS } from '@/lib/subscription/config';
 
 // Verify webhook signature timing-safely
 function verifyWebhookSignature(
@@ -133,16 +134,17 @@ export async function POST(req: Request) {
       eventType === 'subscription.renewed' ||
       eventType === 'subscription.cancelled' ||
       eventType === 'subscription.paused' ||
-      eventType === 'subscription.resumed'
+      eventType === 'subscription.resumed' ||
+      eventType === 'subscription.expired'
     ) {
       // Sync subscription state to Firestore
-      const planId = eventData.metadata?.planId || (eventData.product_id === process.env.DODO_SIX_MONTH_PRODUCT_ID ? '6months' : 'monthly');
-      const planName = planId === '6months' ? '6-Month Pack' : 'Monthly Plan';
-      const conversationLimit = planId === '6months' ? 1000 : 100;
-      const price = planId === '6months' ? 2499 : 999;
+      const rawPlanId = eventData.metadata?.planId || (eventData.product_id === process.env.DODO_SIX_MONTH_PRODUCT_ID ? 'six_month' : 'monthly');
+      const plan = normalizePlanId(rawPlanId);
+      const meta = PLAN_META[plan];
+      const limits = PLAN_LIMITS[plan];
 
       const currentPeriodStart = parseDate(eventData.previous_billing_date) || parseDate(eventData.created_at) || new Date();
-      const currentPeriodEnd = parseDate(eventData.next_billing_date) || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const currentPeriodEnd = parseDate(eventData.next_billing_date) || new Date(Date.now() + limits.durationMs);
 
       const statusMap: Record<string, string> = {
         active: 'active',
@@ -152,34 +154,40 @@ export async function POST(req: Request) {
         on_hold: 'expired'
       };
 
+      const status = statusMap[eventData.status] || eventData.status || 'active';
+
       const syncPayload = {
-        planId,
-        planName,
-        price,
-        currency: '₹',
-        billingCycle: planId,
-        status: statusMap[eventData.status] || eventData.status,
+        plan,
+        planId: plan,
+        planName: meta.name,
+        status,
+        startedAt: currentPeriodStart,
+        expiresAt: currentPeriodEnd,
+        provider: 'dodo',
+        subscriptionId: eventData.subscription_id || '',
+        checkoutId: eventData.checkout_id || existingSub?.checkoutId || '',
+        productId: eventData.product_id || '',
+        paymentId: eventData.payment_id || existingSub?.paymentId || '',
+        customerId: eventData.customer?.customer_id || existingSub?.customerId || '',
+        renewalDate: currentPeriodEnd,
+        cancelAtPeriodEnd: !!eventData.cancel_at_next_billing_date,
+        conversationCount: existingSub?.conversationCount || 0,
+        updatedAt: FieldValue.serverTimestamp(),
+        // Legacy compat fields
+        billingCycle: meta.billingCycle,
+        price: meta.price,
+        currency: meta.currency,
+        conversationLimit: limits.conversationLimit,
+        // Keep these for billing page compat
         startDate: currentPeriodStart,
         expiryDate: currentPeriodEnd,
         nextBillingDate: currentPeriodEnd,
-        autoRenew: !eventData.cancel_at_next_billing_date,
-        conversationLimit,
-        campaignLimit: 0,
-        // Dodo fields
-        customerId: eventData.customer?.customer_id || existingSub?.customerId || '',
-        subscriptionId: eventData.subscription_id,
-        plan: planId,
-        currentPeriodStart,
-        currentPeriodEnd,
-        cancelAtPeriodEnd: !!eventData.cancel_at_next_billing_date,
-        renewalDate: currentPeriodEnd,
-        trialExpiry: existingSub?.trialExpiry || null,
-        paymentStatus: eventData.status === 'active' ? 'succeeded' : 'pending',
-        updatedAt: FieldValue.serverTimestamp()
+        autoRenew: !eventData.cancel_at_next_billing_date
       };
 
-      await subRef.set(syncPayload, { merge: true });
-      console.info(`Synced subscription state for workspace ${workspaceId}: plan=${planId}, status=${syncPayload.status}`);
+      // Set completely (no merge) to prevent partial subscription updates
+      await subRef.set(syncPayload);
+      console.info(`Synced subscription state for workspace ${workspaceId}: plan=${plan}, status=${status}`);
     } else if (eventType === 'payment.succeeded') {
       // Handle invoice / billing history records
       const amount = typeof eventData.amount === 'number' ? eventData.amount / 100 : (eventData.metadata?.planId === '6months' ? 2499 : 999);
@@ -198,19 +206,35 @@ export async function POST(req: Request) {
 
       await adminDb.doc(`workspaces/${workspaceId}/billing/history/records/${randId}`).set(invoiceRecord);
       
-      // Update payment status on subscription doc
-      await subRef.set({
-        paymentStatus: 'succeeded',
-        updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      // Update payment status on subscription doc without partial updates
+      if (existingSub) {
+        await subRef.set({
+          ...existingSub,
+          paymentStatus: 'succeeded',
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      } else {
+        await subRef.set({
+          paymentStatus: 'succeeded',
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
 
       console.info(`Recorded successful payment history for workspace ${workspaceId}: amount=${amount}`);
     } else if (eventType === 'payment.failed') {
-      // Handle payment failure updates
-      await subRef.set({
-        paymentStatus: 'failed',
-        updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      // Handle payment failure updates without partial updates
+      if (existingSub) {
+        await subRef.set({
+          ...existingSub,
+          paymentStatus: 'failed',
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      } else {
+        await subRef.set({
+          paymentStatus: 'failed',
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
 
       // Optional: Add failed billing history record
       const randId = Math.random().toString(36).substring(2, 15);

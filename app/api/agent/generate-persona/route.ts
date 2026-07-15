@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActiveProvider } from '@/lib/ai/ServerProviderResolver';
 import { ProviderRegistry } from '@/lib/ai/ProviderRegistry';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 export interface PersonaAnswers {
   businessName: string;
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 400 }
       );
     }
+
+    const denied = await requireSubscription(req, workspaceId);
+    if (denied) return denied;
 
     // 1. Resolve active provider via Admin SDK — no client credentials
     let provider;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 export const runtime = 'nodejs';
 
@@ -12,6 +13,9 @@ export async function POST(req: NextRequest) {
     if (!workspaceId) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId, 'google');
+    if (denied) return denied;
 
     const adminDb = getAdminDb();
     let currentData: any = null;

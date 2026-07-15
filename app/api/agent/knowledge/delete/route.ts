@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { VectorStore } from '@/lib/ai/VectorStore';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 async function authorizeOwner(req: NextRequest, workspaceId: string): Promise<boolean> {
   const adminDb = getAdminDb();
@@ -38,6 +39,9 @@ export async function POST(req: NextRequest) {
   if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized workspace access' }, { status: 401 });
   }
+
+  const denied = await requireSubscription(req, workspaceId, 'knowledge');
+  if (denied) return denied;
 
   console.log(`[Deletion API] Deleting vector records for item: ${itemId} in workspace: ${workspaceId}`);
   await VectorStore.deleteResource(workspaceId, itemId);

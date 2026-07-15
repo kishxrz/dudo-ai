@@ -12,7 +12,8 @@ export function getWorkspaceId(uid: string): string {
 /**
  * Call this once after sign-up / first sign-in.
  * Creates the workspace + default assistant doc if they don't exist yet.
- * Safe to call multiple times (uses setDoc with merge: false check).
+ * Also provisions the 30-minute free trial subscription via the server API.
+ * Safe to call multiple times (idempotent).
  */
 export async function ensureWorkspace(uid: string, displayName?: string | null) {
   if (!db) return;
@@ -26,7 +27,7 @@ export async function ensureWorkspace(uid: string, displayName?: string | null) 
       id: uid,
       ownerId: uid,
       name: `${displayName ?? 'My'} Workspace`,
-      plan: 'starter',
+      plan: 'trial',
       timezone: 'Asia/Kolkata',
       createdAt: serverTimestamp(),
     });
@@ -49,5 +50,22 @@ export async function ensureWorkspace(uid: string, displayName?: string | null) 
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    // Provision free trial subscription via server-side API
+    // (client SDK can't import 'server-only' modules directly)
+    try {
+      const baseUrl =
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000');
+      await fetch(`${baseUrl}/api/billing/init-trial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: uid }),
+      });
+    } catch (e) {
+      // Non-fatal: SubscriptionService also auto-inits on first subscription check
+      console.warn('[ensureWorkspace] Trial init API call failed (non-fatal):', e);
+    }
   }
 }

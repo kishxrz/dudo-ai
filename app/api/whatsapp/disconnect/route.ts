@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 export const runtime = 'nodejs';
 
@@ -9,6 +10,9 @@ export async function POST(req: NextRequest) {
     if (!workspaceId) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId, 'whatsapp');
+    if (denied) return denied;
 
     const authorization = req.headers.get('authorization');
     if (!authorization || !authorization.startsWith('Bearer ')) {

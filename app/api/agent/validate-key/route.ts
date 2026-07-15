@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { validateProviderKey } from '@/lib/ai/ServerProviderResolver';
+import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 /**
  * POST /api/agent/validate-key
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!provider || typeof provider !== 'string') {
       return NextResponse.json({ error: 'provider is required.' }, { status: 400 });
     }
+
+    const denied = await requireSubscription(req, workspaceId);
+    if (denied) return denied;
 
     // Model-only update: skip validation, just update the model field
     if (modelOnly === true) {

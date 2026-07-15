@@ -1,5 +1,6 @@
 import { db as clientDb } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { PlanId, PLAN_LIMITS, normalizePlanId } from './subscription/config';
 
 export interface PlanLimits {
   allowedChannels: string[];
@@ -12,38 +13,20 @@ export interface PlanLimits {
   trialDurationMs: number;
 }
 
-export const PLAN_CONFIGS: Record<string, PlanLimits> = {
-  trial: {
-    allowedChannels: ['telegram'],
-    agentLimit: 1,
-    maxEnabledSkills: 2,
-    apiProviders: ['openai', 'gemini'],
-    bookingAccess: false,
-    supportLevel: 'none',
-    conversationLimit: 5,
-    trialDurationMs: 30 * 60 * 1000,
-  },
-  monthly: {
-    allowedChannels: ['telegram', 'whatsapp'],
-    agentLimit: 1,
-    maxEnabledSkills: 10,
-    apiProviders: ['openai', 'gemini', 'anthropic', 'groq', 'openrouter', 'deepseek', 'mistral'],
-    bookingAccess: true,
-    supportLevel: 'standard',
-    conversationLimit: 100,
-    trialDurationMs: 0,
-  },
-  '6months': {
-    allowedChannels: ['telegram', 'whatsapp'],
-    agentLimit: 1,
-    maxEnabledSkills: 100,
-    apiProviders: ['openai', 'gemini', 'anthropic', 'groq', 'openrouter', 'deepseek', 'mistral'],
-    bookingAccess: true,
-    supportLevel: 'priority',
-    conversationLimit: 1000,
-    trialDurationMs: 0,
-  }
-};
+// Map PLAN_LIMITS from config to the legacy client interface
+function mapLimitsToLegacy(plan: PlanId): PlanLimits {
+  const limits = PLAN_LIMITS[plan];
+  return {
+    allowedChannels: limits.allowedChannels,
+    agentLimit: limits.agentLimit,
+    maxEnabledSkills: limits.maxEnabledSkills,
+    apiProviders: limits.apiProviders,
+    bookingAccess: limits.bookingAccess,
+    supportLevel: limits.supportLevel === 'priority' ? 'priority' : limits.supportLevel === 'standard' ? 'standard' : 'none',
+    conversationLimit: limits.conversationLimit,
+    trialDurationMs: limits.durationMs,
+  };
+}
 
 async function updateSubscriptionStatus(workspaceId: string, status: string): Promise<void> {
   if (!clientDb) return;
@@ -75,41 +58,7 @@ export async function getOrInitSubscription(workspaceId: string): Promise<any> {
     }
     return sub;
   }
-
-  if (!clientDb) return null;
-  const startDate = new Date();
-  const expiryDate = new Date(startDate.getTime() + 30 * 60 * 1000);
-
-  const defaultSub = {
-    planId: 'trial',
-    planName: 'Free Trial',
-    price: 0,
-    currency: '₹',
-    billingCycle: 'trial',
-    status: 'trial',
-    startDate: startDate,
-    expiryDate: expiryDate,
-    nextBillingDate: expiryDate,
-    autoRenew: false,
-    conversationLimit: 5,
-    campaignLimit: 0,
-    // Exact schema fields
-    plan: 'trial',
-    renewalDate: expiryDate,
-    trialExpiry: expiryDate,
-    customerId: '',
-    subscriptionId: '',
-    cancelAtPeriodEnd: false
-  };
-
-  await setDoc(doc(clientDb, 'workspaces', workspaceId, 'billing', 'subscription'), defaultSub);
-  await setDoc(doc(clientDb, 'workspaces', workspaceId, 'billing', 'usage'), {
-    conversationsThisMonth: 0,
-    campaignsSentThisMonth: 0,
-    updatedAt: new Date()
-  });
-
-  return defaultSub;
+  return null;
 }
 
 export async function getPlanLimits(workspaceId: string): Promise<PlanLimits> {
@@ -127,8 +76,9 @@ export async function getPlanLimits(workspaceId: string): Promise<PlanLimits> {
     };
   }
 
-  const planId = sub.planId || 'trial';
-  return PLAN_CONFIGS[planId] || PLAN_CONFIGS.trial;
+  const rawPlanId = sub.planId || sub.plan || 'trial';
+  const plan = normalizePlanId(rawPlanId);
+  return mapLimitsToLegacy(plan);
 }
 
 export async function canUseFeature(workspaceId: string, feature: string): Promise<boolean> {

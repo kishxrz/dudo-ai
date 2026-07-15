@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SkillService, SkillDefinition } from '@/lib/ai/SkillService';
 import { ToolRegistry } from '@/lib/ai/ToolRegistry';
-import { getPlanLimits, canUseFeature } from '@/lib/billing-entitlements-server';
+import { requireSubscription, getPlanLimits } from '@/lib/subscription/SubscriptionService';
+import { PLAN_LIMITS } from '@/lib/subscription/config';
 
 /**
  * GET /api/agent/skills?workspaceId=...
@@ -14,6 +15,10 @@ export async function GET(req: NextRequest) {
     if (!workspaceId) {
       return NextResponse.json({ error: 'Workspace ID is required.' }, { status: 400 });
     }
+
+    // Subscription check — trial users can list skills (read-only)
+    const denied = await requireSubscription(req, workspaceId);
+    if (denied) return denied;
 
     const skills = await SkillService.listAllSkills(workspaceId);
     
@@ -47,6 +52,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace ID is required.' }, { status: 400 });
     }
 
+    // Enforce active subscription before any skill mutation
+    const denied = await requireSubscription(req, workspaceId);
+    if (denied) return denied;
+
     switch (action) {
       case 'install': {
         if (!skillId) return NextResponse.json({ error: 'Skill ID is required.' }, { status: 400 });
@@ -63,13 +72,14 @@ export async function POST(req: NextRequest) {
       case 'enable': {
         if (!skillId) return NextResponse.json({ error: 'Skill ID is required.' }, { status: 400 });
         
-        const limits = await getPlanLimits(workspaceId);
+        const limits = PLAN_LIMITS;
+        const planLimits = await getPlanLimits(workspaceId);
         const skills = await SkillService.listAllSkills(workspaceId);
         const enabledSkills = skills.filter(s => s.enabled);
         const alreadyEnabled = enabledSkills.some(s => s.id === skillId);
         
-        if (!alreadyEnabled && enabledSkills.length >= limits.maxEnabledSkills) {
-          return NextResponse.json({ error: 'Upgrade required: Exceeded maximum enabled skills limit for your plan.' }, { status: 403 });
+        if (!alreadyEnabled && enabledSkills.length >= planLimits.maxEnabledSkills) {
+          return NextResponse.json({ error: 'Upgrade required: Exceeded maximum enabled skills limit for your plan.', code: 'USAGE_LIMIT_REACHED' }, { status: 403 });
         }
         
         await SkillService.enableSkill(workspaceId, skillId);
