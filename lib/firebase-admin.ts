@@ -1,6 +1,8 @@
 import "server-only";
 import { applicationDefault, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getAuth as adminGetAuth } from 'firebase-admin/auth';
+import { FieldValue as adminFieldValue } from 'firebase-admin/firestore';
 
 let cachedDb: Firestore | null | undefined;
 let loggedUnavailable = false;
@@ -57,3 +59,10 @@ export function getAdminDb(): Firestore | null {
     return cachedDb;
   }
 }
+
+export function getAuth() {
+  getAdminDb();
+  return adminGetAuth();
+}
+
+export const FieldValue = adminFieldValue;

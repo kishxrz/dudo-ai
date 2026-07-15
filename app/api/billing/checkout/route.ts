@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { NextResponse } from 'next/server';
 import { DodoPayments } from 'dodopayments';
-import { getAdminDb } from '@/lib/firebase-admin';
-import { getAuth } from 'firebase-admin/auth';
+import { getAdminDb, getAuth } from '@/lib/firebase-admin';
 
 export async function POST(req: Request) {
   try {

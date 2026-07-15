@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { getAdminDb, FieldValue } from '@/lib/firebase-admin';
 import crypto from 'crypto';
 
 // Verify webhook signature timing-safely
