@@ -72,8 +72,10 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-    const isSandbox = process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_snd_') ||
-                      (process.env.NODE_ENV !== 'production' && !process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_lve_'));
+    const dodoEnv = process.env.DODO_ENV;
+    const isSandbox = dodoEnv === 'test' ? true
+                    : dodoEnv === 'live' ? false
+                    : process.env.NODE_ENV !== 'production';
 
     try {
       const dodo = new DodoPayments({

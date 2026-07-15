@@ -72,30 +72,22 @@ export async function POST(req: Request) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dudo.site';
 
-    const isSandbox = process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_snd_') ||
-                      (process.env.NODE_ENV !== 'production' && !process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_lve_'));
+    // Determine sandbox vs live mode.
+    // DODO_ENV=test  → test_mode (explicit sandbox override)
+    // DODO_ENV=live  → live_mode (explicit live override)
+    // Otherwise fall back to NODE_ENV: 'production' → live_mode, else → test_mode
+    const dodoEnv = process.env.DODO_ENV;
+    const isSandbox = dodoEnv === 'test' ? true
+                    : dodoEnv === 'live' ? false
+                    : process.env.NODE_ENV !== 'production';
+    const dodoEnvironment = isSandbox ? 'test_mode' : 'live_mode';
 
-    // Debug Task 1: Print first 6 and last 4 characters of DODO_SECRET_KEY
-    if (secretKey) {
-      const len = secretKey.length;
-      const first6 = secretKey.substring(0, Math.min(6, len));
-      const last4 = len > 6 ? secretKey.substring(len - 4) : '';
-      console.log(`[Dodo Auth Debug] DODO_SECRET_KEY: length=${len}, prefix="${first6}", suffix="${last4}"`);
-    } else {
-      console.log(`[Dodo Auth Debug] DODO_SECRET_KEY is undefined`);
-    }
-
-    console.log(`[Dodo Auth Debug] Environment variables checked:`);
-    console.log(`- NEXT_PUBLIC_DODO_PUBLISHABLE_KEY: ${process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.substring(0, 12)}...`);
-    console.log(`- DODO_MONTHLY_PRODUCT_ID: ${monthlyId}`);
-    console.log(`- DODO_SIX_MONTH_PRODUCT_ID: ${sixMonthId}`);
-    console.log(`- isSandbox: ${isSandbox}, environment resolved: ${isSandbox ? 'test_mode' : 'live_mode'}`);
-    console.log(`- productId: ${productId}`);
+    console.log(`[Billing] DODO_ENV=${dodoEnv ?? 'unset'} NODE_ENV=${process.env.NODE_ENV} → using environment=${dodoEnvironment}`);
 
     try {
       const dodo = new DodoPayments({
         bearerToken: secretKey as string,
-        environment: isSandbox ? 'test_mode' : 'live_mode'
+        environment: dodoEnvironment
       });
 
       const session = await dodo.checkoutSessions.create({
@@ -118,12 +110,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ checkoutUrl: session.checkout_url });
     } catch (dodoError: any) {
-      console.error('[Dodo Auth Debug] Dodo checkout creation failed. Error details:', {
-        status: dodoError.status,
-        message: dodoError.message,
-        error: dodoError.error || dodoError,
-        headers: dodoError.headers ? (typeof dodoError.headers.forEach === 'function' ? dodoError.headers : JSON.stringify(dodoError.headers)) : undefined,
-      });
+      console.error('[Billing] Dodo checkout creation failed:', dodoError.status, dodoError.message, JSON.stringify(dodoError.error ?? {}));
       return NextResponse.json({
         error: dodoError.message || dodoError.error || 'Failed to create checkout session'
       }, { status: dodoError.status || 500 });
