@@ -75,6 +75,23 @@ export async function POST(req: Request) {
     const isSandbox = process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_snd_') ||
                       (process.env.NODE_ENV !== 'production' && !process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_lve_'));
 
+    // Debug Task 1: Print first 6 and last 4 characters of DODO_SECRET_KEY
+    if (secretKey) {
+      const len = secretKey.length;
+      const first6 = secretKey.substring(0, Math.min(6, len));
+      const last4 = len > 6 ? secretKey.substring(len - 4) : '';
+      console.log(`[Dodo Auth Debug] DODO_SECRET_KEY: length=${len}, prefix="${first6}", suffix="${last4}"`);
+    } else {
+      console.log(`[Dodo Auth Debug] DODO_SECRET_KEY is undefined`);
+    }
+
+    console.log(`[Dodo Auth Debug] Environment variables checked:`);
+    console.log(`- NEXT_PUBLIC_DODO_PUBLISHABLE_KEY: ${process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.substring(0, 12)}...`);
+    console.log(`- DODO_MONTHLY_PRODUCT_ID: ${monthlyId}`);
+    console.log(`- DODO_SIX_MONTH_PRODUCT_ID: ${sixMonthId}`);
+    console.log(`- isSandbox: ${isSandbox}, environment resolved: ${isSandbox ? 'test_mode' : 'live_mode'}`);
+    console.log(`- productId: ${productId}`);
+
     try {
       const dodo = new DodoPayments({
         bearerToken: secretKey as string,
@@ -101,7 +118,12 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ checkoutUrl: session.checkout_url });
     } catch (dodoError: any) {
-      console.error('Dodo checkout creation error:', dodoError);
+      console.error('[Dodo Auth Debug] Dodo checkout creation failed. Error details:', {
+        status: dodoError.status,
+        message: dodoError.message,
+        error: dodoError.error || dodoError,
+        headers: dodoError.headers ? (typeof dodoError.headers.forEach === 'function' ? dodoError.headers : JSON.stringify(dodoError.headers)) : undefined,
+      });
       return NextResponse.json({
         error: dodoError.message || dodoError.error || 'Failed to create checkout session'
       }, { status: dodoError.status || 500 });
