@@ -72,10 +72,14 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
+    const isSandbox = process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_snd_') || 
+                      secretKey?.startsWith('s4k') ||
+                      secretKey?.startsWith('sk_test');
+
     try {
       const dodo = new DodoPayments({
         bearerToken: secretKey,
-        environment: process.env.NODE_ENV === 'production' ? 'live_mode' : 'test_mode'
+        environment: isSandbox ? 'test_mode' : 'live_mode'
       });
 
       // PATCH subscription to set cancel_at_next_billing_date to false

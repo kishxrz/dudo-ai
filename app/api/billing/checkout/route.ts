@@ -72,10 +72,14 @@ export async function POST(req: Request) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dudo.site';
 
+    const isSandbox = process.env.NEXT_PUBLIC_DODO_PUBLISHABLE_KEY?.startsWith('pk_snd_') || 
+                      secretKey?.startsWith('s4k') ||
+                      secretKey?.startsWith('sk_test');
+
     try {
       const dodo = new DodoPayments({
         bearerToken: secretKey as string,
-        environment: process.env.NODE_ENV === 'production' ? 'live_mode' : 'test_mode'
+        environment: isSandbox ? 'test_mode' : 'live_mode'
       });
 
       const session = await dodo.checkoutSessions.create({
