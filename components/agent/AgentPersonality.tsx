@@ -116,11 +116,21 @@ export default function AgentPersonality() {
   const [takeoverTimeout, setTakeoverTimeout] = useState(30);
   const [bossCode, setBossCode] = useState('');
 
-  // Save states
-  const [savedName, setSavedName] = useState(false);
-  const [savedTimezone, setSavedTimezone] = useState(false);
-  const [savedPrompt, setSavedPrompt] = useState(false);
-  const [savedBoss, setSavedBoss] = useState(false);
+  // Database values tracker
+  const [dbName, setDbName] = useState(mockAssistant.name);
+  const [dbTimezone, setDbTimezone] = useState('Asia/Kolkata');
+  const [dbSystemPrompt, setDbSystemPrompt] = useState(mockAssistant.systemPrompt);
+  const [dbWhatsappAdmins, setDbWhatsappAdmins] = useState('');
+  const [dbTelegramAdmins, setDbTelegramAdmins] = useState('');
+  const [dbTakeoverTimeout, setDbTakeoverTimeout] = useState(30);
+
+  // Computed Save states
+  const savedName = name.trim() === dbName.trim();
+  const savedTimezone = timezone === dbTimezone;
+  const savedPrompt = systemPrompt.trim() === dbSystemPrompt.trim();
+  const savedBoss = whatsappAdmins.trim() === dbWhatsappAdmins.trim() &&
+                    telegramAdmins.trim() === dbTelegramAdmins.trim() &&
+                    (Number(takeoverTimeout) || 30) === dbTakeoverTimeout;
 
   // Build Persona modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -184,11 +194,17 @@ export default function AgentPersonality() {
       }
 
       setName(savedName);
+      setDbName(savedName);
       setSystemPrompt(savedSysPrompt);
+      setDbSystemPrompt(savedSysPrompt);
       setTimezone(savedTz);
+      setDbTimezone(savedTz);
       setWhatsappAdmins(savedWa);
+      setDbWhatsappAdmins(savedWa);
       setTelegramAdmins(savedTg);
+      setDbTelegramAdmins(savedTg);
       setTakeoverTimeout(savedTimeout);
+      setDbTakeoverTimeout(savedTimeout);
       setBossCode(savedCode);
       setLoading(false);
     }
@@ -197,7 +213,7 @@ export default function AgentPersonality() {
 
   // ─── Persistence ───────────────────────────────────────────────────────────
 
-  const saveSection = async (fields: Record<string, any>, setSaveState: (b: boolean) => void) => {
+  const saveSection = async (fields: Record<string, any>, onSaved: () => void) => {
     if (!workspaceId) return;
     if (db) {
       try {
@@ -214,23 +230,27 @@ export default function AgentPersonality() {
       window.dispatchEvent(new Event('dudo-config-changed'));
     }
 
-    setSaveState(true);
-    setTimeout(() => setSaveState(false), 2000);
+    onSaved();
   };
 
-  const handleSaveName = () => saveSection({ name: name.trim() }, setSavedName);
+  const handleSaveName = () => saveSection({ name: name.trim() }, () => setDbName(name.trim()));
   const handleTimezoneChange = (val: string | null) => {
     if (!val) return;
     setTimezone(val);
-    saveSection({ timezone: val }, setSavedTimezone);
+    saveSection({ timezone: val }, () => setDbTimezone(val));
   };
-  const handleSavePrompt = () => saveSection({ systemPrompt: systemPrompt.trim() }, setSavedPrompt);
+  const handleSavePrompt = () => saveSection({ systemPrompt: systemPrompt.trim() }, () => setDbSystemPrompt(systemPrompt.trim()));
   const handleSaveBoss = () => {
+    const timeoutVal = Number(takeoverTimeout) || 30;
     saveSection({
       whatsappAdmins: whatsappAdmins.trim(),
       telegramAdmins: telegramAdmins.trim(),
-      takeoverTimeout: Number(takeoverTimeout) || 30,
-    }, setSavedBoss);
+      takeoverTimeout: timeoutVal,
+    }, () => {
+      setDbWhatsappAdmins(whatsappAdmins.trim());
+      setDbTelegramAdmins(telegramAdmins.trim());
+      setDbTakeoverTimeout(timeoutVal);
+    });
   };
 
   const handleGenerateBossCode = async () => {
@@ -373,14 +393,12 @@ export default function AgentPersonality() {
     setSystemPrompt(promptToSave);
 
     // Persist via existing saveSection path
-    await saveSection({ systemPrompt: promptToSave }, () => {});
+    await saveSection({ systemPrompt: promptToSave }, () => {
+      setDbSystemPrompt(promptToSave);
+    });
 
     // Close modal
     setModalOpen(false);
-
-    // Visual feedback on the main prompt save button
-    setSavedPrompt(true);
-    setTimeout(() => setSavedPrompt(false), 2500);
   };
 
   const handleGoToApiKeys = () => {

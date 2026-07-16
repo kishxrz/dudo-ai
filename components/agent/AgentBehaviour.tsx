@@ -53,8 +53,25 @@ export default function AgentBehaviour() {
   const [memoryEnabled, setMemoryEnabled] = useState(mockAssistant.memoryEnabled);
   const [welcomeMessage, setWelcomeMessage] = useState(mockAssistant.welcomeMessage);
   const [fallbackMessage, setFallbackMessage] = useState(mockAssistant.fallbackMessage);
-  const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Database values tracker
+  const [dbSystemPrompt, setDbSystemPrompt] = useState(mockAssistant.systemPrompt);
+  const [dbPersonality, setDbPersonality] = useState(mockAssistant.personality);
+  const [dbTemperature, setDbTemperature] = useState(mockAssistant.temperature);
+  const [dbLanguage, setDbLanguage] = useState(mockAssistant.language);
+  const [dbMemoryEnabled, setDbMemoryEnabled] = useState(mockAssistant.memoryEnabled);
+  const [dbWelcomeMessage, setDbWelcomeMessage] = useState(mockAssistant.welcomeMessage);
+  const [dbFallbackMessage, setDbFallbackMessage] = useState(mockAssistant.fallbackMessage);
+
+  // Computed Save state
+  const saved = systemPrompt.trim() === dbSystemPrompt.trim() &&
+                personality === dbPersonality &&
+                temperature === dbTemperature &&
+                language === dbLanguage &&
+                memoryEnabled === dbMemoryEnabled &&
+                welcomeMessage.trim() === dbWelcomeMessage.trim() &&
+                fallbackMessage.trim() === dbFallbackMessage.trim();
 
   useEffect(() => {
     async function loadData() {
@@ -102,12 +119,19 @@ export default function AgentBehaviour() {
       }
 
       setSystemPrompt(savedPrompt);
+      setDbSystemPrompt(savedPrompt);
       setPersonality(savedPersonality as any);
+      setDbPersonality(savedPersonality as any);
       setTemperature(savedTemp);
+      setDbTemperature(savedTemp);
       setLanguage(savedLang);
+      setDbLanguage(savedLang);
       setMemoryEnabled(savedMemory);
+      setDbMemoryEnabled(savedMemory);
       setWelcomeMessage(savedWelcome);
+      setDbWelcomeMessage(savedWelcome);
       setFallbackMessage(savedFallback);
+      setDbFallbackMessage(savedFallback);
       setLoading(false);
     }
     loadData();
@@ -140,8 +164,13 @@ export default function AgentBehaviour() {
       window.dispatchEvent(new Event('dudo-config-changed'));
     }
 
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setDbSystemPrompt(systemPrompt.trim());
+    setDbPersonality(personality);
+    setDbTemperature(temperature);
+    setDbLanguage(language);
+    setDbMemoryEnabled(memoryEnabled);
+    setDbWelcomeMessage(welcomeMessage.trim());
+    setDbFallbackMessage(fallbackMessage.trim());
   };
 
   useEffect(() => {

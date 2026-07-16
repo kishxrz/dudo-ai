@@ -108,7 +108,24 @@ export default function KnowledgePage() {
   const [bizPhone, setBizPhone] = useState('');
   const [bizWebsite, setBizWebsite] = useState('');
   const [bizSaving, setBizSaving] = useState(false);
-  const [bizSaved, setBizSaved] = useState(false);
+
+  // Database values tracker
+  const [dbBizName, setDbBizName] = useState('');
+  const [dbBizDesc, setDbBizDesc] = useState('');
+  const [dbBizIndustry, setDbBizIndustry] = useState('');
+  const [dbBizProducts, setDbBizProducts] = useState('');
+  const [dbBizEmail, setDbBizEmail] = useState('');
+  const [dbBizPhone, setDbBizPhone] = useState('');
+  const [dbBizWebsite, setDbBizWebsite] = useState('');
+
+  // Computed Save state
+  const bizSaved = bizName.trim() === dbBizName.trim() &&
+                   bizDesc.trim() === dbBizDesc.trim() &&
+                   bizIndustry.trim() === dbBizIndustry.trim() &&
+                   bizProducts.trim() === dbBizProducts.trim() &&
+                   bizEmail.trim() === dbBizEmail.trim() &&
+                   bizPhone.trim() === dbBizPhone.trim() &&
+                   bizWebsite.trim() === dbBizWebsite.trim();
 
   // Reserved doc IDs that should not appear in the knowledge items table
   const RESERVED_IDS = ['knowledge-base', 'business-profile'];
@@ -218,13 +235,28 @@ export default function KnowledgePage() {
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const d = snap.data();
-          setBizName(d.businessName || '');
-          setBizDesc(d.description || '');
-          setBizIndustry(d.industry || '');
-          setBizProducts(d.productsServices || '');
-          setBizEmail(d.supportEmail || '');
-          setBizPhone(d.supportPhone || '');
-          setBizWebsite(d.website || '');
+          const nameVal = d.businessName || '';
+          const descVal = d.description || '';
+          const indVal = d.industry || '';
+          const prodVal = d.productsServices || '';
+          const emailVal = d.supportEmail || '';
+          const phoneVal = d.supportPhone || '';
+          const webVal = d.website || '';
+
+          setBizName(nameVal);
+          setDbBizName(nameVal);
+          setBizDesc(descVal);
+          setDbBizDesc(descVal);
+          setBizIndustry(indVal);
+          setDbBizIndustry(indVal);
+          setBizProducts(prodVal);
+          setDbBizProducts(prodVal);
+          setBizEmail(emailVal);
+          setDbBizEmail(emailVal);
+          setBizPhone(phoneVal);
+          setDbBizPhone(phoneVal);
+          setBizWebsite(webVal);
+          setDbBizWebsite(webVal);
         }
         await checkSnapshot();
       } catch (e) {
@@ -268,8 +300,13 @@ export default function KnowledgePage() {
         }));
       }
 
-      setBizSaved(true);
-      setTimeout(() => setBizSaved(false), 2000);
+      setDbBizName(bizName.trim());
+      setDbBizDesc(bizDesc.trim());
+      setDbBizIndustry(bizIndustry.trim());
+      setDbBizProducts(bizProducts.trim());
+      setDbBizEmail(bizEmail.trim());
+      setDbBizPhone(bizPhone.trim());
+      setDbBizWebsite(bizWebsite.trim());
     } catch (e: any) {
       setErrorMsg(e.message || 'Failed to save business profile.');
     } finally {

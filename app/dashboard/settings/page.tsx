@@ -20,7 +20,6 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('+91-98765-43210');
   const [industry, setIndustry] = useState('Electronics Retail');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
-  const [saved, setSaved] = useState(false);
 
   // Toggle state trackers
   const [notifications, setNotifications] = useState([
@@ -31,9 +30,38 @@ export default function SettingsPage() {
     { id: 'weekly', label: 'Weekly performance report', desc: 'Summary of conversations, leads, and conversions', enabled: false },
   ]);
 
+  // Database values tracker
+  const [dbBusinessName, setDbBusinessName] = useState('Sharma Electronics');
+  const [dbOwnerName, setDbOwnerName] = useState('Suresh Kumar Sharma');
+  const [dbEmail, setDbEmail] = useState('suresh@sharmaelectronics.in');
+  const [dbPhone, setDbPhone] = useState('+91-98765-43210');
+  const [dbIndustry, setDbIndustry] = useState('Electronics Retail');
+  const [dbTimezone, setDbTimezone] = useState('Asia/Kolkata');
+  const [dbNotifications, setDbNotifications] = useState([
+    { id: 'lead', enabled: true },
+    { id: 'appt', enabled: true },
+    { id: 'camp', enabled: true },
+    { id: 'help', enabled: true },
+    { id: 'weekly', enabled: false },
+  ]);
+
+  // Computed Save state
+  const saved = businessName === dbBusinessName &&
+                ownerName === dbOwnerName &&
+                email === dbEmail &&
+                phone === dbPhone &&
+                industry === dbIndustry &&
+                timezone === dbTimezone &&
+                notifications.every((n, idx) => n.enabled === dbNotifications[idx].enabled);
+
   const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setDbBusinessName(businessName);
+    setDbOwnerName(ownerName);
+    setDbEmail(email);
+    setDbPhone(phone);
+    setDbIndustry(industry);
+    setDbTimezone(timezone);
+    setDbNotifications(notifications.map(n => ({ id: n.id, enabled: n.enabled })));
   };
 
   const toggleNotification = (index: number) => {
