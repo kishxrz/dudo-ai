@@ -145,14 +145,14 @@ export default function LogsPage() {
       </div>
 
       {/* 3. Filters and Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex gap-1.5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 w-full">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5 w-full sm:w-auto shrink-0">
           {(['all', 'user', 'agent'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "h-8 px-3.5 text-[13px] font-medium rounded-lg cursor-pointer border transition-all duration-150",
+                "h-8 px-3.5 text-[13px] font-medium rounded-lg cursor-pointer border transition-all duration-150 min-w-[130px] flex items-center justify-center whitespace-nowrap shrink-0",
                 activeTab === tab 
                   ? "bg-[#22577A] border-[#22577A] text-white font-semibold" 
                   : "bg-zinc-50 hover:bg-zinc-100 border-zinc-200 text-zinc-600"
@@ -189,8 +189,8 @@ export default function LogsPage() {
         ) : (
           <div className="divide-y divide-zinc-100">
             {filteredLogs.map((log) => (
-              <div key={log.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 last:pb-0 first:pt-0 text-left border-b border-zinc-100 last:border-b-0">
-                <div className="flex items-start gap-2.5">
+              <div key={log.id} className="py-3 last:pb-0 first:pt-0 text-left border-b border-zinc-100 last:border-b-0">
+                <div className="flex items-start gap-2.5 w-full">
                   <div className={cn(
                     "w-6.5 h-6.5 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border select-none",
                     log.type === 'user' 
@@ -199,7 +199,7 @@ export default function LogsPage() {
                   )}>
                     {log.name[0].toUpperCase()}
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 select-none">
                       <span className="text-[13px] font-semibold text-zinc-950">{log.name}</span>
                       <span className={cn(
@@ -214,16 +214,15 @@ export default function LogsPage() {
                     <p className="text-[13px] text-zinc-700 mt-1 font-normal break-all whitespace-pre-wrap leading-relaxed">
                       {log.text}
                     </p>
+                    <div className="flex items-center gap-2 flex-wrap mt-2 select-none">
+                      <span className="text-[9px] font-medium uppercase px-2 py-0.5 rounded-full border border-zinc-200 text-zinc-500 tracking-wider bg-zinc-50 leading-none">
+                        {log.channel}
+                      </span>
+                      <span className="text-xs text-zinc-400 font-normal shrink-0">
+                        {log.timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' })} at {log.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-3 self-end sm:self-center shrink-0 select-none">
-                  <span className="text-[9px] font-medium uppercase px-2 py-0.5 rounded-full border border-zinc-200 text-zinc-500 tracking-wider bg-zinc-50 leading-none">
-                    {log.channel}
-                  </span>
-                  <span className="text-xs text-zinc-400 font-normal shrink-0">
-                    {log.timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' })} at {log.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </span>
                 </div>
               </div>
             ))}
