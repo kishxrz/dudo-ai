@@ -201,8 +201,8 @@ export default function Sidebar({
         </div>
 
         {/* Navigation items list */}
-        <div className="flex-1 overflow-hidden pt-2.5 md:pt-13 pb-2 px-2 flex flex-col justify-between">
-          <nav className="flex flex-col gap-0.5 md:gap-1.5">
+        <div className="flex-1 overflow-hidden pt-13 pb-2 px-2 flex flex-col justify-between">
+          <nav className="flex flex-col gap-1.5">
             {mainNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.href === '/dashboard'
@@ -213,7 +213,7 @@ export default function Sidebar({
                 <Link key={item.href} href={item.href} onClick={() => onMobileClose?.()} className="no-underline">
                   <div
                     className={cn(
-                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-0.5 md:py-1',
+                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
                       'gap-2.5 px-3 justify-start',
                       'md:justify-center md:px-0 md:gap-0',
                       'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',
@@ -242,9 +242,9 @@ export default function Sidebar({
             })}
           </nav>
 
-          <div className="flex flex-col gap-0.5 md:gap-1.5">
+          <div className="flex flex-col gap-1.5">
             {/* Divider */}
-            <div className="border-t border-zinc-200 my-1 md:my-2 mx-2" />
+            <div className="border-t border-zinc-200 my-2 mx-2" />
 
             {secondaryNavItems.map((item) => {
               const Icon = item.icon;
@@ -268,7 +268,7 @@ export default function Sidebar({
                 <Link key={item.href} href={item.href} onClick={handleClick} className="no-underline">
                   <div
                     className={cn(
-                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-0.5 md:py-1',
+                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
                       'gap-2.5 px-3 justify-start',
                       'md:justify-center md:px-0 md:gap-0',
                       'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',
