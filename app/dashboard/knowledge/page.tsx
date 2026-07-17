@@ -1412,8 +1412,8 @@ ${text}`;
                     <div className="mt-0.5 shrink-0">
                       {KNOWLEDGE_TYPE_ICONS[item.type] || <FileText size={16} className="text-zinc-400" />}
                     </div>
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-semibold text-zinc-900 truncate" title={item.title}>{item.title}</p>
+                    <div className="flex-1 min-w-0 space-y-1 max-w-full">
+                      <p className="text-sm font-semibold text-zinc-900 [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal" title={item.title}>{item.title}</p>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                         <span className="capitalize">{item.type}</span>
                         <span>·</span>
@@ -1496,7 +1496,7 @@ ${text}`;
                         <td className="py-3 px-3 font-semibold text-zinc-900 max-w-[220px]">
                           <div className="flex items-center gap-2.5">
                             {KNOWLEDGE_TYPE_ICONS[item.type] || <FileText size={16} className="text-zinc-400" />}
-                            <span className="truncate text-sm" title={item.title}>{item.title}</span>
+                            <span className="text-sm [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal" title={item.title}>{item.title}</span>
                           </div>
                         </td>
                         <td className="py-3 px-3 capitalize text-zinc-600 text-xs">{item.type}</td>
@@ -1640,21 +1640,21 @@ ${text}`;
             const isConflict = sug.type === 'conflict';
             return (
               <div key={sug.id} className="bg-white border border-red-150 rounded-xl p-3 text-xs flex flex-col gap-1.5 text-left">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2.5 py-0.5 rounded-full capitalize">
+                              <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
+                                <span className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2.5 py-0.5 rounded-full capitalize shrink-0">
                                   {displayFields[sug.fieldName] || sug.fieldName}
                                 </span>
                                 {isConflict ? (
-                                  <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                                  <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full shrink-0">
                                     Conflicting Change
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                                  <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full shrink-0">
                                     New Profile Information
                                   </span>
                                 )}
-                                <span className="text-xs text-zinc-600">
-                                  Source: <strong className="text-zinc-800 font-semibold">{sug.sourceDocument}</strong> | Confidence: <strong className="text-zinc-800 font-semibold">{Math.round((sug.confidenceScore || 0.9) * 100)}%</strong>
+                                <span className="text-xs text-zinc-600 [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal">
+                                  Source: <strong className="text-zinc-800 font-semibold [overflow-wrap:anywhere] [word-break:break-word]">{sug.sourceDocument}</strong> | Confidence: <strong className="text-zinc-800 font-semibold">{Math.round((sug.confidenceScore || 0.9) * 100)}%</strong>
                                 </span>
                               </div>
 
@@ -1720,22 +1720,22 @@ ${text}`;
                             }}
                             className="mt-1 h-4 w-4 rounded border-zinc-300 text-[#22577A] focus:ring-[#22577A] cursor-pointer shrink-0"
                           />
-                          <div className="flex-1 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2.5 py-0.5 rounded-full capitalize">
+                          <div className="flex-1 space-y-2 min-w-0 max-w-full">
+                            <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
+                              <span className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2.5 py-0.5 rounded-full capitalize shrink-0">
                                 {displayFields[sug.fieldName] || sug.fieldName}
                               </span>
                               {isConflict ? (
-                                <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                                <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full shrink-0">
                                   Conflicting Change
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                                <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full shrink-0">
                                   New Profile Information
                                 </span>
                               )}
-                              <span className="text-xs text-zinc-700">
-                                Source: <strong className="text-zinc-900 font-semibold">{sug.sourceDocument}</strong> | Confidence: <strong className="text-zinc-900 font-semibold">{Math.round((sug.confidenceScore || 0.9) * 100)}%</strong>
+                              <span className="text-xs text-zinc-700 [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal">
+                                Source: <strong className="text-zinc-900 font-semibold [overflow-wrap:anywhere] [word-break:break-word]">{sug.sourceDocument}</strong> | Confidence: <strong className="text-zinc-900 font-semibold">{Math.round((sug.confidenceScore || 0.9) * 100)}%</strong>
                               </span>
                             </div>
 
@@ -1786,8 +1786,8 @@ ${text}`;
             <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
               <AlertTriangle className="text-red-600" size={18} /> Confirm Profile Replacement
             </h3>
-            <p className="text-xs text-zinc-600 leading-relaxed">
-              Are you sure you want to replace the current Business Profile with the details from <span className="font-semibold text-zinc-900">&ldquo;{confirmReplaceSug.sourceDocument}&rdquo;</span>?
+            <p className="text-xs text-zinc-600 leading-relaxed [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal">
+              Are you sure you want to replace the current Business Profile with the details from <span className="font-semibold text-zinc-900 [overflow-wrap:anywhere] [word-break:break-word]">&ldquo;{confirmReplaceSug.sourceDocument}&rdquo;</span>?
             </p>
             <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3.5 text-xs leading-relaxed">
               <strong>Warning:</strong> This will overwrite existing fields, back up the current profile for rollback, and clear all other old business fields (like Website or Products/Services) that are not present in the new document to avoid a mixed-business profile.

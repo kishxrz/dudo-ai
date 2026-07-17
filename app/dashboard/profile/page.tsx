@@ -555,7 +555,7 @@ export default function ProfilePage() {
                 </span>
               )}
             </div>
-            <p className="text-[12px] text-zinc-400 font-medium mt-0.5 truncate">{displayEmail}</p>
+            <p className="text-[12px] text-zinc-400 font-medium mt-0.5 [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal">{displayEmail}</p>
             <p className="text-[11px] text-zinc-400 mt-0.5">
               Sign-in via{' '}
               <span className="font-semibold text-zinc-600">{getAuthProvider(currentUser)}</span>

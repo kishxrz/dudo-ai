@@ -881,7 +881,7 @@ export default function BillingPage() {
                 {paymentMethod.type === 'upi' && (
                   <>
                     <p className="text-[13px] font-bold text-zinc-800">UPI</p>
-                    <p className="text-[11px] text-zinc-400 font-medium truncate">
+                    <p className="text-[11px] text-zinc-400 font-medium [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal">
                       {paymentMethod.upiId || 'Not available'}
                     </p>
                   </>

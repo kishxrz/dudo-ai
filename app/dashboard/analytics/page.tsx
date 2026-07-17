@@ -940,8 +940,8 @@ export default function AnalyticsPage() {
                   <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1.5">Top Docs</p>
                   <div className="space-y-1.5">
                     {topKnowledge.map((k, i) => (
-                      <div key={`${k.name}-${i}`} className="flex items-center justify-between text-[11px]">
-                        <span className="text-zinc-600 font-medium truncate pr-2">{k.name}</span>
+                      <div key={`${k.name}-${i}`} className="flex items-start justify-between text-[11px] gap-2">
+                        <span className="text-zinc-600 font-medium [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal pr-2">{k.name}</span>
                         <span className="text-zinc-400 font-mono shrink-0">{k.count}q</span>
                       </div>
                     ))}
@@ -1074,8 +1074,8 @@ export default function AnalyticsPage() {
               ) : (
                 <div className="space-y-1.5">
                   {topQuestions.map((q) => (
-                    <div key={q.text} className="flex items-center justify-between py-1 border-b border-zinc-50 last:border-0">
-                      <span className="text-[12px] font-medium text-zinc-700 truncate pr-2">"{q.text}"</span>
+                    <div key={q.text} className="flex items-start justify-between py-1 border-b border-zinc-50 last:border-0 gap-2">
+                      <span className="text-[12px] font-medium text-zinc-700 [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal pr-2">"{q.text}"</span>
                       <span className="text-[11px] text-zinc-400 font-mono shrink-0">{q.count}</span>
                     </div>
                   ))}
