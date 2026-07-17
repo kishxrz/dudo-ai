@@ -400,22 +400,22 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="px-6 py-8 flex flex-col gap-6 max-w-5xl mx-auto w-full">
+    <div className="px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 max-w-5xl mx-auto w-full min-w-0">
 
       {/* ── Page header ────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 pb-6 border-b border-zinc-200/70">
-        <div className="flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-200/70">
+        <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#22577A]/10 flex items-center justify-center shrink-0">
               <Calendar size={18} className="text-[#22577A]" />
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-zinc-950 leading-none">Appointments</h1>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-950 leading-none">Appointments</h1>
           </div>
           <p className="mt-3 text-sm leading-6 text-zinc-500">Bookings made by your AI across WhatsApp &amp; Telegram.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Link href="/dashboard/schedule" className="no-underline">
-            <Button className="h-8 px-3.5 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 font-semibold rounded-lg shadow-sm text-xs cursor-pointer transition-colors">
+            <Button className="h-8 px-3.5 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 font-semibold rounded-lg shadow-sm text-xs cursor-pointer transition-colors w-full sm:w-auto">
               View Schedule
             </Button>
           </Link>
@@ -424,7 +424,7 @@ export default function AppointmentsPage() {
 
       {/* ── Stats row ─────────────────────────────────────────── */}
       {!loading && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: 'Total', value: total },
             { label: 'Today', value: todayCount },
@@ -445,7 +445,7 @@ export default function AppointmentsPage() {
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-zinc-100">
           {/* Search */}
-          <div className="relative flex-1 min-w-[180px] max-w-[260px]">
+          <div className="relative flex-1 min-w-0 max-w-full sm:max-w-[260px]">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
             <input
               type="text"

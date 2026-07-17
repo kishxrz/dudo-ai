@@ -213,7 +213,7 @@ export default function AgentBehaviour() {
       {/* Personality & Language */}
       <div className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-card">
         <h3 className="text-sm font-semibold text-zinc-900 mb-4">Personality</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Personality">
             <Select value={personality} onValueChange={(val) => val && setPersonality(val as any)}>
               <SelectTrigger className="h-10 text-sm border-zinc-200 w-full">

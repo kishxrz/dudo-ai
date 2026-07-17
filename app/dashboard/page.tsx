@@ -308,7 +308,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-5 select-none pb-8 px-4 lg:px-6">
+    <div className="max-w-[1400px] mx-auto space-y-5 select-none pb-8 px-4 lg:px-6 min-w-0">
       
       {/* 1. TOP SECTION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200/50 pb-3 text-left">
@@ -322,7 +322,7 @@ export default function DashboardPage() {
         </div>
         <Link href="/dashboard/agent" className="no-underline shrink-0">
           <Button 
-            className="h-8.5 text-[11px] bg-[#22577A] hover:bg-[#1A4461] text-white font-semibold rounded-lg px-4 gap-1.5 shadow-sm shadow-[#22577A]/10 cursor-pointer border-none flex items-center hover:scale-[1.01] active:scale-99 transition-all"
+            className="h-8.5 text-[11px] bg-[#22577A] hover:bg-[#1A4461] text-white font-semibold rounded-lg px-4 gap-1.5 shadow-sm shadow-[#22577A]/10 cursor-pointer border-none flex items-center hover:scale-[1.01] active:scale-99 transition-all w-full sm:w-auto"
           >
             <Settings size={12} />
             Config Agent
@@ -343,7 +343,7 @@ export default function DashboardPage() {
               YOUR DUDO IMPACT
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-left">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-left">
               <div>
                 <div className="text-xl font-extrabold text-[#F3BE42] leading-none">{metrics.messagesHandled}</div>
                 <div className="text-[8.5px] text-[#DBA11A]/90 font-semibold uppercase tracking-wider mt-1.5 leading-none">Messages Handled</div>

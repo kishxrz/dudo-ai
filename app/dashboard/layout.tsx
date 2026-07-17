@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import Sidebar from '@/components/layout/Sidebar';
-import { Clock } from 'lucide-react';
+import { Clock, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -157,20 +157,38 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   const showUpgradeBtn = subLoading || !subscription || subscription.plan !== 'six_month' || isExpired;
   const upgradeBtnText = subscription?.plan === 'trial' ? 'Upgrade ₹999' : 'Upgrade';
 
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   return (
     <div className="flex h-screen bg-[#FFF8F0] overflow-hidden">
-      <Sidebar onExpandedChange={setSidebarExpanded} />
+      <Sidebar 
+        onExpandedChange={setSidebarExpanded} 
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
+      />
       
-      <div className={cn("flex-1 flex flex-col h-screen overflow-hidden relative bg-[#FFF8F0] transition-all duration-200 ease-in-out", sidebarExpanded ? "ml-60" : "ml-[60px]")}>
+      <div className={cn(
+        "flex-1 flex flex-col h-screen overflow-hidden relative bg-[#FFF8F0] transition-all duration-200 ease-in-out",
+        "ml-0 md:ml-[60px] lg:ml-60",
+        sidebarExpanded && "md:ml-60 lg:ml-60"
+      )}>
         
         <div className="relative z-0 flex-1 flex flex-col h-screen overflow-hidden bg-[#FFF8F0]">
-          {/* Black backdrop overlay when sidebar is expanded */}
+          {/* Black backdrop overlay when sidebar is expanded on tablet */}
           <div 
             className={cn(
-              "absolute inset-0 bg-black transition-opacity duration-200 pointer-events-none z-40",
+              "absolute inset-0 bg-black transition-opacity duration-200 pointer-events-none z-40 hidden md:block",
               sidebarExpanded ? "opacity-25" : "opacity-0"
             )}
           />
+          {/* Mobile drawer overlay */}
+          {mobileSidebarOpen && (
+            <div 
+              onClick={() => setMobileSidebarOpen(false)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 md:hidden transition-opacity duration-200"
+            />
+          )}
+
           {/* Top yellow/cream banner */}
           <div className="bg-[#FFF3E5] border-b border-[#EED9B4]/50 flex items-center justify-center py-2 px-4 gap-2.5 flex-shrink-0 text-[#22577A]">
             <div className="flex items-center gap-1.5 text-xs font-bold tracking-tight">
@@ -188,7 +206,13 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           </div>
           
           {/* Top breadcrumb bar / Status bar */}
-          <div className="bg-white border-b border-zinc-200/50 h-14 flex items-center px-6 flex-shrink-0">
+          <div className="bg-white border-b border-zinc-200/50 h-14 flex items-center px-4 sm:px-6 flex-shrink-0">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="md:hidden p-1.5 -ml-1.5 mr-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors focus:outline-none"
+            >
+              <Menu size={18} />
+            </button>
             <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900 select-none">
               <span className="w-1.5 h-1.5 bg-[#22577A] rounded-full shrink-0" />
               <span className="text-xs font-bold text-zinc-800 tracking-tight">
@@ -198,7 +222,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Main content area */}
-          <main className="flex-1 p-6 overflow-y-auto">
+          <main className="flex-1 p-4 sm:p-5 md:p-6 overflow-y-auto">
             {isFeatureAllowed ? children : (
               <LockedPage feature={requiredFeature!} />
             )}

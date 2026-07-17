@@ -758,7 +758,7 @@ export default function AnalyticsPage() {
       ) : (
         <>
           {/* ── KPI Row ──────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               icon={MessageSquare}
               label="Total Conversations"
@@ -920,7 +920,7 @@ export default function AnalyticsPage() {
               <SectionTitle title="Knowledge Performance" sub="Search hits and top references" />
 
               {/* Stats row */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { label: 'Queries', value: Math.round(knowledgeUsage.searches) },
                   { label: 'Hits', value: Math.round(knowledgeUsage.hits) },
@@ -967,7 +967,7 @@ export default function AnalyticsPage() {
                         Connected
                       </span>
                     </div>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
                         { label: 'Convs', value: ch.count },
                         { label: 'Res. Rate', value: `${ch.resRate}%` },
@@ -992,7 +992,7 @@ export default function AnalyticsPage() {
             {/* Performance */}
             <Card className="lg:col-span-2">
               <SectionTitle title="Performance" sub="Speed benchmarks from conversation logs" />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[
                   { label: 'Response Time', value: formatDuration(metrics.avgResponse) },
                   { label: 'AI Reply Speed', value: `${(safeNum(metrics.avgResponse) / 1000).toFixed(1)}s` },

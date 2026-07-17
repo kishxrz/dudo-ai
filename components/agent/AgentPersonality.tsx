@@ -463,7 +463,7 @@ export default function AgentPersonality() {
             )}
           </div>
           <Select value={timezone} onValueChange={handleTimezoneChange}>
-            <SelectTrigger className="h-8.5 text-xs border-zinc-200 w-full max-w-[280px]">
+            <SelectTrigger className="h-8.5 text-xs border-zinc-200 w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

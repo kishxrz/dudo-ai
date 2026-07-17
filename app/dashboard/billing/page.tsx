@@ -522,7 +522,7 @@ export default function BillingPage() {
         <div className="flex flex-col gap-5">
           <LoadingSkeleton rows={1} type="text" />
           <LoadingSkeleton rows={3} type="card" />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <LoadingSkeleton rows={2} type="card" />
             <LoadingSkeleton rows={2} type="card" />
           </div>
@@ -626,12 +626,12 @@ export default function BillingPage() {
           </div>
 
           {/* Right: actions */}
-          <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
             {subscription && subscription.planId !== 'trial' && (
               <Button
                 onClick={handleManageBilling}
                 disabled={managingPortal}
-                className="h-8 px-3.5 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 font-semibold rounded-xl shadow-sm text-[12px] cursor-pointer transition-all hover:scale-[1.01]"
+                className="h-8 px-3.5 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 font-semibold rounded-xl shadow-sm text-[12px] cursor-pointer transition-all hover:scale-[1.01] w-full sm:w-auto"
               >
                 {managingPortal ? 'Opening Portal...' : 'Manage Billing'}
               </Button>
@@ -643,7 +643,7 @@ export default function BillingPage() {
                 <Button
                   onClick={handleResumeSubscription}
                   disabled={resumingSub}
-                  className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01]"
+                  className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01] w-full sm:w-auto"
                 >
                   {resumingSub ? 'Resuming...' : 'Resume Subscription'}
                 </Button>
@@ -651,7 +651,7 @@ export default function BillingPage() {
                 <Button
                   onClick={handleCancelSubscription}
                   disabled={cancellingSub}
-                  className="h-8 px-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01]"
+                  className="h-8 px-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01] w-full sm:w-auto"
                 >
                   {cancellingSub ? 'Cancelling...' : 'Cancel Subscription'}
                 </Button>
@@ -662,7 +662,7 @@ export default function BillingPage() {
               <Button 
                 onClick={() => handleUpgrade('6months')}
                 disabled={upgradingId === '6months'}
-                className="h-8 px-3.5 bg-[#22577A] hover:bg-[#1A4461] text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01]"
+                className="h-8 px-3.5 bg-[#22577A] hover:bg-[#1A4461] text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01] w-full sm:w-auto"
               >
                 {upgradingId === '6months' ? 'Upgrading...' : 'Upgrade to 6-Month Pack'}
               </Button>

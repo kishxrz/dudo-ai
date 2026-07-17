@@ -20,6 +20,7 @@ import {
   ThumbsDown,
   LifeBuoy,
   Zap,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -602,6 +603,7 @@ const popularGuides = [
 export default function DocumentationPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeArticleId, setActiveArticleId] = useState<string>('home');
+  const [mobileDocNavOpen, setMobileDocNavOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     'getting-started': true,
     'modules': true,
@@ -671,6 +673,7 @@ export default function DocumentationPage() {
   const navigate = (id: string) => {
     setActiveArticleId(id);
     setSearchTerm('');
+    setMobileDocNavOpen(false);
   };
 
   return (
@@ -678,27 +681,60 @@ export default function DocumentationPage() {
 
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-zinc-200/60 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#22577A]/10 flex items-center justify-center shrink-0">
-            <BookOpen size={18} className="text-[#22577A]" />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-bold text-zinc-950 tracking-tight leading-none mb-0.5">
-              Documentation
-            </h1>
-            <p className="text-[12px] text-zinc-500 leading-none">
-              Guides and references for configuring and managing your AI agent.
-            </p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileDocNavOpen(true)}
+              className="md:hidden p-1.5 -ml-1 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors border-none bg-transparent cursor-pointer"
+              title="Open documentation menu"
+            >
+              <BookOpen size={18} />
+            </button>
+            <div className="w-9 h-9 rounded-xl bg-[#22577A]/10 flex items-center justify-center shrink-0">
+              <BookOpen size={18} className="text-[#22577A]" />
+            </div>
+            <div>
+              <h1 className="text-[22px] font-bold text-zinc-950 tracking-tight leading-none mb-0.5">
+                Documentation
+              </h1>
+              <p className="text-[12px] text-zinc-500 leading-none">
+                Guides and references for configuring and managing your AI agent.
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
 
       {/* ── Two-column layout ────────────────────────────────────────────── */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
         {/* ── Left Nav (260px) ─────────────────────────────────────────── */}
-        <aside className="w-[260px] shrink-0 border-r border-zinc-200/50 flex flex-col bg-white h-full overflow-hidden">
+        {/* Mobile backdrop */}
+        {mobileDocNavOpen && (
+          <div
+            onClick={() => setMobileDocNavOpen(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 md:hidden"
+          />
+        )}
+        <aside
+          className={cn(
+            "w-[260px] shrink-0 border-r border-zinc-200/50 flex flex-col bg-white h-full overflow-hidden",
+            "transition-transform duration-200 ease-in-out z-50",
+            "fixed inset-y-0 left-0 md:relative md:translate-x-0",
+            mobileDocNavOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          {/* Close button inside Left Nav on mobile */}
+          <div className="md:hidden flex items-center justify-between p-3 border-b border-zinc-100 bg-zinc-50 shrink-0">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Doc Menu</span>
+            <button
+              onClick={() => setMobileDocNavOpen(false)}
+              className="p-1 rounded-lg text-zinc-400 hover:text-zinc-650 border-none bg-transparent cursor-pointer"
+            >
+              <X size={15} />
+            </button>
+          </div>
 
           {/* Search only */}
           <div className="p-3 shrink-0 border-b border-zinc-100">
@@ -760,7 +796,7 @@ export default function DocumentationPage() {
 
         {/* ── Right Content ────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto bg-white">
-          <div className="max-w-[780px] mx-auto px-8 py-8 text-left">
+          <div className="max-w-[780px] mx-auto px-4 py-6 sm:px-6 sm:py-8 text-left w-full">
 
             {/* 1. Search Results */}
             {searchTerm.trim() ? (

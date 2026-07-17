@@ -395,7 +395,7 @@ export default function AgentTesting() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[calc(100vh-270px)] min-h-[480px]">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:h-[calc(100vh-270px)] min-h-[480px]">
       
       {/* ─── Left Section: Parameters ─── */}
       <div className="border border-zinc-200 rounded-xl p-4 bg-white space-y-4 h-full overflow-y-auto overflow-x-hidden flex flex-col justify-between shadow-sm select-none">

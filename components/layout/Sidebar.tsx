@@ -49,9 +49,13 @@ const secondaryNavItems = [
 
 export default function Sidebar({
   onExpandedChange,
+  mobileOpen = false,
+  onMobileClose,
 }: {
   onExpandedChange?: (expanded: boolean) => void;
-} = {}) {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut, currentUser } = useAuth();
@@ -102,8 +106,6 @@ export default function Sidebar({
   const [bugSubmitted, setBugSubmitted] = useState(false);
   const [bugLoading, setBugLoading] = useState(false);
 
-
-
   useEffect(() => {
     if (!showProfilePopup) return;
     const handleOutsideClick = (e: MouseEvent) => {
@@ -152,30 +154,33 @@ export default function Sidebar({
       <aside
         onMouseEnter={() => updateExpanded(true)}
         onMouseLeave={() => updateExpanded(false)}
-        style={{
-          width: expanded ? '240px' : '60px',
-          transition: 'width 200ms cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
-        className="fixed inset-y-0 left-0 z-50 flex flex-col h-screen bg-white border-r border-zinc-200 select-none overflow-hidden"
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex flex-col h-screen bg-white border-r border-zinc-200 select-none overflow-hidden group",
+          "transition-all duration-200 ease-in-out",
+          "w-[240px] md:w-[60px] hover:md:w-[240px] lg:w-[240px]",
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
       >
         {/* Brand Logo Header */}
         <div className="h-14 flex items-center shrink-0 border-b border-zinc-100">
           <Link
             href="/"
+            onClick={() => onMobileClose?.()}
             className={cn(
               'no-underline flex items-center w-full transition-all duration-150',
-              expanded ? 'gap-2 px-4' : 'justify-center px-0'
+              'gap-2 px-4 justify-start',
+              'md:justify-center md:px-0',
+              'md:group-hover:gap-2 md:group-hover:px-4 md:group-hover:justify-start',
+              'lg:gap-2 lg:px-4 lg:justify-start'
             )}
           >
             <Logo className="w-[26px] h-[26px] shrink-0" strokeColor="white" />
             <span
-              style={{
-                opacity: expanded ? 1 : 0,
-                transition: 'opacity 150ms ease-in-out',
-              }}
               className={cn(
                 'text-[19px] font-black text-zinc-950 tracking-tight leading-none whitespace-nowrap transition-all duration-150',
-                expanded ? 'w-auto' : 'w-0 overflow-hidden opacity-0'
+                'w-auto opacity-100',
+                'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
+                'lg:w-auto lg:opacity-100'
               )}
             >
               Dudo
@@ -193,11 +198,14 @@ export default function Sidebar({
                 : pathname.startsWith(item.href);
 
               return (
-                <Link key={item.href} href={item.href} className="no-underline">
+                <Link key={item.href} href={item.href} onClick={() => onMobileClose?.()} className="no-underline">
                   <div
                     className={cn(
                       'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
-                      expanded ? 'gap-2.5 px-3' : 'justify-center px-0',
+                      'gap-2.5 px-3 justify-start',
+                      'md:justify-center md:px-0 md:gap-0',
+                      'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',
+                      'lg:gap-2.5 lg:px-3 lg:justify-start',
                       isActive
                         ? 'bg-[#FFF3E5] text-[#22577A] border-[#DBA11A] border-l-2 font-medium'
                         : 'text-zinc-700 border-l-2 border-transparent hover:bg-zinc-50 hover:text-zinc-900 font-normal'
@@ -207,13 +215,11 @@ export default function Sidebar({
                       <Icon size={16} className={cn(isActive ? 'text-[#22577A]' : 'text-zinc-400')} />
                     </span>
                     <span
-                      style={{
-                        opacity: expanded ? 1 : 0,
-                        transition: 'opacity 150ms ease-in-out',
-                      }}
                       className={cn(
                         'text-[15px] tracking-tight whitespace-nowrap leading-none transition-all duration-150',
-                        expanded ? 'w-auto' : 'w-0 overflow-hidden opacity-0'
+                        'w-auto opacity-100',
+                        'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
+                        'lg:w-auto lg:opacity-100'
                       )}
                     >
                       {item.label}
@@ -237,9 +243,11 @@ export default function Sidebar({
               const handleClick = (e: React.MouseEvent) => {
                 if (isTalkToDudo) {
                   e.preventDefault();
+                  onMobileClose?.();
                   window.open('https://api.whatsapp.com/send/?phone=916374385901&text=Hi+Dudo+support%2C+I+need+help+with&type=phone_number&app_absent=0', '_blank');
                 } else if (isReportBug) {
                   e.preventDefault();
+                  onMobileClose?.();
                   setShowBugModal(true);
                 }
               };
@@ -249,7 +257,10 @@ export default function Sidebar({
                   <div
                     className={cn(
                       'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
-                      expanded ? 'gap-2.5 px-3' : 'justify-center px-0',
+                      'gap-2.5 px-3 justify-start',
+                      'md:justify-center md:px-0 md:gap-0',
+                      'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',
+                      'lg:gap-2.5 lg:px-3 lg:justify-start',
                       isActive
                         ? 'bg-[#EED9B4] text-[#22577A] border-[#DBA11A] border-l-2 font-medium'
                         : 'text-zinc-700 border-l-2 border-transparent hover:bg-zinc-50 hover:text-zinc-900 font-normal'
@@ -263,13 +274,11 @@ export default function Sidebar({
                       )}
                     </span>
                     <span
-                      style={{
-                        opacity: expanded ? 1 : 0,
-                        transition: 'opacity 150ms ease-in-out',
-                      }}
                       className={cn(
                         'text-[15px] tracking-tight whitespace-nowrap leading-none transition-all duration-150',
-                        expanded ? 'w-auto' : 'w-0 overflow-hidden opacity-0'
+                        'w-auto opacity-100',
+                        'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
+                        'lg:w-auto lg:opacity-100'
                       )}
                     >
                       {item.label}
@@ -288,7 +297,10 @@ export default function Sidebar({
             onClick={() => setShowProfilePopup(!showProfilePopup)}
             className={cn(
               'flex items-center w-full rounded-xl transition-all duration-150 bg-transparent border-none cursor-pointer text-left hover:bg-zinc-50',
-              expanded ? 'gap-2.5 px-3 py-1' : 'justify-center py-1 px-0'
+              'gap-2.5 px-3 py-1 justify-start',
+              'md:justify-center md:py-1 md:px-0 md:gap-0',
+              'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:py-1 md:group-hover:justify-start',
+              'lg:gap-2.5 lg:px-3 lg:py-1 lg:justify-start'
             )}
           >
             <div className="w-8 h-8 rounded-full bg-[#EED9B4] text-[#22577A] flex items-center justify-center font-black text-[10px] shrink-0 border border-[#22577A]/20 overflow-hidden">
@@ -299,13 +311,11 @@ export default function Sidebar({
               )}
             </div>
             <div
-              style={{
-                opacity: expanded ? 1 : 0,
-                transition: 'opacity 150ms ease-in-out',
-              }}
               className={cn(
                 'min-w-0 overflow-hidden text-left transition-all duration-150',
-                expanded ? 'w-auto' : 'w-0 opacity-0'
+                'w-auto opacity-100',
+                'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
+                'lg:w-auto lg:opacity-100'
               )}
             >
               <div className="text-[11px] font-black text-zinc-900 truncate leading-none mb-0.5">{profileName}</div>
@@ -318,12 +328,12 @@ export default function Sidebar({
       {/* Popup Menu Card */}
       <div
         id="profile-popup-menu"
-        style={{
-          left: expanded ? '252px' : '72px',
-          transition: 'left 200ms cubic-bezier(0.4, 0, 0.2, 1), transform 200ms ease-out, opacity 200ms ease-out',
-        }}
         className={cn(
-          "fixed bottom-[60px] w-[224px] bg-white border border-zinc-150 rounded-2xl shadow-2xl z-[9999] p-3 select-none flex flex-col gap-2.5 origin-bottom-left",
+          "fixed bottom-[60px] bg-white border border-zinc-150 rounded-2xl shadow-2xl z-[9999] p-3 select-none flex flex-col gap-2.5 origin-bottom-left",
+          "transition-all duration-200 ease-in-out",
+          "left-3 w-[216px]",
+          "md:left-[72px] md:w-[224px] md:group-hover:left-[252px]",
+          "lg:left-[252px]",
           showProfilePopup
             ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
             : "opacity-0 translate-y-2 scale-95 pointer-events-none"
@@ -332,7 +342,10 @@ export default function Sidebar({
         {/* User details header link to profile */}
         <Link
           href="/dashboard/profile"
-          onClick={() => setShowProfilePopup(false)}
+          onClick={() => {
+            setShowProfilePopup(false);
+            onMobileClose?.();
+          }}
           className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-zinc-50 transition-colors no-underline text-left cursor-pointer"
           title="View/Edit Profile"
         >
@@ -355,7 +368,10 @@ export default function Sidebar({
         {/* Settings Link */}
         <Link
           href="/dashboard/settings"
-          onClick={() => setShowProfilePopup(false)}
+          onClick={() => {
+            setShowProfilePopup(false);
+            onMobileClose?.();
+          }}
           className="no-underline flex items-center gap-2.5 px-2.5 py-2 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-50 transition-colors rounded-lg text-xs font-semibold text-left cursor-pointer"
         >
           <Settings size={14} className="text-zinc-600" />
@@ -365,7 +381,10 @@ export default function Sidebar({
         {/* Billing Link */}
         <Link
           href="/dashboard/billing"
-          onClick={() => setShowProfilePopup(false)}
+          onClick={() => {
+            setShowProfilePopup(false);
+            onMobileClose?.();
+          }}
           className="no-underline flex items-center gap-2.5 px-2.5 py-2 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-50 transition-colors rounded-lg text-xs font-semibold text-left cursor-pointer"
         >
           <CreditCard size={14} className="text-zinc-600" />
@@ -379,6 +398,7 @@ export default function Sidebar({
         <button
           onClick={() => {
             setShowProfilePopup(false);
+            onMobileClose?.();
             handleSignOut();
           }}
           className="flex items-center gap-2.5 px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-[#8B1A1A] transition-colors rounded-lg border-none bg-transparent text-xs font-semibold text-left w-full cursor-pointer"

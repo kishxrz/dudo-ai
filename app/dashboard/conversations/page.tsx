@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
@@ -291,13 +292,16 @@ export default function ConversationsPage() {
   // ─── Layout ───────────────────────────────────────────────────────────────
   return (
     <div
-      className="flex h-[calc(100vh-148px)] bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm"
+      className="flex h-[calc(100vh-148px)] bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm w-full"
       style={{ fontFamily: 'var(--font-geist-sans), system-ui, sans-serif' }}
     >
       {/* ══════════════════════════════════════════════════════════════════
           LEFT PANEL — Conversation List
       ══════════════════════════════════════════════════════════════════ */}
-      <div className="w-[320px] shrink-0 border-r border-zinc-200 bg-white flex flex-col h-full">
+      <div className={cn(
+        "w-full md:w-[320px] shrink-0 md:border-r border-zinc-200 bg-white flex flex-col h-full",
+        selectedChatId ? "hidden md:flex" : "flex"
+      )}>
 
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-zinc-100 shrink-0">
@@ -444,7 +448,7 @@ export default function ConversationsPage() {
       {/* ══════════════════════════════════════════════════════════════════
           RIGHT AREA — Chat Panel + Details Sidebar
       ══════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex min-w-0 bg-[#F8FAFC] overflow-hidden">
+      <div className={cn("flex-1 flex min-w-0 bg-[#F8FAFC] overflow-hidden", !selectedChatId ? "hidden md:flex" : "flex")}>
 
         {/* ── Chat Panel ─────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -453,6 +457,13 @@ export default function ConversationsPage() {
             <div className="flex flex-col h-full overflow-hidden">
               {/* Chat Header */}
               <div className="h-14 px-4 bg-white border-b border-zinc-200 flex items-center gap-3 shrink-0">
+                {/* Back button for mobile */}
+                <button
+                  onClick={() => setSelectedChatId(null)}
+                  className="md:hidden p-1.5 -ml-1.5 mr-0.5 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors border-none bg-transparent cursor-pointer"
+                >
+                  <ChevronLeft size={18} />
+                </button>
                 {/* Avatar */}
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(activeSelected.customer?.name)}`}
@@ -627,9 +638,10 @@ export default function ConversationsPage() {
         {/* ── Customer Details Sidebar ────────────────────────────────── */}
         {activeSelected && (
           <div
-            className={`shrink-0 border-l border-zinc-200 bg-white flex flex-col h-full transition-all duration-200 overflow-hidden ${
-              detailsOpen ? 'w-[240px]' : 'w-9'
-            }`}
+            className={cn(
+              "shrink-0 border-l border-zinc-200 bg-white flex flex-col h-full transition-all duration-200 overflow-hidden",
+              detailsOpen ? "w-full md:w-[240px]" : "w-0 lg:w-9"
+            )}
           >
             {/* Toggle button — sticky at top */}
             <button
