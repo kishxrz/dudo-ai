@@ -31,6 +31,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   const [assistantName, setAssistantName] = useState("My AI Assistant");
   const [profileName, setProfileName] = useState("User");
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const { subscription, loading: subLoading, isExpired, isTrial, remainingText, canUse } = useSubscriptionContext();
   const pathname = usePathname();
@@ -157,7 +158,6 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   const showUpgradeBtn = subLoading || !subscription || subscription.plan !== 'six_month' || isExpired;
   const upgradeBtnText = subscription?.plan === 'trial' ? 'Upgrade ₹999' : 'Upgrade';
 
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
     <div className="flex h-screen bg-[#FFF8F0] overflow-hidden">
