@@ -77,6 +77,18 @@ export default function Sidebar({
     }
   }, []);
 
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
   // Form states
   const displayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Rahul Khanna';
   const displayEmail = currentUser?.email || 'rahul.khanna@dudo.com';
@@ -155,7 +167,7 @@ export default function Sidebar({
         onMouseEnter={() => updateExpanded(true)}
         onMouseLeave={() => updateExpanded(false)}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col h-screen bg-white border-r border-zinc-200 select-none overflow-hidden group",
+          "fixed inset-y-0 left-0 z-50 flex flex-col h-[100dvh] bg-white border-r border-zinc-200 select-none overflow-hidden group",
           "transition-all duration-200 ease-in-out",
           "w-[240px] md:w-[60px] hover:md:w-[240px] lg:w-[240px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
@@ -189,8 +201,8 @@ export default function Sidebar({
         </div>
 
         {/* Navigation items list */}
-        <div className="flex-1 overflow-hidden pt-13 pb-2 px-2 flex flex-col justify-between">
-          <nav className="flex flex-col gap-1.5">
+        <div className="flex-1 overflow-hidden pt-2.5 md:pt-13 pb-2 px-2 flex flex-col justify-between">
+          <nav className="flex flex-col gap-0.5 md:gap-1.5">
             {mainNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.href === '/dashboard'
@@ -201,7 +213,7 @@ export default function Sidebar({
                 <Link key={item.href} href={item.href} onClick={() => onMobileClose?.()} className="no-underline">
                   <div
                     className={cn(
-                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
+                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-0.5 md:py-1',
                       'gap-2.5 px-3 justify-start',
                       'md:justify-center md:px-0 md:gap-0',
                       'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',
@@ -230,9 +242,9 @@ export default function Sidebar({
             })}
           </nav>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-0.5 md:gap-1.5">
             {/* Divider */}
-            <div className="border-t border-zinc-200 my-2 mx-2" />
+            <div className="border-t border-zinc-200 my-1 md:my-2 mx-2" />
 
             {secondaryNavItems.map((item) => {
               const Icon = item.icon;
@@ -256,7 +268,7 @@ export default function Sidebar({
                 <Link key={item.href} href={item.href} onClick={handleClick} className="no-underline">
                   <div
                     className={cn(
-                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
+                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-0.5 md:py-1',
                       'gap-2.5 px-3 justify-start',
                       'md:justify-center md:px-0 md:gap-0',
                       'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',

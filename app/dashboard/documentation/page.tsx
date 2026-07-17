@@ -690,7 +690,7 @@ export default function DocumentationPage() {
             >
               <BookOpen size={18} />
             </button>
-            <div className="w-9 h-9 rounded-xl bg-[#22577A]/10 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#22577A]/10 hidden md:flex items-center justify-center shrink-0">
               <BookOpen size={18} className="text-[#22577A]" />
             </div>
             <div>
