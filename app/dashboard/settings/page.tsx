@@ -99,11 +99,11 @@ export default function SettingsPage() {
             { label: 'Timezone', value: timezone, setter: setTimezone },
           ].map(({ label, value, setter }) => (
             <div key={label} className="space-y-1">
-              <Label className="text-[10px] font-bold text-zinc-550 uppercase tracking-wide">{label}</Label>
+              <Label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">{label}</Label>
               <Input 
                 value={value} 
                 onChange={e => setter(e.target.value)} 
-                className="h-9 text-xs border-zinc-200 bg-white font-semibold rounded-xl"
+                className="h-9 text-xs border-zinc-200 bg-white font-semibold rounded-xl text-zinc-800"
               />
             </div>
           ))}

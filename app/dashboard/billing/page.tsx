@@ -598,12 +598,12 @@ export default function BillingPage() {
               <div className="space-y-0.5 mt-2 pt-2 border-t border-zinc-100">
                 {subscription.startDate && (
                   <p className="text-[10px] text-zinc-400 font-mono">
-                    Started Date: <span className="text-zinc-650 font-bold">{formatDate(subscription.startDate)}</span>
+                    Started Date: <span className="text-zinc-600 font-bold">{formatDate(subscription.startDate)}</span>
                   </p>
                 )}
                 {subscription.expiryDate && (
                   <p className="text-[10px] text-zinc-400 font-mono">
-                    Expiry Date: <span className="text-zinc-650 font-bold">{formatDate(subscription.expiryDate)}</span>
+                    Expiry Date: <span className="text-zinc-600 font-bold">{formatDate(subscription.expiryDate)}</span>
                   </p>
                 )}
                 {trialRemainingText && (
@@ -613,12 +613,12 @@ export default function BillingPage() {
                 )}
                 {subscription.subscriptionId && (
                   <p className="text-[10px] text-zinc-400 font-mono">
-                    Subscription ID: <span className="text-zinc-650 font-bold select-all">{subscription.subscriptionId}</span>
+                    Subscription ID: <span className="text-zinc-600 font-bold select-all">{subscription.subscriptionId}</span>
                   </p>
                 )}
                 {subscription.customerId && (
                   <p className="text-[10px] text-zinc-400 font-mono">
-                    Customer ID: <span className="text-zinc-650 font-bold select-all">{subscription.customerId}</span>
+                    Customer ID: <span className="text-zinc-600 font-bold select-all">{subscription.customerId}</span>
                   </p>
                 )}
               </div>
@@ -651,7 +651,7 @@ export default function BillingPage() {
                 <Button
                   onClick={handleCancelSubscription}
                   disabled={cancellingSub}
-                  className="h-8 px-3.5 bg-red-650 hover:bg-red-750 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01]"
+                  className="h-8 px-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01]"
                 >
                   {cancellingSub ? 'Cancelling...' : 'Cancel Subscription'}
                 </Button>

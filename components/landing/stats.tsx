@@ -47,7 +47,7 @@ export default function Stats() {
                     <AnimatedCounter value={item.value} />
                   </div>
                   <div className="text-xs font-black uppercase tracking-widest text-[#22577A] mt-1">{item.label}</div>
-                  <p className="text-xs sm:text-sm font-semibold text-zinc-550 leading-relaxed mt-4">
+                  <p className="text-xs sm:text-sm font-semibold text-zinc-600 leading-relaxed mt-4">
                     {item.desc}
                   </p>
                 </div>

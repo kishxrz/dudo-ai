@@ -745,7 +745,7 @@ export default function AgentSkillStore() {
               <Button
                 onClick={() => setReviewSkill(null)}
                 variant="outline"
-                className="h-8.5 text-xs text-zinc-650 cursor-pointer bg-white"
+                className="h-8.5 text-xs text-zinc-600 cursor-pointer bg-white"
               >
                 Cancel
               </Button>

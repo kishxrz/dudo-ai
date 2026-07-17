@@ -591,7 +591,7 @@ export default function DashboardPage() {
                       "text-[10px] font-semibold leading-normal transition-colors",
                       isComplete 
                         ? 'text-zinc-400 line-through' 
-                        : 'text-zinc-650 group-hover:text-[#22577A]'
+                        : 'text-zinc-600 group-hover:text-[#22577A]'
                     )}>
                       {item.label}
                     </span>

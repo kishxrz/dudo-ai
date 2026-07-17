@@ -96,7 +96,7 @@ export default function Testimonial() {
                         ))}
                       </div>
                     </div>
-                    <p className="text-[11px] sm:text-xs font-semibold text-zinc-650 leading-relaxed italic">
+                    <p className="text-[11px] sm:text-xs font-semibold text-zinc-600 leading-relaxed italic">
                       "{item.quote}"
                     </p>
                   </div>
@@ -141,7 +141,7 @@ export default function Testimonial() {
                         ))}
                       </div>
                     </div>
-                    <p className="text-[11px] sm:text-xs font-semibold text-zinc-650 leading-relaxed italic">
+                    <p className="text-[11px] sm:text-xs font-semibold text-zinc-600 leading-relaxed italic">
                       "{item.quote}"
                     </p>
                   </div>

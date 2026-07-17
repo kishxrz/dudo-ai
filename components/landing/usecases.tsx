@@ -155,7 +155,7 @@ export default function UseCases() {
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-[#22577A] leading-tight">
             Real conversations. Real problems solved.
           </h2>
-          <p className="text-sm sm:text-base text-zinc-550 font-semibold max-w-xl mx-auto mt-4">
+          <p className="text-sm sm:text-base text-zinc-600 font-semibold max-w-xl mx-auto mt-4">
             Pick your industry and see exactly how Dudo automates booking and chat queries.
           </p>
         </div>

@@ -180,7 +180,7 @@ export default function Pricing() {
         </motion.div>
 
         {/* RISK REVERSAL BADGES */}
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 pt-6 text-xs sm:text-sm font-bold text-zinc-550 select-none">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 pt-6 text-xs sm:text-sm font-bold text-zinc-600 select-none">
           <span className="flex items-center gap-1.5">
             <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
             Free Trial

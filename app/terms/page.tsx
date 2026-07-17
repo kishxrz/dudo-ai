@@ -34,7 +34,7 @@ export default function TermsPage() {
 
       {/* Main Content */}
       <section className="py-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white border border-[#EED9B4] rounded-[2rem] p-8 sm:p-12 shadow-lg space-y-8 text-sm sm:text-base text-zinc-650 leading-relaxed font-medium">
+        <div className="bg-white border border-[#EED9B4] rounded-[2rem] p-8 sm:p-12 shadow-lg space-y-8 text-sm sm:text-base text-zinc-600 leading-relaxed font-medium">
           
           <div className="space-y-4">
             <h2 className="text-lg sm:text-xl font-black text-[#22577A]">1. Agreement to Terms</h2>

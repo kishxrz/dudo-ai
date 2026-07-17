@@ -63,7 +63,7 @@ export default function FAQ() {
                       transition={{ duration: 0.25, ease: "easeInOut" }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-3 pb-2 text-xs sm:text-sm font-semibold text-zinc-550 leading-relaxed pr-6 select-text">
+                      <div className="mt-3 pb-2 text-xs sm:text-sm font-semibold text-zinc-600 leading-relaxed pr-6 select-text">
                         {item.a}
                       </div>
                     </motion.div>
