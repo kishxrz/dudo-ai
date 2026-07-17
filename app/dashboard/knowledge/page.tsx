@@ -1063,7 +1063,7 @@ ${text}`;
   });
 
   return (
-    <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-5 px-6 pb-16 box-border">
+    <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-3 px-4 sm:px-6 pb-16 box-border">
       {/* Custom compact header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/50 pb-5 text-left">
         <div className="flex items-start gap-3">
@@ -1105,19 +1105,19 @@ ${text}`;
 
       {/* ─── Business Profile Card ─── */}
       <div className="bg-white border border-zinc-200/60 rounded-2xl p-5 shadow-sm space-y-4 text-left">
-        <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-100 pb-3 gap-3">
           <div>
             <h3 className="text-sm font-semibold text-zinc-900 tracking-tight flex items-center gap-2 leading-none">
               <Building2 size={15} className="text-[#22577A]" /> Business Profile
             </h3>
             <p className="text-xs text-zinc-600 mt-1 leading-relaxed">Core business context injected into every AI conversation.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
             {hasSnapshot && (
               <Button
                 onClick={handleRollbackProfile}
                 variant="outline"
-                className="h-8 text-xs font-semibold px-3 border-red-300 text-red-700 hover:bg-red-50 rounded-xl flex items-center gap-1.5 cursor-pointer bg-white"
+                className="h-8 text-xs font-semibold px-3 border-red-300 text-red-700 hover:bg-red-50 rounded-xl flex items-center gap-1.5 cursor-pointer bg-white flex-1 sm:flex-none justify-center"
               >
                 <RotateCcw size={12} /> Rollback
               </Button>
@@ -1125,7 +1125,7 @@ ${text}`;
             <Button
               onClick={handleSaveBizProfile}
               disabled={bizSaving}
-              className="h-8 text-xs font-semibold px-4 bg-[#22577A] hover:bg-[#1A4461] text-white rounded-xl border-none cursor-pointer flex items-center justify-center shadow-sm transition-all hover:scale-[1.01]"
+              className="h-8 text-xs font-semibold px-4 bg-[#22577A] hover:bg-[#1A4461] text-white rounded-xl border-none cursor-pointer flex items-center justify-center shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none"
             >
               {bizSaving ? 'Saving...' : bizSaved ? '✓ Saved!' : 'Save Profile'}
             </Button>
@@ -1274,9 +1274,9 @@ ${text}`;
                 rows={5}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl">Cancel</Button>
-              <Button size="sm" onClick={handleAddText} disabled={!formTitle.trim() || !formContent.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01]">Save Knowledge</Button>
+            <div className="flex justify-end gap-2 pt-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
+              <Button size="sm" onClick={handleAddText} disabled={!formTitle.trim() || !formContent.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save Knowledge</Button>
             </div>
           </div>
         </div>
@@ -1305,9 +1305,9 @@ ${text}`;
                 rows={4}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl">Cancel</Button>
-              <Button size="sm" onClick={handleAddFaq} disabled={!formTitle.trim() || !formFaqAnswer.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01]">Save FAQ</Button>
+            <div className="flex justify-end gap-2 pt-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
+              <Button size="sm" onClick={handleAddFaq} disabled={!formTitle.trim() || !formFaqAnswer.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save FAQ</Button>
             </div>
           </div>
         </div>
@@ -1335,9 +1335,9 @@ ${text}`;
                 className="h-9 text-sm text-zinc-900 placeholder:text-zinc-500 border border-zinc-200 bg-white rounded-xl"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl">Cancel</Button>
-              <Button size="sm" onClick={handleAddUrl} disabled={!formTitle.trim() || !formUrl.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01]">Save Link</Button>
+            <div className="flex justify-end gap-2 pt-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
+              <Button size="sm" onClick={handleAddUrl} disabled={!formTitle.trim() || !formUrl.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save Link</Button>
             </div>
           </div>
         </div>
@@ -1348,7 +1348,7 @@ ${text}`;
         {/* Search + Filter bar */}
         {!loading && items.length > 0 && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 px-5 pt-4 pb-3.5 border-b border-zinc-100">
-            <div className="relative flex-1 min-w-0">
+            <div className="relative flex-1 min-w-0 w-full">
               <input
                 type="text"
                 value={searchQuery}
@@ -1360,13 +1360,14 @@ ${text}`;
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M16.5 10.5a6 6 0 11-12 0 6 6 0 0112 0z" />
               </svg>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Filter chips — horizontally scrollable on mobile */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none w-full sm:w-auto shrink-0 pb-0.5">
               {['All', 'Ready', 'Processing', 'Suggestions Ready', 'Failed'].map(f => (
                 <button
                   key={f}
                   onClick={() => setStatusFilter(f)}
                   className={cn(
-                    'h-7 px-2.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer',
+                    'h-7 px-2.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0',
                     statusFilter === f
                       ? 'bg-[#22577A] text-white border-[#22577A]'
                       : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
@@ -1398,98 +1399,171 @@ ${text}`;
             <p className="text-xs text-zinc-600">Try adjusting your search or filter.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto select-none">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead>
-                <tr className="border-b border-zinc-100 text-zinc-500 uppercase font-bold text-[10px] tracking-wider">
-                  <th className="py-2.5 px-3">Resource Name</th>
-                  <th className="py-2.5 px-3">Type</th>
-                  <th className="py-2.5 px-3">Size</th>
-                  <th className="py-2.5 px-3">Status</th>
-                  <th className="py-2.5 px-3">Date Added</th>
-                  <th className="py-2.5 px-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item) => {
-                  const statusLower = item.status?.toLowerCase() || '';
-                  const isUploading = statusLower === 'uploading';
-                  const isProcessing = statusLower === 'processing';
-                  const isReady = statusLower === 'ready';
-                  const progress = uploadProgress[item.id];
-
-                  return (
-                    <tr key={item.id} className="border-b border-zinc-50 hover:bg-zinc-50/60 last:border-0 transition-colors">
-                      <td className="py-3 px-3 font-semibold text-zinc-900 max-w-[220px]">
-                        <div className="flex items-center gap-2.5">
-                          {KNOWLEDGE_TYPE_ICONS[item.type] || <FileText size={16} className="text-zinc-400" />}
-                          <span className="truncate text-sm" title={item.title}>{item.title}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 capitalize text-zinc-600 text-xs">{item.type}</td>
-                      <td className="py-3 px-3 font-mono text-zinc-500 text-xs">{formatBytes(item.fileSize)}</td>
-                      <td className="py-3 px-3">
+          <>
+            {/* ── Mobile card list (hidden on sm+) ── */}
+            <div className="flex flex-col divide-y divide-zinc-100 sm:hidden select-none">
+              {filteredItems.map((item) => {
+                const statusLower = item.status?.toLowerCase() || '';
+                const isUploading = statusLower === 'uploading';
+                const isProcessing = statusLower === 'processing';
+                const progress = uploadProgress[item.id];
+                return (
+                  <div key={item.id} className="py-3 flex items-start gap-3">
+                    <div className="mt-0.5 shrink-0">
+                      {KNOWLEDGE_TYPE_ICONS[item.type] || <FileText size={16} className="text-zinc-400" />}
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-sm font-semibold text-zinc-900 truncate" title={item.title}>{item.title}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                        <span className="capitalize">{item.type}</span>
+                        <span>·</span>
+                        <span className="font-mono">{formatBytes(item.fileSize)}</span>
+                        {item.createdAt?.seconds && (
+                          <><span>·</span><span>{new Date(item.createdAt.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></>
+                        )}
+                      </div>
+                      <div>
                         {item.status === 'Uploading' ? (
                           <div className="flex items-center gap-1.5 text-[#22577A] font-semibold text-xs">
                             <Loader2 size={12} className="animate-spin" />
                             <span>Uploading {progress !== undefined ? `(${progress}%)` : ''}</span>
                           </div>
                         ) : item.status === 'Extracting' || item.status === 'Indexing' || item.status === 'Analyzing' ? (
-                          <div className="flex items-center gap-1.5 text-[#22577A] bg-blue-50 px-2 py-0.5 border border-blue-200 rounded-full font-semibold text-[10px] w-max leading-none">
-                            <Loader2 size={10} className="animate-spin" />
-                            <span>Processing</span>
+                          <div className="flex items-center gap-1.5 text-[#22577A] bg-blue-50 px-2 py-0.5 border border-blue-200 rounded-full font-semibold text-[10px] w-max">
+                            <Loader2 size={10} className="animate-spin" /><span>Processing</span>
                           </div>
                         ) : item.status === 'Suggestions Ready' ? (
-                          <div className="flex items-center text-amber-700 bg-amber-50 px-2 py-0.5 border border-amber-200 rounded-full font-semibold text-[10px] w-max leading-none">
-                            <span>Suggestions Ready</span>
-                          </div>
+                          <div className="flex items-center text-amber-700 bg-amber-50 px-2 py-0.5 border border-amber-200 rounded-full font-semibold text-[10px] w-max"><span>Suggestions Ready</span></div>
                         ) : item.status === 'Ready' ? (
-                          <div className="flex items-center gap-1.5 text-green-700 bg-green-50 px-2 py-0.5 border border-green-200 rounded-full font-semibold text-[10px] w-max leading-none">
-                            <CheckCircle2 size={10} className="text-green-600" />
-                            <span>Ready</span>
+                          <div className="flex items-center gap-1.5 text-green-700 bg-green-50 px-2 py-0.5 border border-green-200 rounded-full font-semibold text-[10px] w-max">
+                            <CheckCircle2 size={10} className="text-green-600" /><span>Ready</span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 text-red-700 bg-red-50 px-2 py-0.5 border border-red-200 rounded-full font-semibold text-[10px] w-max leading-none">
-                            <AlertCircle size={10} className="text-red-600" />
-                            <span>Failed</span>
+                          <div className="flex items-center gap-1.5 text-red-700 bg-red-50 px-2 py-0.5 border border-red-200 rounded-full font-semibold text-[10px] w-max">
+                            <AlertCircle size={10} className="text-red-600" /><span>Failed</span>
                           </div>
                         )}
-                      </td>
-                      <td className="py-3 px-3 text-zinc-500 text-xs">
-                        {item.createdAt?.seconds 
-                          ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                          : '-'
-                        }
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {['pdf', 'docx', 'txt', 'md'].includes(item.type) && (
-                            <button
-                              onClick={() => triggerReplace(item.id)}
-                              disabled={isUploading || isProcessing}
-                              className="p-1.5 border border-zinc-300 rounded-lg text-zinc-500 hover:text-[#22577A] hover:border-[#22577A]/40 hover:bg-blue-50 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed bg-white transition-colors"
-                              title="Replace file"
-                            >
-                              <RefreshCw size={12} />
-                            </button>
-                          )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {['pdf', 'docx', 'txt', 'md'].includes(item.type) && (
+                        <button
+                          onClick={() => triggerReplace(item.id)}
+                          disabled={isUploading || isProcessing}
+                          className="p-1.5 border border-zinc-300 rounded-lg text-zinc-500 hover:text-[#22577A] hover:border-[#22577A]/40 hover:bg-blue-50 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed bg-white transition-colors"
+                          title="Replace file"
+                        >
+                          <RefreshCw size={12} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteItem(item)}
+                        disabled={isUploading || isProcessing}
+                        className="p-1.5 border border-zinc-300 rounded-lg text-zinc-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed bg-white transition-colors"
+                        title="Delete resource"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-                          <button
-                            onClick={() => handleDeleteItem(item)}
-                            disabled={isUploading || isProcessing}
-                            className="p-1.5 border border-zinc-300 rounded-lg text-zinc-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed bg-white transition-colors"
-                            title="Delete resource"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+            {/* ── Desktop table (hidden on mobile) ── */}
+            <div className="hidden sm:block overflow-x-auto select-none">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-zinc-500 uppercase font-bold text-[10px] tracking-wider">
+                    <th className="py-2.5 px-3">Resource Name</th>
+                    <th className="py-2.5 px-3">Type</th>
+                    <th className="py-2.5 px-3">Size</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">Date Added</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item) => {
+                    const statusLower = item.status?.toLowerCase() || '';
+                    const isUploading = statusLower === 'uploading';
+                    const isProcessing = statusLower === 'processing';
+                    const isReady = statusLower === 'ready';
+                    const progress = uploadProgress[item.id];
+
+                    return (
+                      <tr key={item.id} className="border-b border-zinc-50 hover:bg-zinc-50/60 last:border-0 transition-colors">
+                        <td className="py-3 px-3 font-semibold text-zinc-900 max-w-[220px]">
+                          <div className="flex items-center gap-2.5">
+                            {KNOWLEDGE_TYPE_ICONS[item.type] || <FileText size={16} className="text-zinc-400" />}
+                            <span className="truncate text-sm" title={item.title}>{item.title}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 capitalize text-zinc-600 text-xs">{item.type}</td>
+                        <td className="py-3 px-3 font-mono text-zinc-500 text-xs">{formatBytes(item.fileSize)}</td>
+                        <td className="py-3 px-3">
+                          {item.status === 'Uploading' ? (
+                            <div className="flex items-center gap-1.5 text-[#22577A] font-semibold text-xs">
+                              <Loader2 size={12} className="animate-spin" />
+                              <span>Uploading {progress !== undefined ? `(${progress}%)` : ''}</span>
+                            </div>
+                          ) : item.status === 'Extracting' || item.status === 'Indexing' || item.status === 'Analyzing' ? (
+                            <div className="flex items-center gap-1.5 text-[#22577A] bg-blue-50 px-2 py-0.5 border border-blue-200 rounded-full font-semibold text-[10px] w-max leading-none">
+                              <Loader2 size={10} className="animate-spin" />
+                              <span>Processing</span>
+                            </div>
+                          ) : item.status === 'Suggestions Ready' ? (
+                            <div className="flex items-center text-amber-700 bg-amber-50 px-2 py-0.5 border border-amber-200 rounded-full font-semibold text-[10px] w-max leading-none">
+                              <span>Suggestions Ready</span>
+                            </div>
+                          ) : item.status === 'Ready' ? (
+                            <div className="flex items-center gap-1.5 text-green-700 bg-green-50 px-2 py-0.5 border border-green-200 rounded-full font-semibold text-[10px] w-max leading-none">
+                              <CheckCircle2 size={10} className="text-green-600" />
+                              <span>Ready</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-red-700 bg-red-50 px-2 py-0.5 border border-red-200 rounded-full font-semibold text-[10px] w-max leading-none">
+                              <AlertCircle size={10} className="text-red-600" />
+                              <span>Failed</span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-zinc-500 text-xs">
+                          {item.createdAt?.seconds 
+                            ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : '-'
+                          }
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {['pdf', 'docx', 'txt', 'md'].includes(item.type) && (
+                              <button
+                                onClick={() => triggerReplace(item.id)}
+                                disabled={isUploading || isProcessing}
+                                className="p-1.5 border border-zinc-300 rounded-lg text-zinc-500 hover:text-[#22577A] hover:border-[#22577A]/40 hover:bg-blue-50 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed bg-white transition-colors"
+                                title="Replace file"
+                              >
+                                <RefreshCw size={12} />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleDeleteItem(item)}
+                              disabled={isUploading || isProcessing}
+                              className="p-1.5 border border-zinc-300 rounded-lg text-zinc-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed bg-white transition-colors"
+                              title="Delete resource"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
         </div>
       </div>
@@ -1561,11 +1635,11 @@ ${text}`;
                       </div>
 
                       {/* Suggestions Grid */}
-                      <div className="space-y-2.5">
-                        {docSugs.map((sug) => {
-                          const isConflict = sug.type === 'conflict';
-                          return (
-                            <div key={sug.id} className="bg-white border border-red-150 rounded-xl p-3 text-xs flex flex-col gap-2 text-left">
+        <div className="space-y-2.5">
+          {docSugs.map((sug) => {
+            const isConflict = sug.type === 'conflict';
+            return (
+              <div key={sug.id} className="bg-white border border-red-150 rounded-xl p-3 text-xs flex flex-col gap-1.5 text-left">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2.5 py-0.5 rounded-full capitalize">
                                   {displayFields[sug.fieldName] || sug.fieldName}
@@ -1604,38 +1678,38 @@ ${text}`;
                       </div>
 
                       {/* Actions */}
-                      <div className="flex gap-2 justify-end pt-3 border-t border-red-200">
-                        <Button
-                          onClick={() => setConfirmReplaceSug(docSugs[0])}
-                          className="h-8 text-xs font-semibold px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl border-none cursor-pointer flex items-center justify-center shadow-sm"
-                        >
-                          Replace Profile
-                        </Button>
-                        <Button
-                          onClick={() => handleKeepAsKnowledge(docSugs[0])}
-                          className="h-8 text-xs font-semibold px-3 border border-zinc-300 text-zinc-700 bg-white hover:bg-zinc-50 hover:border-zinc-400 rounded-xl cursor-pointer shadow-none"
-                        >
-                          Keep as Knowledge
-                        </Button>
-                        <Button
-                          onClick={() => setDismissedDocs((prev) => [...prev, docTitle])}
-                          className="h-8 text-xs font-semibold px-3 border border-zinc-300 text-zinc-700 bg-white hover:bg-zinc-50 hover:border-zinc-400 rounded-xl cursor-pointer shadow-none"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                }
+                      <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-red-200">
+                    <Button
+                      onClick={() => setConfirmReplaceSug(docSugs[0])}
+                      className="h-8 text-xs font-semibold px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl border-none cursor-pointer flex items-center justify-center shadow-sm flex-1 sm:flex-none"
+                    >
+                      Replace Profile
+                    </Button>
+                    <Button
+                      onClick={() => handleKeepAsKnowledge(docSugs[0])}
+                      className="h-8 text-xs font-semibold px-3 border border-zinc-300 text-zinc-700 bg-white hover:bg-zinc-50 hover:border-zinc-400 rounded-xl cursor-pointer shadow-none flex-1 sm:flex-none justify-center"
+                    >
+                      Keep as Knowledge
+                    </Button>
+                    <Button
+                      onClick={() => setDismissedDocs((prev) => [...prev, docTitle])}
+                      className="h-8 text-xs font-semibold px-3 border border-zinc-300 text-zinc-700 bg-white hover:bg-zinc-50 hover:border-zinc-400 rounded-xl cursor-pointer shadow-none flex-1 sm:flex-none justify-center"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
 
-                // Normal suggestions list
+            // Normal suggestions list
+            return (
+              <div key={docTitle} className="space-y-3">
+              {docSugs.map((sug) => {
+                const isSelected = selectedSugs.includes(sug.id);
+                const isConflict = sug.type === 'conflict';
                 return (
-                  <div key={docTitle} className="space-y-3">
-                    {docSugs.map((sug) => {
-                      const isSelected = selectedSugs.includes(sug.id);
-                      const isConflict = sug.type === 'conflict';
-                      return (
-                        <div key={sug.id} className="bg-zinc-50/50 border border-zinc-150 rounded-xl p-3.5 shadow-3xs flex items-start gap-3.5 transition-all hover:bg-white text-left">
+                  <div key={sug.id} className="bg-zinc-50/50 border border-zinc-150 rounded-xl p-3 shadow-3xs flex items-start gap-3 transition-all hover:bg-white text-left">
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -1680,31 +1754,31 @@ ${text}`;
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-1.5 self-center shrink-0">
-                            <Button 
-                              onClick={() => handleApproveSuggestion(sug)} 
-                              className="h-7 text-xs font-semibold px-3 bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl transition-all"
-                            >
-                              Apply
-                            </Button>
-                            <Button 
-                              onClick={() => handleRejectSuggestion(sug)} 
-                              variant="outline" 
-                              className="h-7 text-xs font-semibold px-3 border-zinc-200 text-zinc-750 bg-white rounded-xl cursor-pointer"
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="flex gap-1.5 self-start sm:self-center shrink-0">
+                    <Button 
+                      onClick={() => handleApproveSuggestion(sug)} 
+                      className="h-7 text-xs font-semibold px-3 bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl transition-all"
+                    >
+                      Apply
+                    </Button>
+                    <Button 
+                      onClick={() => handleRejectSuggestion(sug)} 
+                      variant="outline" 
+                      className="h-7 text-xs font-semibold px-3 border-zinc-200 text-zinc-750 bg-white rounded-xl cursor-pointer"
+                    >
+                      Reject
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         );
-      })()}
+      })}
+          </div>
+        </div>
+      );
+    })()}
 
       {confirmReplaceSug && (
         <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
