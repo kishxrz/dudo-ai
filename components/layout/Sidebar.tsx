@@ -118,6 +118,8 @@ export default function Sidebar({
   const [bugSubmitted, setBugSubmitted] = useState(false);
   const [bugLoading, setBugLoading] = useState(false);
 
+
+
   useEffect(() => {
     if (!showProfilePopup) return;
     const handleOutsideClick = (e: MouseEvent) => {
@@ -130,9 +132,28 @@ export default function Sidebar({
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [showProfilePopup]);
 
+  const [isClickClosed, setIsClickClosed] = useState(false);
+
   const updateExpanded = (value: boolean) => {
     setExpanded(value);
     onExpandedChange?.(value);
+  };
+
+  const handleMouseEnter = () => {
+    if (!isClickClosed) {
+      updateExpanded(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsClickClosed(false);
+    updateExpanded(false);
+  };
+
+  const handleLinkClick = () => {
+    onMobileClose?.();
+    setIsClickClosed(true);
+    updateExpanded(false);
   };
 
   const handleSignOut = async () => {
@@ -142,15 +163,31 @@ export default function Sidebar({
 
   const initials = displayName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
 
-  const handleSendSupport = (e: React.FormEvent) => {
+  const handleSendSupport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bugName.trim() || !bugEmail.trim() || !bugMessage.trim()) {
       alert("Please fill in Name, Email, and Message.");
       return;
     }
     setBugLoading(true);
-    setTimeout(() => {
-      setBugLoading(false);
+    try {
+      const res = await fetch('/api/support', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: bugName,
+          email: bugEmail,
+          phone: bugPhone,
+          message: bugMessage,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to send support message.');
+      }
+
       setBugSubmitted(true);
       setTimeout(() => {
         setBugSubmitted(false);
@@ -158,18 +195,24 @@ export default function Sidebar({
         setBugMessage('');
         setBugPhone('');
       }, 2000);
-    }, 1000);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'An error occurred while sending your message. Please try again.');
+    } finally {
+      setBugLoading(false);
+    }
   };
 
   return (
     <>
       <aside
-        onMouseEnter={() => updateExpanded(true)}
-        onMouseLeave={() => updateExpanded(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex flex-col h-[100dvh] bg-white border-r border-zinc-200 select-none overflow-hidden group",
           "transition-all duration-200 ease-in-out",
-          "w-[240px] md:w-[60px] hover:md:w-[240px] lg:w-[240px]",
+          "w-[240px] md:w-[60px]",
+          expanded ? "md:w-[240px]" : "md:w-[60px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
@@ -177,13 +220,13 @@ export default function Sidebar({
         <div className="h-14 flex items-center shrink-0 border-b border-zinc-100">
           <Link
             href="/"
-            onClick={() => onMobileClose?.()}
+            onClick={handleLinkClick}
             className={cn(
               'no-underline flex items-center w-full transition-all duration-150',
               'gap-2 px-4 justify-start',
-              'md:justify-center md:px-0',
-              'md:group-hover:gap-2 md:group-hover:px-4 md:group-hover:justify-start',
-              'lg:gap-2 lg:px-4 lg:justify-start'
+              expanded 
+                ? 'md:gap-2 md:px-4 md:justify-start'
+                : 'md:justify-center md:px-0'
             )}
           >
             <Logo className="w-[26px] h-[26px] shrink-0" strokeColor="white" />
@@ -191,8 +234,9 @@ export default function Sidebar({
               className={cn(
                 'text-[19px] font-black text-zinc-950 tracking-tight leading-none whitespace-nowrap transition-all duration-150',
                 'w-auto opacity-100',
-                'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
-                'lg:w-auto lg:opacity-100'
+                expanded
+                  ? 'md:w-auto md:opacity-100'
+                  : 'md:w-0 md:opacity-0'
               )}
             >
               Dudo
@@ -210,14 +254,14 @@ export default function Sidebar({
                 : pathname.startsWith(item.href);
 
               return (
-                <Link key={item.href} href={item.href} onClick={() => onMobileClose?.()} className="no-underline">
+                <Link key={item.href} href={item.href} onClick={handleLinkClick} className="no-underline">
                   <div
                     className={cn(
                       'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
                       'gap-2.5 px-3 justify-start',
-                      'md:justify-center md:px-0 md:gap-0',
-                      'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',
-                      'lg:gap-2.5 lg:px-3 lg:justify-start',
+                      expanded
+                        ? 'md:gap-2.5 md:px-3 md:justify-start'
+                        : 'md:justify-center md:px-0 md:gap-0',
                       isActive
                         ? 'bg-[#FFF3E5] text-[#22577A] border-[#DBA11A] border-l-2 font-medium'
                         : 'text-zinc-700 border-l-2 border-transparent hover:bg-zinc-50 hover:text-zinc-900 font-normal'
@@ -230,8 +274,9 @@ export default function Sidebar({
                       className={cn(
                         'text-[15px] tracking-tight whitespace-nowrap leading-none transition-all duration-150',
                         'w-auto opacity-100',
-                        'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
-                        'lg:w-auto lg:opacity-100'
+                        expanded
+                          ? 'md:w-auto md:opacity-100'
+                          : 'md:w-0 md:opacity-0'
                       )}
                     >
                       {item.label}
@@ -253,13 +298,14 @@ export default function Sidebar({
               const isReportBug = item.href === '/dashboard/report-bug';
 
               const handleClick = (e: React.MouseEvent) => {
+                handleLinkClick();
                 if (isTalkToDudo) {
                   e.preventDefault();
-                  onMobileClose?.();
                   window.open('https://api.whatsapp.com/send/?phone=916374385901&text=Hi+Dudo+support%2C+I+need+help+with&type=phone_number&app_absent=0', '_blank');
                 } else if (isReportBug) {
                   e.preventDefault();
-                  onMobileClose?.();
+                  setBugName(profileName && profileName !== 'Rahul Khanna' && profileName !== 'User' ? profileName : displayName);
+                  setBugEmail(displayEmail && displayEmail !== 'rahul.khanna@dudo.com' ? displayEmail : (currentUser?.email || ''));
                   setShowBugModal(true);
                 }
               };
@@ -270,9 +316,9 @@ export default function Sidebar({
                     className={cn(
                       'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
                       'gap-2.5 px-3 justify-start',
-                      'md:justify-center md:px-0 md:gap-0',
-                      'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:justify-start',
-                      'lg:gap-2.5 lg:px-3 lg:justify-start',
+                      expanded
+                        ? 'md:gap-2.5 md:px-3 md:justify-start'
+                        : 'md:justify-center md:px-0 md:gap-0',
                       isActive
                         ? 'bg-[#EED9B4] text-[#22577A] border-[#DBA11A] border-l-2 font-medium'
                         : 'text-zinc-700 border-l-2 border-transparent hover:bg-zinc-50 hover:text-zinc-900 font-normal'
@@ -289,8 +335,9 @@ export default function Sidebar({
                       className={cn(
                         'text-[15px] tracking-tight whitespace-nowrap leading-none transition-all duration-150',
                         'w-auto opacity-100',
-                        'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
-                        'lg:w-auto lg:opacity-100'
+                        expanded
+                          ? 'md:w-auto md:opacity-100'
+                          : 'md:w-0 md:opacity-0'
                       )}
                     >
                       {item.label}
@@ -310,9 +357,9 @@ export default function Sidebar({
             className={cn(
               'flex items-center w-full rounded-xl transition-all duration-150 bg-transparent border-none cursor-pointer text-left hover:bg-zinc-50',
               'gap-2.5 px-3 py-1 justify-start',
-              'md:justify-center md:py-1 md:px-0 md:gap-0',
-              'md:group-hover:gap-2.5 md:group-hover:px-3 md:group-hover:py-1 md:group-hover:justify-start',
-              'lg:gap-2.5 lg:px-3 lg:py-1 lg:justify-start'
+              expanded
+                ? 'md:gap-2.5 md:px-3 md:py-1 md:justify-start'
+                : 'md:justify-center md:py-1 md:px-0 md:gap-0'
             )}
           >
             <div className="w-8 h-8 rounded-full bg-[#EED9B4] text-[#22577A] flex items-center justify-center font-black text-[10px] shrink-0 border border-[#22577A]/20 overflow-hidden">
@@ -326,8 +373,9 @@ export default function Sidebar({
               className={cn(
                 'min-w-0 overflow-hidden text-left transition-all duration-150',
                 'w-auto opacity-100',
-                'md:w-0 md:opacity-0 md:group-hover:w-auto md:group-hover:opacity-100',
-                'lg:w-auto lg:opacity-100'
+                expanded
+                  ? 'md:w-auto md:opacity-100'
+                  : 'md:w-0 md:opacity-0'
               )}
             >
               <div className="text-[11px] font-black text-zinc-900 truncate leading-none mb-0.5">{profileName}</div>
@@ -344,8 +392,9 @@ export default function Sidebar({
           "fixed bottom-[60px] bg-white border border-zinc-150 rounded-2xl shadow-2xl z-[9999] p-3 select-none flex flex-col gap-2.5 origin-bottom-left",
           "transition-all duration-200 ease-in-out",
           "left-3 w-[216px]",
-          "md:left-[72px] md:w-[224px] md:group-hover:left-[252px]",
-          "lg:left-[252px]",
+          expanded
+            ? "md:left-[252px] md:w-[224px]"
+            : "md:left-[72px] md:w-[224px]",
           showProfilePopup
             ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
             : "opacity-0 translate-y-2 scale-95 pointer-events-none"
@@ -537,7 +586,7 @@ export default function Sidebar({
                   <button
                     type="submit"
                     disabled={bugLoading}
-                    className="w-full h-9.5 mt-2 bg-gradient-to-r from-[#DBA11A] to-[#F3BE42] hover:from-[#C59013] hover:to-[#E5B134] text-white text-xs font-bold rounded-xl border-none cursor-pointer flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] shadow-md shadow-[#DBA11A]/10"
+                    className="w-full h-9.5 mt-2 bg-[#22577A] hover:bg-[#1C4662] text-white text-xs font-bold rounded-xl border-none cursor-pointer flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] shadow-md shadow-[#22577A]/10"
                   >
                     {bugLoading ? (
                       <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />

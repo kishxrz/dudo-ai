@@ -1,24 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useWorkspace } from '@/hooks/useWorkspace';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { FormSection } from '@/components/ui/FormSection';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
 export default function SettingsPage() {
-  const [businessName, setBusinessName] = useState('Sharma Electronics');
-  const [ownerName, setOwnerName] = useState('Suresh Kumar Sharma');
-  const [email, setEmail] = useState('suresh@sharmaelectronics.in');
-  const [phone, setPhone] = useState('+91-98765-43210');
-  const [industry, setIndustry] = useState('Electronics Retail');
+  const { currentUser } = useAuth();
+  const { workspaceId } = useWorkspace();
+  const [loading, setLoading] = useState(true);
+
+  const [businessName, setBusinessName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [industry, setIndustry] = useState('');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
 
   // Toggle state trackers
@@ -31,11 +38,11 @@ export default function SettingsPage() {
   ]);
 
   // Database values tracker
-  const [dbBusinessName, setDbBusinessName] = useState('Sharma Electronics');
-  const [dbOwnerName, setDbOwnerName] = useState('Suresh Kumar Sharma');
-  const [dbEmail, setDbEmail] = useState('suresh@sharmaelectronics.in');
-  const [dbPhone, setDbPhone] = useState('+91-98765-43210');
-  const [dbIndustry, setDbIndustry] = useState('Electronics Retail');
+  const [dbBusinessName, setDbBusinessName] = useState('');
+  const [dbOwnerName, setDbOwnerName] = useState('');
+  const [dbEmail, setDbEmail] = useState('');
+  const [dbPhone, setDbPhone] = useState('');
+  const [dbIndustry, setDbIndustry] = useState('');
   const [dbTimezone, setDbTimezone] = useState('Asia/Kolkata');
   const [dbNotifications, setDbNotifications] = useState([
     { id: 'lead', enabled: true },
@@ -45,6 +52,94 @@ export default function SettingsPage() {
     { id: 'weekly', enabled: false },
   ]);
 
+  useEffect(() => {
+    async function loadSettings() {
+      if (!workspaceId) return;
+      let bName = '';
+      let oName = '';
+      let eMail = currentUser?.email || '';
+      let ph = '';
+      let ind = '';
+      let tz = 'Asia/Kolkata';
+      let notifs = [
+        { id: 'lead', enabled: true },
+        { id: 'appt', enabled: true },
+        { id: 'camp', enabled: true },
+        { id: 'help', enabled: true },
+        { id: 'weekly', enabled: false },
+      ];
+
+      // Auto-fill owner name from user's display name or email prefix if empty
+      if (currentUser?.displayName) {
+        oName = currentUser.displayName;
+      } else if (currentUser?.email) {
+        oName = currentUser.email.split('@')[0];
+      }
+
+      if (db) {
+        try {
+          const docRef = doc(db, 'workspaces', workspaceId, 'settings', 'profile');
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            bName = data.businessName || bName;
+            oName = data.ownerName || oName;
+            eMail = data.email || eMail;
+            ph = data.phone || ph;
+            ind = data.industry || ind;
+            tz = data.timezone || tz;
+            if (data.notifications) {
+              notifs = data.notifications;
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load settings:', e);
+        }
+      }
+
+      // Dev fallback from localStorage
+      if (typeof window !== 'undefined') {
+        const local = localStorage.getItem('__dudo_settings_profile');
+        if (local) {
+          try {
+            const data = JSON.parse(local);
+            bName = data.businessName || bName;
+            oName = data.ownerName || oName;
+            eMail = data.email || eMail;
+            ph = data.phone || ph;
+            ind = data.industry || ind;
+            tz = data.timezone || tz;
+            if (data.notifications) notifs = data.notifications;
+          } catch {}
+        }
+      }
+
+      setBusinessName(bName);
+      setDbBusinessName(bName);
+      setOwnerName(oName);
+      setDbOwnerName(oName);
+      setEmail(eMail);
+      setDbEmail(eMail);
+      setPhone(ph);
+      setDbPhone(ph);
+      setIndustry(ind);
+      setDbIndustry(ind);
+      setTimezone(tz);
+      setDbTimezone(tz);
+      
+      setNotifications((prev) =>
+        prev.map((n) => {
+          const matched = notifs.find((x) => x.id === n.id);
+          return matched ? { ...n, enabled: matched.enabled } : n;
+        })
+      );
+      setDbNotifications(notifs);
+      setLoading(false);
+    }
+
+    loadSettings();
+  }, [workspaceId, currentUser]);
+
   // Computed Save state
   const saved = businessName === dbBusinessName &&
                 ownerName === dbOwnerName &&
@@ -52,9 +147,33 @@ export default function SettingsPage() {
                 phone === dbPhone &&
                 industry === dbIndustry &&
                 timezone === dbTimezone &&
-                notifications.every((n, idx) => n.enabled === dbNotifications[idx].enabled);
+                notifications.every((n, idx) => n.enabled === (dbNotifications[idx]?.enabled ?? true));
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    const payload = {
+      businessName,
+      ownerName,
+      email,
+      phone,
+      industry,
+      timezone,
+      notifications: notifications.map(n => ({ id: n.id, enabled: n.enabled })),
+    };
+
+    if (workspaceId && db) {
+      try {
+        const docRef = doc(db, 'workspaces', workspaceId, 'settings', 'profile');
+        await setDoc(docRef, payload, { merge: true });
+      } catch (e) {
+        console.error('Failed to save settings:', e);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('__dudo_settings_profile', JSON.stringify(payload));
+      window.dispatchEvent(new Event('dudo-settings-changed'));
+    }
+
     setDbBusinessName(businessName);
     setDbOwnerName(ownerName);
     setDbEmail(email);
@@ -70,6 +189,19 @@ export default function SettingsPage() {
     );
   };
 
+  if (loading) {
+    return (
+      <PageLayout className="max-w-4xl">
+        <div className="min-h-[400px] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-[#22577A] rounded-full animate-bounce shrink-0" />
+            <span className="text-sm text-zinc-500 font-semibold">Loading settings...</span>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout className="max-w-4xl">
       <PageHeader
@@ -79,7 +211,7 @@ export default function SettingsPage() {
         actions={
           <Button 
             onClick={handleSave} 
-            className="h-8.5 px-4 bg-gradient-to-r from-[#DBA11A] to-[#F3BE42] hover:from-[#C59013] hover:to-[#E5B134] text-white font-bold rounded-xl shadow-md shadow-[#DBA11A]/10 text-xs cursor-pointer flex items-center gap-1.5 border-none transition-all hover:scale-[1.01]"
+            className="h-8.5 px-4 bg-[#22577A] hover:bg-[#1C4662] text-white font-bold rounded-xl shadow-md shadow-[#22577A]/10 text-xs cursor-pointer flex items-center gap-1.5 border-none transition-all hover:scale-[1.01]"
           >
             <Save size={13} /> {saved ? 'Saved!' : 'Save Changes'}
           </Button>
@@ -91,18 +223,19 @@ export default function SettingsPage() {
         <SectionHeader title="Business Profile" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            { label: 'Business Name', value: businessName, setter: setBusinessName },
-            { label: 'Owner Name', value: ownerName, setter: setOwnerName },
-            { label: 'Email', value: email, setter: setEmail },
-            { label: 'Phone', value: phone, setter: setPhone },
-            { label: 'Industry', value: industry, setter: setIndustry },
-            { label: 'Timezone', value: timezone, setter: setTimezone },
-          ].map(({ label, value, setter }) => (
+            { label: 'Business Name', value: businessName, setter: setBusinessName, placeholder: 'Your Business Name' },
+            { label: 'Owner Name', value: ownerName, setter: setOwnerName, placeholder: 'Your Name' },
+            { label: 'Email', value: email, setter: setEmail, placeholder: 'Your Email' },
+            { label: 'Phone', value: phone, setter: setPhone, placeholder: 'Your Phone Number' },
+            { label: 'Industry', value: industry, setter: setIndustry, placeholder: 'Your Industry' },
+            { label: 'Timezone', value: timezone, setter: setTimezone, placeholder: 'Your Timezone' },
+          ].map(({ label, value, setter, placeholder }) => (
             <div key={label} className="space-y-1">
               <Label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">{label}</Label>
               <Input 
                 value={value} 
                 onChange={e => setter(e.target.value)} 
+                placeholder={placeholder}
                 className="h-9 text-xs border-zinc-200 bg-white font-semibold rounded-xl text-zinc-800"
               />
             </div>

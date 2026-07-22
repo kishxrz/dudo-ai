@@ -79,7 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     if (!auth) { setCurrentUser(MOCK_USER); return; }
-    const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const { user } = await signInWithPopup(auth, provider);
     await ensureWorkspace(user.uid, user.displayName);
   };
 

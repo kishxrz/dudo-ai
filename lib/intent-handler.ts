@@ -149,7 +149,7 @@ export async function handleIntent(
     // Extract: to, subject, body from message
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
     const emailMatch = userMessage.match(emailRegex);
-    const to = emailMatch ? emailMatch[0] : 'support@dudo.com';
+    const to = emailMatch ? emailMatch[0] : 'dudosupport@gmail.com';
 
     let subject = 'Message from Assistant';
     let body = userMessage;

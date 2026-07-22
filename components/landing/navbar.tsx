@@ -13,10 +13,10 @@ export default function Navbar() {
 
         {/* Navigation Center */}
         <div className="hidden md:flex items-center gap-8 font-bold text-sm tracking-tight">
-          <Link href="/#features" className="text-[#6B7280] hover:text-[#22577A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#22577A] hover:after:w-full after:transition-all after:duration-300">Features</Link>
-          <Link href="/#use-cases" className="text-[#6B7280] hover:text-[#22577A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#22577A] hover:after:w-full after:transition-all after:duration-300">Use Cases</Link>
-          <Link href="/#pricing" className="text-[#6B7280] hover:text-[#22577A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#22577A] hover:after:w-full after:transition-all after:duration-300">Pricing</Link>
-          <Link href="/#faq" className="text-[#6B7280] hover:text-[#22577A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#22577A] hover:after:w-full after:transition-all after:duration-300">FAQ</Link>
+          <Link href="/#features" className="text-[#6B7280] hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Features</Link>
+          <Link href="/#use-cases" className="text-[#6B7280] hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Use Cases</Link>
+          <Link href="/#pricing" className="text-[#6B7280] hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Pricing</Link>
+          <Link href="/#faq" className="text-[#6B7280] hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">FAQ</Link>
         </div>
 
         <div className="flex items-center gap-5">

@@ -90,7 +90,7 @@ export default function DashboardPage() {
             const data = snap.data();
             name = data.name || name;
             status = data.status || status;
-            isGeneral = !!data.name && data.name !== 'My Assistant';
+            isGeneral = !!data.generalCompleted || !!data.setupProgress?.generalCompleted;
             isPublished = data.status === 'live';
           }
         } catch (e) {
@@ -111,7 +111,7 @@ export default function DashboardPage() {
           try {
             const parsed = JSON.parse(localAss);
             name = parsed.name || name;
-            isGeneral = !!parsed.name && parsed.name !== 'My Assistant';
+            isGeneral = !!parsed.generalCompleted || !!parsed.setupProgress?.generalCompleted;
           } catch(e){}
         }
       }

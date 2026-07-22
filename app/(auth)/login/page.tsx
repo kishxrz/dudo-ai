@@ -52,7 +52,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (auth) {
-        await signInWithPopup(auth, new GoogleAuthProvider());
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        await signInWithPopup(auth, provider);
       } else {
         console.log('Firebase auth fallback mock Google login');
       }

@@ -31,13 +31,13 @@ export default function Footer() {
             <h4 className="text-xs font-black uppercase tracking-wider text-[#22577A]">Product</h4>
             <ul className="space-y-3 text-xs font-extrabold text-[#22577A]/80">
               <li>
-                <Link href="/#features" className="hover:text-[#22577A] transition-colors">Features</Link>
+                <Link href="/#features" className="hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Features</Link>
               </li>
               <li>
-                <Link href="/#pricing" className="hover:text-[#22577A] transition-colors">Pricing</Link>
+                <Link href="/#pricing" className="hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Pricing</Link>
               </li>
               <li>
-                <Link href="/#faq" className="hover:text-[#22577A] transition-colors">FAQ</Link>
+                <Link href="/#faq" className="hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">FAQ</Link>
               </li>
             </ul>
           </div>
@@ -47,16 +47,16 @@ export default function Footer() {
             <h4 className="text-xs font-black uppercase tracking-wider text-[#22577A]">Support & Legal</h4>
             <ul className="space-y-3 text-xs font-extrabold text-[#22577A]/80">
               <li>
-                <Link href="/privacy" className="hover:text-[#22577A] transition-colors">Privacy Policy</Link>
+                <Link href="/privacy" className="hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Privacy Policy</Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-[#22577A] transition-colors">Terms of Service</Link>
+                <Link href="/terms" className="hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Terms of Service</Link>
               </li>
               <li>
-                <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-[#22577A] transition-colors">Support</a>
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Support</a>
               </li>
               <li>
-                <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-[#22577A] transition-colors">Contact</a>
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-[#DBA11A] transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-0.5 after:bg-[#DBA11A] hover:after:w-full after:transition-all after:duration-300">Contact</a>
               </li>
             </ul>
           </div>

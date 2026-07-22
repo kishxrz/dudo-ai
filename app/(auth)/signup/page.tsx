@@ -77,7 +77,9 @@ function SignupContent() {
     setLoading(true);
     try {
       if (auth) {
-        const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const { user } = await signInWithPopup(auth, provider);
         // Create Firestore user document
         if (db) {
           await setDoc(doc(db, 'users', user.uid), {

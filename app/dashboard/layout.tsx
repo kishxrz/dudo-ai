@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, react-hooks/purity */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, react-hooks/purity, react-hooks/set-state-in-effect */
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -9,10 +9,11 @@ import Sidebar from '@/components/layout/Sidebar';
 import { Clock, Menu, LogOut, Wifi, WifiOff, RefreshCw, X, Zap, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, collection } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { SubscriptionProvider, useSubscriptionContext } from '@/contexts/SubscriptionContext';
 import { LockedPage } from '@/components/subscription/FeatureGate';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,6 +24,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </AuthProvider>
   );
 }
+
+// ─── Indian Flag SVG Component (for Windows OS fallback) ───────────────────────
+const IndianFlag = () => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 900 600" 
+    className="w-4.5 h-3 shrink-0 rounded-[2px] shadow-xs border border-zinc-200/20"
+  >
+    <rect width="900" height="200" fill="#FF9933" />
+    <rect y="200" width="900" height="200" fill="#FFFFFF" />
+    <rect y="400" width="900" height="200" fill="#138808" />
+    <g transform="translate(450, 300)">
+      <circle r="92" fill="none" stroke="#000080" strokeWidth="10" />
+      <circle r="16" fill="#000080" />
+      {Array.from({ length: 24 }).map((_, i) => (
+        <line
+          key={i}
+          y1="-92"
+          y2="0"
+          stroke="#000080"
+          strokeWidth="6"
+          transform={`rotate(${(i * 360) / 24})`}
+        />
+      ))}
+    </g>
+  </svg>
+);
 
 // ─── AI Status types ──────────────────────────────────────────────────────────
 type AiStatus = 'online' | 'paused' | 'training' | 'offline' | 'unconfigured';
@@ -60,8 +88,21 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   const [lastSync, setLastSync] = useState<string>('—');
   const [aiStatus, setAiStatus] = useState<AiStatus>('unconfigured');
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
   const { subscription, loading: subLoading, isExpired, isTrial, remainingText, canUse } = useSubscriptionContext();
+
+  // Auto-rotate header banner slides every 5 seconds
+  useEffect(() => {
+    const hasMonthlyOrTrial = !subLoading && (!subscription || subscription.plan === 'trial' || subscription.plan === 'monthly');
+    const slideCount = hasMonthlyOrTrial ? 3 : 2;
+
+    const interval = setInterval(() => {
+      setCurrentSlideIndex((prev) => (prev + 1) % slideCount);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [subLoading, subscription]);
+
   const pathname = usePathname();
 
   const getRequiredFeature = (path: string): string | null => {
@@ -173,7 +214,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       // Telegram
       setTgConnected(localStorage.getItem('__dudo_telegram_connected') === 'true');
 
-      // Knowledge
+      // Knowledge fallback
       const rawKb = localStorage.getItem('__dudo_dev_knowledge_items');
       if (rawKb) {
         try {
@@ -206,6 +247,27 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     loadStatus();
     window.addEventListener('dudo-config-changed', loadStatus);
     return () => window.removeEventListener('dudo-config-changed', loadStatus);
+  }, [workspaceId]);
+
+  // Real-time Firestore subscription for Knowledge Base items count
+  useEffect(() => {
+    if (!db || !workspaceId) return;
+    const collRef = collection(db, 'workspaces', workspaceId, 'knowledge');
+    const unsubscribe = onSnapshot(collRef, (snap: any) => {
+      const RESERVED_IDS = ['knowledge-base', 'business-profile'];
+      let count = snap.docs.filter((d: any) => !RESERVED_IDS.includes(d.id)).length;
+      const bizDoc = snap.docs.find((d: any) => d.id === 'business-profile');
+      if (bizDoc && bizDoc.exists()) {
+        const data = bizDoc.data();
+        if (data.businessName || data.description || data.productsServices) {
+          count += 1;
+        }
+      }
+      setKnowledgeCount(count);
+    }, (err: any) => {
+      console.warn('Failed to listen to knowledge count:', err);
+    });
+    return unsubscribe;
   }, [workspaceId]);
 
   // Derive AI status from state
@@ -242,20 +304,49 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   if (!currentUser) return null;
 
-  // ─── Banner text (single-line) ────────────────────────────────────────────
+  // ─── Banner slideshow generation ──────────────────────────────────────────
   const firstName = profileName.split(' ')[0];
   const planLabel = subLoading ? '…'
     : !subscription ? 'Free Trial'
     : subscription.planName;
   const timeLabel = subLoading ? '' : remainingText ? ` • ${remainingText}` : '';
-  const bannerLine = `👋 Welcome, ${firstName} • ${planLabel}${timeLabel}`;
 
-  // ─── Upgrade promo banner: only for monthly plan users ───────────────────
-  const showUpgradePromo = !subLoading && subscription?.plan === 'monthly' && !isExpired;
+  const showWelcomeUpgradeBtn = subLoading || !subscription || subscription.plan === 'trial' || isExpired;
+  const welcomeUpgradeBtnText = subscription?.plan === 'trial' ? 'Upgrade ₹999' : 'Upgrade';
 
-  // ─── Legacy upgrade button (for trial / expired) ──────────────────────────
-  const showUpgradeBtn = !showUpgradePromo && (subLoading || !subscription || subscription.plan === 'trial' || isExpired);
-  const upgradeBtnText = subscription?.plan === 'trial' ? 'Upgrade ₹999' : 'Upgrade';
+  const slides = [
+    {
+      type: 'welcome',
+      content: `Welcome back, ${firstName}! Plan: ${planLabel}${timeLabel} — Let's build something amazing today!`,
+      action: showWelcomeUpgradeBtn ? {
+        text: welcomeUpgradeBtnText,
+        onClick: () => router.push('/dashboard/billing')
+      } : null
+    }
+  ];
+
+  // Offer: only for trial and monthly users, not for six_month plan users
+  const hasMonthlyOrTrial = !subLoading && (!subscription || subscription.plan === 'trial' || subscription.plan === 'monthly');
+  if (hasMonthlyOrTrial) {
+    slides.push({
+      type: 'offer',
+      content: `Special Upgrade Offer: Save 58% — Upgrade to the 6-Month Pack for just ₹2499!`,
+      action: {
+        text: 'Upgrade Now',
+        onClick: () => router.push('/dashboard/billing')
+      }
+    });
+  }
+
+  // Proud India slide
+  slides.push({
+    type: 'proud',
+    content: `Homegrown & Proud: Built in India for ambitious businesses worldwide.`,
+    action: null
+  });
+
+  const activeIndex = currentSlideIndex >= slides.length ? 0 : currentSlideIndex;
+  const currentSlide = slides[activeIndex];
 
   const statusCfg = AI_STATUS_MAP[aiStatus];
 
@@ -274,7 +365,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       
       <div className={cn(
         "flex-1 flex flex-col h-screen overflow-hidden relative bg-[#FFF8F0] transition-all duration-200 ease-in-out",
-        "ml-0 md:ml-[60px] lg:ml-60",
+        "ml-0 md:ml-[60px] lg:ml-[60px]",
         sidebarExpanded && "md:ml-60 lg:ml-60"
       )}>
         
@@ -294,39 +385,60 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
             />
           )}
 
-          {/* ── Welcome banner ──────────────────────────────────────────────── */}
-          <div className="bg-[#FFF3E5] border-b border-[#EED9B4]/50 flex items-center justify-between py-2 px-4 gap-2.5 flex-shrink-0 text-[#22577A] min-w-0">
-            <div className="flex items-center gap-1.5 text-xs font-bold tracking-tight min-w-0">
-              <span className="shrink-0">⏱</span>
-              <span className="truncate">{bannerLine}</span>
-            </div>
-            {showUpgradeBtn && (
-              <Button 
-                onClick={() => router.push('/dashboard/billing')}
-                className="h-6 text-[10px] bg-[#22577A] hover:bg-[#1A4461] text-white px-3 font-bold rounded-lg shadow-sm border-none cursor-pointer flex items-center justify-center transition-colors leading-none shrink-0"
-              >
-                {upgradeBtnText}
-              </Button>
-            )}
-          </div>
+          {/* ── Combined Animated Top Banner ────────────────────────────────── */}
+          <div className="relative overflow-hidden bg-[#FFF3E5] border-b border-[#EED9B4]/50 h-9 flex items-center justify-between px-4 gap-3 flex-shrink-0 select-none text-[#22577A]">
+            {/* Left spacer to balance the right button */}
+            <div className="shrink-0 w-[90px] hidden sm:block" />
 
-          {/* ── Upgrade promo banner (monthly plan only) ────────────────────── */}
-          {showUpgradePromo && (
-            <div className="bg-gradient-to-r from-[#22577A] to-[#1A4461] border-b border-[#22577A]/30 flex items-center justify-between py-1.5 px-4 gap-3 flex-shrink-0 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Zap size={11} className="text-[#F3BE42] shrink-0" />
-                <span className="text-[11px] font-bold text-white truncate">
-                  Save 58% — Upgrade to 6 Months for ₹2499
-                </span>
-              </div>
-              <Button
-                onClick={() => router.push('/dashboard/billing')}
-                className="h-6 text-[10px] bg-[#DBA11A] hover:bg-[#C59013] text-white px-3 font-bold rounded-lg border-none cursor-pointer flex items-center justify-center transition-colors leading-none shrink-0 shadow-sm"
-              >
-                Upgrade Now
-              </Button>
+            {/* Centered animated content */}
+            <div className="flex-1 relative h-full flex items-center justify-center min-w-0 overflow-hidden">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeIndex}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="absolute inset-0 flex items-center justify-center gap-2 text-xs font-bold tracking-tight"
+                >
+                  {currentSlide.type === 'welcome' && (
+                    <span className="animate-wave-emoji shrink-0 text-sm">👋</span>
+                  )}
+                  {currentSlide.type === 'offer' && (
+                    <span className="animate-shimmer-emoji shrink-0 text-sm">⚡</span>
+                  )}
+                  {currentSlide.type === 'proud' && (
+                    <div className="animate-shimmer-emoji shrink-0">
+                      <IndianFlag />
+                    </div>
+                  )}
+                  <span className="truncate">{currentSlide.content}</span>
+                </motion.div>
+              </AnimatePresence>
             </div>
-          )}
+
+            {/* Right action button */}
+            <div className="shrink-0 w-[90px] flex justify-end">
+              {currentSlide.action && (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentSlide.type}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Button
+                      onClick={currentSlide.action.onClick}
+                      className="h-6 text-[10px] bg-[#22577A] hover:bg-[#1A4461] text-white px-3 font-bold rounded-lg border-none shadow-sm cursor-pointer flex items-center justify-center transition-all hover:scale-105 active:scale-95 leading-none"
+                    >
+                      {currentSlide.action.text}
+                    </Button>
+                  </motion.div>
+                </AnimatePresence>
+              )}
+            </div>
+          </div>
           
           {/* ── Top breadcrumb / status bar ─────────────────────────────────── */}
           <div className="bg-white border-b border-zinc-200/50 h-14 flex items-center px-4 sm:px-6 flex-shrink-0">

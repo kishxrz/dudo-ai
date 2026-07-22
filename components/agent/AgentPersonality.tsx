@@ -213,6 +213,7 @@ export default function AgentPersonality() {
 
   // ─── Persistence ───────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const saveSection = async (fields: Record<string, any>, onSaved: () => void) => {
     if (!workspaceId) return;
     if (db) {
@@ -233,13 +234,21 @@ export default function AgentPersonality() {
     onSaved();
   };
 
-  const handleSaveName = () => saveSection({ name: name.trim() }, () => setDbName(name.trim()));
+  const handleSaveName = () => saveSection({ 
+    name: name.trim(),
+    generalCompleted: true,
+    'setupProgress.generalCompleted': true
+  }, () => setDbName(name.trim()));
   const handleTimezoneChange = (val: string | null) => {
     if (!val) return;
     setTimezone(val);
     saveSection({ timezone: val }, () => setDbTimezone(val));
   };
-  const handleSavePrompt = () => saveSection({ systemPrompt: systemPrompt.trim() }, () => setDbSystemPrompt(systemPrompt.trim()));
+  const handleSavePrompt = () => saveSection({ 
+    systemPrompt: systemPrompt.trim(),
+    generalCompleted: true,
+    'setupProgress.generalCompleted': true
+  }, () => setDbSystemPrompt(systemPrompt.trim()));
   const handleSaveBoss = () => {
     const timeoutVal = Number(takeoverTimeout) || 30;
     saveSection({
@@ -436,7 +445,7 @@ export default function AgentPersonality() {
             </div>
             <Button
               onClick={handleSaveName}
-              className="h-7.5 text-[10px] font-bold px-3.5 bg-zinc-950 hover:bg-zinc-800 text-white rounded-md border-none cursor-pointer"
+              className="h-7.5 text-[10px] font-bold px-3.5 bg-[#22577A] hover:bg-[#1C4662] text-white rounded-md border-none cursor-pointer"
             >
               {savedName ? 'Saved!' : 'Save Name'}
             </Button>
@@ -444,7 +453,7 @@ export default function AgentPersonality() {
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. My AI Assistant"
+            placeholder="Your Assistant Name"
             className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400"
           />
         </div>
@@ -480,7 +489,7 @@ export default function AgentPersonality() {
         <div className="flex justify-between items-center flex-wrap gap-2">
           <div>
             <h3 className="text-xs font-bold text-zinc-800 uppercase tracking-wider">System Prompt (Instructions)</h3>
-            <p className="text-[10px] text-zinc-400 mt-0.5">Instructions that control the AI's core behavior</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Instructions that control the AI&apos;s core behavior</p>
           </div>
           <div className="flex items-center gap-1.5">
             <Button
@@ -493,7 +502,7 @@ export default function AgentPersonality() {
             </Button>
             <Button
               onClick={handleSavePrompt}
-              className="h-7.5 text-[10px] font-bold px-3.5 bg-zinc-950 hover:bg-zinc-800 text-white rounded-md border-none cursor-pointer"
+              className="h-7.5 text-[10px] font-bold px-3.5 bg-[#22577A] hover:bg-[#1C4662] text-white rounded-md border-none cursor-pointer"
             >
               {savedPrompt ? 'Saved!' : 'Save Prompt'}
             </Button>
@@ -502,7 +511,7 @@ export default function AgentPersonality() {
         <Textarea
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
-          placeholder="You are a helpful customer service receptionist..."
+          placeholder="Your System Prompt"
           className="text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white font-mono min-h-[140px] resize-y text-zinc-800 placeholder:text-zinc-400"
         />
       </div>
@@ -516,7 +525,7 @@ export default function AgentPersonality() {
           </div>
           <Button
             onClick={handleSaveBoss}
-            className="h-7.5 text-[10px] font-bold px-3.5 bg-zinc-950 hover:bg-zinc-800 text-white rounded-md border-none cursor-pointer"
+            className="h-7.5 text-[10px] font-bold px-3.5 bg-[#22577A] hover:bg-[#1C4662] text-white rounded-md border-none cursor-pointer"
           >
             {savedBoss ? 'Saved!' : 'Save Setup'}
           </Button>
@@ -525,11 +534,11 @@ export default function AgentPersonality() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label htmlFor="wa-admins" className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">WhatsApp Admin Phone</Label>
-            <Input id="wa-admins" value={whatsappAdmins} onChange={(e) => setWhatsappAdmins(e.target.value)} placeholder="e.g. +919876543210" className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400" />
+            <Input id="wa-admins" value={whatsappAdmins} onChange={(e) => setWhatsappAdmins(e.target.value)} placeholder="Your Whatsapp Admin Phone" className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="tg-admins" className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Telegram Admin Username</Label>
-            <Input id="tg-admins" value={telegramAdmins} onChange={(e) => setTelegramAdmins(e.target.value)} placeholder="e.g. kishore_admin" className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400" />
+            <Input id="tg-admins" value={telegramAdmins} onChange={(e) => setTelegramAdmins(e.target.value)} placeholder="Your Telegram Admin Username" className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="takeover-timeout" className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Auto-Resume Timeout</Label>

@@ -87,3 +87,42 @@ html, body, #__next, main {
   max-width: 100%;
 }
 
+.slide-up-text {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.slide-up-text.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes wave-hand {
+  0% { transform: rotate( 0.0deg) }
+  10% { transform: rotate(14.0deg) }
+  20% { transform: rotate(-8.0deg) }
+  30% { transform: rotate(14.0deg) }
+  40% { transform: rotate(-4.0deg) }
+  50% { transform: rotate(10.0deg) }
+  60% { transform: rotate( 0.0deg) }
+  100% { transform: rotate( 0.0deg) }
+}
+
+.animate-wave-emoji {
+  animation: wave-hand 2.5s infinite;
+  transform-origin: 70% 70%;
+  display: inline-block;
+}
+
+@keyframes shimmer-glow {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 1px rgba(34, 87, 122, 0.2)); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 5px rgba(34, 87, 122, 0.6)); }
+}
+
+.animate-shimmer-emoji {
+  animation: shimmer-glow 2s infinite ease-in-out;
+  display: inline-block;
+}
+
