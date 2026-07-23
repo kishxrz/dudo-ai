@@ -291,6 +291,33 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', handler);
   }, [statusPopoverOpen]);
 
+  // Auto-disconnect connected channels when 30-minute free trial / plan expires
+  // MUST be before any early returns to comply with React Rules of Hooks
+  useEffect(() => {
+    if (!subLoading && isExpired && workspaceId) {
+      console.log('[Subscription] Plan/trial expired. Auto-disconnecting connected channels...');
+      // Disconnect WhatsApp
+      fetch('/api/whatsapp/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      }).catch(() => {});
+
+      // Disconnect Telegram
+      fetch('/api/telegram/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      }).catch(() => {});
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('__dudo_telegram_token');
+        localStorage.setItem('__dudo_telegram_connected', 'false');
+        window.dispatchEvent(new Event('dudo-status-changed'));
+      }
+    }
+  }, [subLoading, isExpired, workspaceId]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center">
@@ -355,6 +382,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     router.replace('/login');
   };
 
+
+
   return (
     <div className="flex h-screen bg-[#FFF8F0] overflow-hidden">
       <Sidebar 
@@ -386,11 +415,11 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           )}
 
           {/* ── Combined Animated Top Banner ────────────────────────────────── */}
-          <div className="relative overflow-hidden bg-[#FFF3E5] border-b border-[#EED9B4]/50 h-9 flex items-center justify-between px-4 gap-3 flex-shrink-0 select-none text-[#22577A]">
+          <div className="relative overflow-hidden bg-[#FFF3E5] border-b border-[#EED9B4]/50 h-9 flex items-center justify-between px-2 sm:px-4 gap-2 flex-shrink-0 select-none text-[#22577A]">
             {/* Left spacer to balance the right button */}
-            <div className="shrink-0 w-[90px] hidden sm:block" />
+            <div className="shrink-0 w-[80px] sm:w-[90px] hidden md:block" />
 
-            {/* Centered animated content */}
+            {/* Centered animated content — full text visible on all devices */}
             <div className="flex-1 relative h-full flex items-center justify-center min-w-0 overflow-hidden">
               <AnimatePresence mode="wait">
                 <motion.div
@@ -399,26 +428,28 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -15 }}
                   transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className="absolute inset-0 flex items-center justify-center gap-2 text-xs font-bold tracking-tight"
+                  className="absolute inset-0 flex items-center justify-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-bold tracking-tight px-1"
                 >
                   {currentSlide.type === 'welcome' && (
-                    <span className="animate-wave-emoji shrink-0 text-sm">👋</span>
+                    <span className="animate-wave-emoji shrink-0 text-xs sm:text-sm">👋</span>
                   )}
                   {currentSlide.type === 'offer' && (
-                    <span className="animate-shimmer-emoji shrink-0 text-sm">⚡</span>
+                    <span className="animate-shimmer-emoji shrink-0 text-xs sm:text-sm">⚡</span>
                   )}
                   {currentSlide.type === 'proud' && (
                     <div className="animate-shimmer-emoji shrink-0">
                       <IndianFlag />
                     </div>
                   )}
-                  <span className="truncate">{currentSlide.content}</span>
+                  <div className="overflow-x-auto no-scrollbar whitespace-nowrap sm:whitespace-normal max-w-full text-center">
+                    <span className="inline-block text-[#22577A] text-[11px] sm:text-xs font-bold">{currentSlide.content}</span>
+                  </div>
                 </motion.div>
               </AnimatePresence>
             </div>
 
             {/* Right action button */}
-            <div className="shrink-0 w-[90px] flex justify-end">
+            <div className="shrink-0 w-auto sm:w-[90px] flex justify-end">
               {currentSlide.action && (
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -430,7 +461,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
                   >
                     <Button
                       onClick={currentSlide.action.onClick}
-                      className="h-6 text-[10px] bg-[#22577A] hover:bg-[#1A4461] text-white px-3 font-bold rounded-lg border-none shadow-sm cursor-pointer flex items-center justify-center transition-all hover:scale-105 active:scale-95 leading-none"
+                      className="h-6 text-[10px] bg-[#22577A] hover:bg-[#1A4461] text-white px-2.5 sm:px-3 font-bold rounded-lg border-none shadow-sm cursor-pointer flex items-center justify-center transition-all hover:scale-105 active:scale-95 leading-none shrink-0"
                     >
                       {currentSlide.action.text}
                     </Button>

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 export const runtime = 'nodejs';
 
@@ -11,8 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
 
-    const denied = await requireSubscription(req, workspaceId, 'whatsapp');
-    if (denied) return denied;
+    // Note: Disconnection is always allowed regardless of subscription/plan status.
 
     const authorization = req.headers.get('authorization');
     if (!authorization || !authorization.startsWith('Bearer ')) {

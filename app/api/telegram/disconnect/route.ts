@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { requireSubscription } from '@/lib/subscription/SubscriptionService';
 
 export const runtime = 'nodejs';
 
@@ -14,8 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
 
-    const denied = await requireSubscription(req, workspaceId, 'telegram');
-    if (denied) return denied;
+    // Note: Disconnection is always allowed regardless of subscription/plan status.
 
     // 1. Load token from Firestore
     const adminDb = getAdminDb();

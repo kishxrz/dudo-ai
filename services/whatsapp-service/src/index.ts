@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { Client, LocalAuth } from 'whatsapp-web.js';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import dotenv from 'dotenv';
 import QRCode from 'qrcode';
 import { getAdminDb, getAuth, Firestore } from './firebase-admin';
@@ -34,6 +35,7 @@ interface ClientState {
 const registry = new Map<string, ClientState>();
 const initializationPromises = new Map<string, Promise<void>>();
 const restoringWorkspaces = new Set<string>();
+const manualDisconnectWorkspaces = new Set<string>();
 let isShuttingDown = false;
 
 // Secure endpoint middleware validating BOTH internal secret and Firebase token
@@ -194,6 +196,140 @@ function removeFromManifest(workspaceId: string) {
   }
 }
 
+// Directory packing & unpacking helpers for Firestore session backup
+function packDirectory(dirPath: string): Record<string, string> {
+  const filesMap: Record<string, string> = {};
+  function walk(currentDir: string, relativeDir: string) {
+    if (!fs.existsSync(currentDir)) return;
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (['SingletonLock', 'SingletonCookie', 'SingletonSocket'].includes(entry.name)) continue;
+      const fullPath = path.join(currentDir, entry.name);
+      const relPath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(fullPath, relPath);
+      } else if (entry.isFile()) {
+        try {
+          const content = fs.readFileSync(fullPath);
+          filesMap[relPath] = content.toString('base64');
+        } catch (e) {}
+      }
+    }
+  }
+  walk(dirPath, '');
+  return filesMap;
+}
+
+function unpackDirectory(targetDir: string, filesMap: Record<string, string>) {
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+  for (const [relPath, base64] of Object.entries(filesMap)) {
+    const fullPath = path.join(targetDir, relPath);
+    const parentDir = path.dirname(fullPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    fs.writeFileSync(fullPath, Buffer.from(base64, 'base64'));
+  }
+}
+
+async function backupSessionToFirestore(workspaceId: string): Promise<void> {
+  const adminDb = getAdminDb();
+  if (!adminDb) return;
+  const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
+  if (!fs.existsSync(sessionDir)) return;
+
+  try {
+    const packed = packDirectory(sessionDir);
+    if (Object.keys(packed).length === 0) return;
+
+    const jsonStr = JSON.stringify(packed);
+    const compressed = zlib.gzipSync(Buffer.from(jsonStr, 'utf8'));
+
+    const chunkSize = 800 * 1024; // 800KB chunk limit
+    const totalChunks = Math.ceil(compressed.length / chunkSize);
+
+    const batch = adminDb.batch();
+    const sessionDocRef = adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session`);
+    batch.set(sessionDocRef, {
+      totalChunks,
+      updatedAt: new Date(),
+      byteSize: compressed.length
+    });
+
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkBuffer = compressed.subarray(i * chunkSize, (i + 1) * chunkSize);
+      const chunkDocRef = adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session/chunks/chunk_${i}`);
+      batch.set(chunkDocRef, {
+        chunkIndex: i,
+        data: chunkBuffer.toString('base64')
+      });
+    }
+
+    await batch.commit();
+    console.log(`[Session Backup] Successfully backed up WhatsApp session for workspace ${workspaceId} to Firestore (${compressed.length} bytes, ${totalChunks} chunks).`);
+  } catch (err: any) {
+    console.error(`[Session Backup] Failed to backup session for workspace ${workspaceId}:`, err.message || err);
+  }
+}
+
+async function restoreSessionFromFirestore(workspaceId: string): Promise<boolean> {
+  const adminDb = getAdminDb();
+  if (!adminDb) return false;
+
+  try {
+    const sessionDocRef = adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session`);
+    const docSnap = await sessionDocRef.get();
+    if (!docSnap.exists) return false;
+
+    const meta = docSnap.data();
+    const totalChunks = meta?.totalChunks || 0;
+    if (totalChunks === 0) return false;
+
+    const chunkBuffers: Buffer[] = [];
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkSnap = await adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session/chunks/chunk_${i}`).get();
+      if (!chunkSnap.exists) return false;
+      const chunkData = chunkSnap.data()?.data;
+      if (!chunkData) return false;
+      chunkBuffers.push(Buffer.from(chunkData, 'base64'));
+    }
+
+    const compressed = Buffer.concat(chunkBuffers);
+    const jsonStr = zlib.gunzipSync(compressed).toString('utf8');
+    const packed: Record<string, string> = JSON.parse(jsonStr);
+
+    const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
+    unpackDirectory(sessionDir, packed);
+    cleanChromiumLocks(workspaceId);
+    console.log(`[Session Restore] Restored WhatsApp session from Firestore backup for workspace ${workspaceId}.`);
+    return true;
+  } catch (err: any) {
+    console.error(`[Session Restore] Failed to restore session for workspace ${workspaceId}:`, err.message || err);
+    return false;
+  }
+}
+
+async function deleteSessionFromFirestore(workspaceId: string): Promise<void> {
+  const adminDb = getAdminDb();
+  if (!adminDb) return;
+  try {
+    if (typeof adminDb.collection === 'function') {
+      const chunksSnap = await adminDb.collection(`workspaces/${workspaceId}/channels/ch-wa-session/chunks`).get();
+      const batch = adminDb.batch();
+      chunksSnap.forEach(doc => batch.delete(doc.ref));
+      batch.delete(adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session`));
+      await batch.commit();
+    } else if (typeof adminDb.doc === 'function') {
+      await adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session`).delete().catch(() => {});
+    }
+    console.log(`[Session Backup] Deleted Firestore session backup for workspace ${workspaceId}.`);
+  } catch (err: any) {
+    console.error(`[Session Backup] Failed to delete Firestore session backup for ${workspaceId}:`, err.message || err);
+  }
+}
+
 // Call Dudo Next.js webhook with retry
 async function callDudoWebhookWithRetry(
   workspaceId: string,
@@ -318,6 +454,7 @@ function cleanChromiumLocks(workspaceId: string) {
 
 // Actual client creator, registration, and initialization logic
 async function initializeNewClient(workspaceId: string): Promise<void> {
+  manualDisconnectWorkspaces.delete(workspaceId);
   const instanceId = require('crypto').randomUUID();
   console.log(`[WA_TRACE] client_created workspaceId=${workspaceId} instanceId=${instanceId}`);
 
@@ -331,6 +468,9 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
     '--disable-blink-features=AutomationControlled',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
     '--disable-gpu'
   ];
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -346,6 +486,10 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: puppeteerArgs
+    },
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wwebjs/web-whatsapp-html/main/html/2.3000.1014111620-v2.html'
     },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
   });
@@ -410,6 +554,10 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     }
 
     addToManifest(workspaceId); // Save to manifest ONLY when ready/connected!
+
+    backupSessionToFirestore(workspaceId).catch(err => {
+      console.error(`[Session Backup Error] ${workspaceId}:`, err);
+    });
     
     if (restoringWorkspaces.has(workspaceId)) {
       console.log(`[WA_RESTORE_SUCCESS] workspaceId=${workspaceId}`);
@@ -467,9 +615,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       });
 
       const selfHeal = (reason: string) => {
-        console.log(`[WA_TRACE] page_crash_detected workspaceId=${workspaceId} instanceId=${instanceId} reason="${reason}" - destroying client for self-healing`);
-        state.status = 'disconnected';
-        state.error = `Page crashed/closed: ${reason}`;
+        console.log(`[WA_TRACE] page_crash_detected workspaceId=${workspaceId} instanceId=${instanceId} reason="${reason}"`);
         if (state.watchdogInterval) {
           clearInterval(state.watchdogInterval);
         }
@@ -477,6 +623,21 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
           client.destroy().catch(() => {});
         } catch {}
         registry.delete(workspaceId);
+
+        if (!manualDisconnectWorkspaces.has(workspaceId) && !isShuttingDown) {
+          console.log(`[AutoReconnect] Auto-reconnecting workspace ${workspaceId} after page crash (${reason})...`);
+          state.status = 'connecting';
+          setTimeout(() => {
+            if (!manualDisconnectWorkspaces.has(workspaceId) && !isShuttingDown) {
+              startClient(workspaceId).catch(err => {
+                console.error(`[AutoReconnect] Failed after page crash for ${workspaceId}:`, err);
+              });
+            }
+          }, 5000);
+        } else {
+          state.status = 'disconnected';
+          state.error = `Page crashed/closed: ${reason}`;
+        }
       };
 
       page.on('error', (err: any) => {
@@ -539,7 +700,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       }
     }
 
-    // Start 30-second watchdog
+    // Start 30-second watchdog (entitlement + health check)
     if (state.watchdogInterval) {
       clearInterval(state.watchdogInterval);
     }
@@ -554,6 +715,38 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       const msgCount = client.listenerCount('message');
       const msgCreateCount = client.listenerCount('message_create');
       console.log(`[WA_TRACE] watchdog workspaceId=${workspaceId} instanceId=${instanceId} clientState=${stateStr} msgCount=${msgCount} msgCreateCount=${msgCreateCount}`);
+
+      // ── Trial / Subscription Entitlement Check ──────────────────────────────
+      // If the free trial (30 min) has expired or the plan no longer allows
+      // WhatsApp, forcibly disconnect the client.
+      try {
+        const allowed = await canUseWhatsapp(workspaceId);
+        if (!allowed) {
+          console.log(`[Entitlement] Workspace ${workspaceId} is no longer entitled to WhatsApp (trial/plan expired). Auto-disconnecting...`);
+          // Mark as manual disconnect so no auto-reconnect triggers
+          manualDisconnectWorkspaces.add(workspaceId);
+          if (state.watchdogInterval) clearInterval(state.watchdogInterval);
+
+          // Update Firestore status
+          const adminDb = getAdminDb();
+          if (adminDb) {
+            adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+              status: 'disconnected',
+              disconnectedAt: new Date(),
+              platform: 'whatsapp',
+              disconnectReason: 'trial_expired'
+            }, { merge: true }).catch(() => {});
+          }
+
+          removeFromManifest(workspaceId);
+          deleteSessionFromFirestore(workspaceId).catch(() => {});
+          try { client.destroy().catch(() => {}); } catch {}
+          registry.delete(workspaceId);
+          console.log(`[Entitlement] WhatsApp client for workspace ${workspaceId} auto-disconnected due to trial/plan expiry.`);
+        }
+      } catch (entitlementErr: any) {
+        console.error(`[Entitlement] Failed to check subscription for ${workspaceId}:`, entitlementErr?.message || entitlementErr);
+      }
     }, 30000);
   });
 
@@ -599,46 +792,72 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     registry.delete(workspaceId);
   });
 
-  client.on('disconnected', (reason) => {
+  client.on('disconnected', async (reason) => {
     if (isShuttingDown) {
       console.log(`[Event] Ignoring disconnect for workspace ${workspaceId} during server shutdown (reason: ${reason})`);
       return;
     }
 
-    state.status = 'disconnected';
-    state.qr = null;
-    state.error = `Disconnected: ${reason}`;
-    console.log(`[WA_TRACE] disconnected workspaceId=${workspaceId} instanceId=${instanceId} reason=${reason}`);
-    console.log(`[Event] Client disconnected for workspace: ${workspaceId}, reason: ${reason}`);
-    
-    const adminDb = getAdminDb();
-    if (adminDb) {
-      adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
-        status: 'disconnected',
-        disconnectedAt: new Date(),
-        platform: 'whatsapp',
-        error: `Disconnected: ${reason}`
-      }, { merge: true }).catch(dbErr => {
-        console.error(`[Firestore Error] Failed to update status to disconnected for ${workspaceId}:`, dbErr);
-      });
-    }
+    const isManualDisconnect = manualDisconnectWorkspaces.has(workspaceId) || String(reason).toUpperCase() === 'LOGOUT';
 
-    removeFromManifest(workspaceId);
-    
-    if (restoringWorkspaces.has(workspaceId)) {
-      console.log(`[WA_RESTORE_FAILED] workspaceId=${workspaceId} reason=disconnected_${reason}`);
-      restoringWorkspaces.delete(workspaceId);
-    }
+    console.log(`[WA_TRACE] disconnected workspaceId=${workspaceId} instanceId=${instanceId} reason=${reason} isManualDisconnect=${isManualDisconnect}`);
 
-    console.log(`[WA_CLIENT_DISCONNECTED] workspaceId=${workspaceId}`);
-    
-    if (state.watchdogInterval) {
-      clearInterval(state.watchdogInterval);
+    if (isManualDisconnect) {
+      state.status = 'disconnected';
+      state.qr = null;
+      state.error = `Disconnected: ${reason}`;
+      console.log(`[Event] Client disconnected for workspace: ${workspaceId}, reason: ${reason}`);
+      
+      const adminDb = getAdminDb();
+      if (adminDb) {
+        adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+          status: 'disconnected',
+          disconnectedAt: new Date(),
+          platform: 'whatsapp',
+          error: `Disconnected: ${reason}`
+        }, { merge: true }).catch(dbErr => {
+          console.error(`[Firestore Error] Failed to update status to disconnected for ${workspaceId}:`, dbErr);
+        });
+      }
+
+      removeFromManifest(workspaceId);
+      
+      if (restoringWorkspaces.has(workspaceId)) {
+        console.log(`[WA_RESTORE_FAILED] workspaceId=${workspaceId} reason=disconnected_${reason}`);
+        restoringWorkspaces.delete(workspaceId);
+      }
+
+      console.log(`[WA_CLIENT_DISCONNECTED] workspaceId=${workspaceId}`);
+      
+      if (state.watchdogInterval) {
+        clearInterval(state.watchdogInterval);
+      }
+      try {
+        client.destroy().catch(() => {});
+      } catch {}
+      registry.delete(workspaceId);
+    } else {
+      console.log(`[Event] Transient disconnect detected for workspace ${workspaceId} (reason: ${reason}). Scheduling automatic re-connection...`);
+      state.status = 'connecting';
+      state.error = null;
+
+      if (state.watchdogInterval) {
+        clearInterval(state.watchdogInterval);
+      }
+      try {
+        await client.destroy().catch(() => {});
+      } catch {}
+      registry.delete(workspaceId);
+
+      setTimeout(() => {
+        if (!manualDisconnectWorkspaces.has(workspaceId) && !isShuttingDown) {
+          console.log(`[AutoReconnect] Attempting automatic reconnection for workspace: ${workspaceId}`);
+          startClient(workspaceId).catch(err => {
+            console.error(`[AutoReconnect] Failed to reconnect workspace ${workspaceId}:`, err);
+          });
+        }
+      }, 5000);
     }
-    try {
-      client.destroy().catch(() => {});
-    } catch {}
-    registry.delete(workspaceId);
   });
 
   console.log(`[WA_TRACE] registering_message_listener workspaceId=${workspaceId} instanceId=${instanceId}`);
@@ -892,6 +1111,8 @@ app.post('/v1/workspaces/:workspaceId/disconnect', authenticate, authorizeWorksp
   const state = registry.get(workspaceId);
   
   console.log(`[Disconnect] Initiating manual disconnect for workspace: ${workspaceId}`);
+  manualDisconnectWorkspaces.add(workspaceId);
+  await deleteSessionFromFirestore(workspaceId);
 
   // Remove from manifest
   removeFromManifest(workspaceId);
@@ -1005,8 +1226,18 @@ async function restoreSessions() {
   console.log(`[Startup] Found ${list.length} sessions to restore:`, list);
   
   for (const workspaceId of list) {
-    const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
-    if (fs.existsSync(sessionDir)) {
+    let sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
+    let exists = fs.existsSync(sessionDir);
+
+    if (!exists) {
+      console.log(`[Startup] Session directory not found on disk for ${workspaceId}. Attempting restore from Firestore backup...`);
+      const restored = await restoreSessionFromFirestore(workspaceId);
+      if (restored) {
+        exists = fs.existsSync(sessionDir);
+      }
+    }
+
+    if (exists) {
       console.log(`[WA_RESTORE_START] workspaceId=${workspaceId}`);
       restoringWorkspaces.add(workspaceId);
       
@@ -1015,7 +1246,7 @@ async function restoreSessions() {
         restoringWorkspaces.delete(workspaceId);
       });
     } else {
-      console.log(`[Startup] Session directory not found for ${workspaceId}, skipping auto-restore and removing from manifest.`);
+      console.log(`[Startup] Session directory and backup not found for ${workspaceId}, skipping auto-restore and removing from manifest.`);
       restoringWorkspaces.delete(workspaceId);
       
       // Update status to disconnected in Firestore

@@ -84,9 +84,11 @@ function formatRemaining(ms: number): string {
   const days = Math.floor(totalSecs / 86400);
   const hours = Math.floor((totalSecs % 86400) / 3600);
   const mins = Math.floor((totalSecs % 3600) / 60);
+  const secs = totalSecs % 60;
   if (days > 0) return `${days}d ${hours}h remaining`;
   if (hours > 0) return `${hours}h ${mins}m remaining`;
-  return `${mins}m remaining`;
+  if (mins > 0) return `${mins}m ${secs}s remaining`;
+  return `${secs}s remaining`;
 }
 
 function clientCanUse(limits: PlanLimits, sub: ClientSubscription | null, feature: string): boolean {
@@ -109,11 +111,11 @@ export function useSubscription(): UseSubscriptionReturn {
   const { workspaceId } = useWorkspace();
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
-  // Live ticker for remaining time
+  // Live ticker for remaining time (1s interval for sub-1h / trial)
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, []);
 

@@ -69,7 +69,7 @@ export default function Hero() {
           </div>
 
           <div className="text-[11px] font-extrabold uppercase text-[#6B7280]/70 tracking-widest flex items-center gap-1.5 select-none">
-            <span>⏱ Takes less time than ordering chai</span>
+            <span>⏱ Takes less time than ordering chai ☕</span>
           </div>
 
           {/* Trust Badges */}

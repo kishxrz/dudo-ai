@@ -81,7 +81,7 @@ export default function LandingPage() {
               {/* Badge */}
               <div className="inline-flex max-w-full">
                 <div className="bg-white border border-[#EED9B4] rounded-full px-3.5 py-1.5 flex items-center gap-1.5 shadow-sm">
-                  <span className="text-xs font-black text-emerald-700 leading-none">IN</span>
+                  <span className="text-base leading-none">🇮🇳</span>
                   <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 leading-none">
                     Built in India · for Indian businesses
                   </span>
