@@ -235,80 +235,13 @@ function unpackDirectory(targetDir: string, filesMap: Record<string, string>) {
 }
 
 async function backupSessionToFirestore(workspaceId: string): Promise<void> {
-  const adminDb = getAdminDb();
-  if (!adminDb) return;
-  const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
-  if (!fs.existsSync(sessionDir)) return;
-
-  try {
-    const packed = packDirectory(sessionDir);
-    if (Object.keys(packed).length === 0) return;
-
-    const jsonStr = JSON.stringify(packed);
-    const compressed = zlib.gzipSync(Buffer.from(jsonStr, 'utf8'));
-
-    const chunkSize = 800 * 1024; // 800KB chunk limit
-    const totalChunks = Math.ceil(compressed.length / chunkSize);
-
-    const batch = adminDb.batch();
-    const sessionDocRef = adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session`);
-    batch.set(sessionDocRef, {
-      totalChunks,
-      updatedAt: new Date(),
-      byteSize: compressed.length
-    });
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkBuffer = compressed.subarray(i * chunkSize, (i + 1) * chunkSize);
-      const chunkDocRef = adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session/chunks/chunk_${i}`);
-      batch.set(chunkDocRef, {
-        chunkIndex: i,
-        data: chunkBuffer.toString('base64')
-      });
-    }
-
-    await batch.commit();
-    console.log(`[Session Backup] Successfully backed up WhatsApp session for workspace ${workspaceId} to Firestore (${compressed.length} bytes, ${totalChunks} chunks).`);
-  } catch (err: any) {
-    console.error(`[Session Backup] Failed to backup session for workspace ${workspaceId}:`, err.message || err);
-  }
+  console.log(`[Session Backup] Skipping Firestore backup because Railway durable volume is active.`);
+  return;
 }
 
 async function restoreSessionFromFirestore(workspaceId: string): Promise<boolean> {
-  const adminDb = getAdminDb();
-  if (!adminDb) return false;
-
-  try {
-    const sessionDocRef = adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session`);
-    const docSnap = await sessionDocRef.get();
-    if (!docSnap.exists) return false;
-
-    const meta = docSnap.data();
-    const totalChunks = meta?.totalChunks || 0;
-    if (totalChunks === 0) return false;
-
-    const chunkBuffers: Buffer[] = [];
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkSnap = await adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa-session/chunks/chunk_${i}`).get();
-      if (!chunkSnap.exists) return false;
-      const chunkData = chunkSnap.data()?.data;
-      if (!chunkData) return false;
-      chunkBuffers.push(Buffer.from(chunkData, 'base64'));
-    }
-
-    const compressed = Buffer.concat(chunkBuffers);
-    const jsonStr = zlib.gunzipSync(compressed).toString('utf8');
-    const packed: Record<string, string> = JSON.parse(jsonStr);
-
-    const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
-    unpackDirectory(sessionDir, packed);
-    cleanChromiumLocks(workspaceId);
-    console.log(`[Session Restore] Restored WhatsApp session from Firestore backup for workspace ${workspaceId}.`);
-    return true;
-  } catch (err: any) {
-    console.error(`[Session Restore] Failed to restore session for workspace ${workspaceId}:`, err.message || err);
-    return false;
-  }
+  console.log(`[Session Restore] Skipping Firestore restore since local Railway volume storage is active.`);
+  return false;
 }
 
 async function deleteSessionFromFirestore(workspaceId: string): Promise<void> {
