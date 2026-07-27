@@ -345,15 +345,14 @@ export class EnterpriseOrchestrator {
     // 3. Intent detection
     const intent = detectIntent(input);
 
-    // 4. Route by intent
-    // IMPORTANT: If ANY attachment is present, always use the vision-capable handler.
-    // This ensures casual captions like "who is this" or "check out this" still go
-    // through the vision fallback path rather than directly to Groq (which rejects multipart content).
-    if (attachedContent) {
-      return await this.handleImageAnalysisRequest(context, input, history, memoryContext, start, attachedContent);
-    }
-
+    // 4. Route by intent — ALL inside try-catch so errors are always logged to telemetry
     try {
+      // IMPORTANT: If ANY attachment is present, always use the vision-capable handler.
+      // This ensures casual captions like "who is this" go through the vision fallback path.
+      if (attachedContent) {
+        return await this.handleImageAnalysisRequest(context, input, history, memoryContext, start, attachedContent);
+      }
+
       switch (intent) {
         case 'web_search':
           return await this.handleWebSearch(context, input, start);
@@ -377,7 +376,7 @@ export class EnterpriseOrchestrator {
         type: 'error',
         latencyMs: Date.now() - start,
         success: false,
-        toolName: intent,
+        toolName: attachedContent ? 'ImageAnalysis' : intent,
         error: err.message,
       });
       return {
@@ -623,12 +622,28 @@ export class EnterpriseOrchestrator {
       }
     }
 
-    const response = await ProviderRegistry.generate(providerName, apiKey, {
-      systemPrompt: systemPrompt + '\n\n' + analysisInstruction,
-      messages: msgs,
-      model: model,
-      temperature: 0.3,
-    });
+    let response;
+    try {
+      response = await ProviderRegistry.generate(providerName, apiKey, {
+        systemPrompt: systemPrompt + '\n\n' + analysisInstruction,
+        messages: msgs,
+        model: model,
+        temperature: 0.3,
+      });
+    } catch (genErr: any) {
+      const errMsg = genErr.message || '';
+      console.error(`[ImageAnalysis] Provider ${providerName} failed:`, errMsg);
+      // Handle 429 quota/rate-limit gracefully
+      if (errMsg.includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('rate limit')) {
+        return {
+          success: false,
+          reply: `I received your image but the AI vision service is currently rate-limited (too many requests). Please wait a minute and send the image again. If this keeps happening, your free Gemini quota (20/day) may be exhausted — it resets at midnight UTC.`,
+          telemetry: { latencyMs: Date.now() - start },
+        };
+      }
+      // Re-throw other errors so the outer catch can log them
+      throw genErr;
+    }
 
     return {
       success: true,
