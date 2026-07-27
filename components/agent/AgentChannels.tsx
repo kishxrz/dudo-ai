@@ -34,6 +34,8 @@ export default function AgentChannels() {
   const { currentUser: user } = useAuth();
   const [activeChannel, setActiveChannel] = useState<'telegram' | 'whatsapp'>('telegram');
   const [waAllowed, setWaAllowed] = useState(true);
+  // Track whether WA was ever confirmed connected via Firestore (prevents Railway sleep from wiping UI)
+  const waFirestoreConnected = useRef(false);
   
   // Telegram states
   const [token, setToken] = useState('');
@@ -55,6 +57,22 @@ export default function AgentChannels() {
   const lastQrRef = useRef<string | null>(null);
   const connectInFlightRef = useRef(false);
 
+  // Helper: persist WA status to Firestore so Railway sleep doesn't wipe UI state
+  const saveWaStatusToFirestore = async (status: 'connected' | 'disconnected') => {
+    if (!db || !workspaceId) return;
+    try {
+      await setDoc(
+        doc(db, 'workspaces', workspaceId, 'channels', 'ch-wa'),
+        { status, updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      waFirestoreConnected.current = status === 'connected';
+      console.log(`[AgentChannels] Saved WA status to Firestore: ${status}`);
+    } catch (e) {
+      console.error('[AgentChannels] Failed to save WA status to Firestore:', e);
+    }
+  };
+
   useEffect(() => {
     async function checkPlan() {
       if (!workspaceId) return;
@@ -70,6 +88,7 @@ export default function AgentChannels() {
   }, [workspaceId]);
 
   // Load Telegram status on mount / workspaceId change
+  // Also load WA status from Firestore to restore state after Railway restarts
   useEffect(() => {
     async function loadConfig() {
       let savedToken = '';
@@ -77,12 +96,25 @@ export default function AgentChannels() {
 
       if (db && workspaceId) {
         try {
-          const docRef = doc(db, 'workspaces', workspaceId, 'channels', channelId);
-          const snap = await getDoc(docRef);
-          if (snap.exists()) {
-            const data = snap.data();
+          // Load Telegram
+          const tgRef = doc(db, 'workspaces', workspaceId, 'channels', channelId);
+          const tgSnap = await getDoc(tgRef);
+          if (tgSnap.exists()) {
+            const data = tgSnap.data();
             savedToken = data.token || '';
             savedStatus = data.status === 'connected';
+          }
+
+          // Load WhatsApp from Firestore — if it was connected before Railway went to sleep, restore that
+          const waRef = doc(db, 'workspaces', workspaceId, 'channels', 'ch-wa');
+          const waSnap = await getDoc(waRef);
+          if (waSnap.exists()) {
+            const waData = waSnap.data();
+            if (waData.status === 'connected') {
+              waFirestoreConnected.current = true;
+              setWaStatus('connected');
+              console.log('[AgentChannels] Restored WA connected status from Firestore.');
+            }
           }
         } catch (e) {
           console.error('Failed to load from Firestore:', e);
@@ -142,9 +174,12 @@ export default function AgentChannels() {
         if (!isMounted) return;
 
         const currentStatus = data.status || 'disconnected';
-        setWaStatus(currentStatus);
 
         if (currentStatus === 'connected') {
+          // Save to Firestore so Railway restarts don't wipe the state
+          if (!waFirestoreConnected.current) {
+            saveWaStatusToFirestore('connected');
+          }
           if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
             URL.revokeObjectURL(lastQrRef.current);
           }
@@ -154,8 +189,19 @@ export default function AgentChannels() {
           setQrTimeout(false);
           setConnectStartTime(null);
           setWaConnecting(false);
+          setWaStatus('connected');
           return;
         }
+
+        // If Railway says disconnected but Firestore says we were connected (Railway may be sleeping),
+        // only reset to disconnected if we are actively in a fresh connect flow (connectStartTime set)
+        if (currentStatus === 'disconnected' && waFirestoreConnected.current && !connectStartTime) {
+          console.warn('[AgentChannels] Railway returned disconnected but Firestore says connected — keeping connected state (Railway may be restarting).');
+          // Don't update UI — keep showing connected from Firestore
+          return;
+        }
+
+        setWaStatus(currentStatus);
 
         if (currentStatus === 'qr_ready') {
           try {
@@ -414,6 +460,9 @@ export default function AgentChannels() {
         body: JSON.stringify({ workspaceId }),
       });
       if (res.ok) {
+        // Clear Firestore state so we don't restore it on next mount
+        waFirestoreConnected.current = false;
+        await saveWaStatusToFirestore('disconnected');
         if (lastQrRef.current && lastQrRef.current.startsWith('blob:')) {
           URL.revokeObjectURL(lastQrRef.current);
         }
