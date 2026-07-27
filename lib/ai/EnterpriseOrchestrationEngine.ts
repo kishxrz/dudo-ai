@@ -582,17 +582,11 @@ export class EnterpriseOrchestrator {
       const adminDb = getAdminDb();
       let fallbackResolved = false;
 
-      // Basic key format validators — reject clearly invalid keys early
+      // Basic key format validators — only reject empty or very short keys
       const isKeyValid = (provider: string, key: string): boolean => {
         if (!key || key.length < 10) return false;
-        if (provider === 'gemini' && !key.startsWith('AIza')) {
-          console.warn(`[VisionFallback] Gemini API key looks invalid (must start with "AIza"). Skipping.`);
-          return false;
-        }
-        if (provider === 'openai' && !key.startsWith('sk-')) {
-          console.warn(`[VisionFallback] OpenAI API key looks invalid (must start with "sk-"). Skipping.`);
-          return false;
-        }
+        // Note: Google AI Studio keys can be either AIzaSy... (old) or AQ. (new) format - both are valid
+        // OpenAI keys can be sk-... or sk-proj-... format
         return true;
       };
       
