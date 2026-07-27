@@ -19,7 +19,7 @@ interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, businessName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -27,23 +27,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const MOCK_USER = {
-  uid: 'dev-user-id',
-  email: 'dev@dudo.com',
-  displayName: 'Dev User',
-  photoURL: null,
-  emailVerified: true,
-  metadata: {},
-  providerId: 'firebase',
-} as unknown as User;
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!auth) {
-      setCurrentUser(MOCK_USER);
       setLoading(false);
       return;
     }
@@ -60,25 +49,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    if (!auth) { setCurrentUser(MOCK_USER); return; }
+    if (!auth) throw new Error('Firebase Auth is not initialized');
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await ensureWorkspace(user.uid, user.displayName);
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
-    if (!auth) { setCurrentUser(MOCK_USER); return; }
+  const signUp = async (email: string, password: string, name: string, businessName?: string) => {
+    if (!auth) throw new Error('Firebase Auth is not initialized');
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName: name });
-    await ensureWorkspace(user.uid, name);
+    await ensureWorkspace(user.uid, name, businessName);
   };
 
   const signOut = async () => {
-    if (!auth) { setCurrentUser(null); return; }
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('__dudo_user_fullname');
+        localStorage.removeItem('__dudo_user_avatar');
+        sessionStorage.clear();
+      } catch (e) {
+        console.warn('Failed to clear session storage during signout:', e);
+      }
+    }
+    if (!auth) { 
+      setCurrentUser(null); 
+      return; 
+    }
     await firebaseSignOut(auth);
+    setCurrentUser(null);
   };
 
   const signInWithGoogle = async () => {
-    if (!auth) { setCurrentUser(MOCK_USER); return; }
+    if (!auth) throw new Error('Firebase Auth is not initialized');
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const { user } = await signInWithPopup(auth, provider);
@@ -86,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    if (!auth) return;
+    if (!auth) throw new Error('Firebase Auth is not initialized');
     await sendPasswordResetEmail(auth, email);
   };
 

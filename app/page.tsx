@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/landing/navbar';
 import Hero from '@/components/landing/hero';
 import Stats from '@/components/landing/stats';
@@ -24,6 +26,15 @@ const iconMap = {
 };
 
 export default function LandingPage() {
+  const router = useRouter();
+  const { currentUser, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && currentUser) {
+      router.replace('/dashboard');
+    }
+  }, [currentUser, loading, router]);
+
   useEffect(() => {
     const content = document.getElementById('landing-content');
     if (!content) return;
@@ -81,7 +92,18 @@ export default function LandingPage() {
               {/* Badge */}
               <div className="inline-flex max-w-full">
                 <div className="bg-white border border-[#EED9B4] rounded-full px-3.5 py-1.5 flex items-center gap-1.5 shadow-sm">
-                  <span className="text-base leading-none">🇮🇳</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" className="w-5 h-3.5 shrink-0 rounded-[2px] shadow-xs border border-zinc-200/40">
+                    <rect width="900" height="200" fill="#FF9933" />
+                    <rect y="200" width="900" height="200" fill="#FFFFFF" />
+                    <rect y="400" width="900" height="200" fill="#138808" />
+                    <g transform="translate(450, 300)">
+                      <circle r="92" fill="none" stroke="#000080" strokeWidth="10" />
+                      <circle r="16" fill="#000080" />
+                      {Array.from({ length: 24 }).map((_, i) => (
+                        <line key={i} y1="-92" y2="0" stroke="#000080" strokeWidth="6" transform={`rotate(${(i * 360) / 24})`} />
+                      ))}
+                    </g>
+                  </svg>
                   <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 leading-none">
                     Built in India · for Indian businesses
                   </span>

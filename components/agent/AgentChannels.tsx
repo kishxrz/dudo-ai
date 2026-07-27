@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -115,20 +116,27 @@ export default function AgentChannels() {
       try {
         const headers: Record<string, string> = {};
         if (user) {
-          console.log('[Diagnostic] Frontend auth.currentUser exists: true');
-          console.log('[Diagnostic] Frontend currentUser.uid:', user.uid);
           const idToken = await user.getIdToken();
-          console.log('[Diagnostic] Frontend token length:', idToken.length);
           headers['Authorization'] = `Bearer ${idToken}`;
-        } else {
-          console.log('[Diagnostic] Frontend auth.currentUser exists: false');
         }
         const res = await fetch(`/api/whatsapp/status?workspaceId=${workspaceId}`, {
           headers,
           signal: controller.signal
         });
+
+        // When the WhatsApp microservice is unreachable or returns 5xx,
+        // treat it as disconnected silently — don't show a scary error.
         if (!res.ok) {
-          throw new Error(`Failed to check WhatsApp status: ${res.status}`);
+          const errStatus = res.status;
+          if (errStatus >= 500) {
+            console.warn(`[AgentChannels] WhatsApp service returned ${errStatus} — treating as disconnected silently.`);
+            if (isMounted) {
+              setWaStatus('disconnected');
+              setQrLoading(false);
+            }
+            return;
+          }
+          throw new Error(`Failed to check WhatsApp status: ${errStatus}`);
         }
         const data = await res.json();
         if (!isMounted) return;
@@ -181,7 +189,8 @@ export default function AgentChannels() {
       } catch (e: any) {
         if (e.name === 'AbortError') return;
         console.error('Error polling WhatsApp status/QR:', e);
-        if (isMounted) {
+        // Only show user-visible error for auth failures, not transient service errors
+        if (isMounted && !e.message?.includes('500')) {
           setWaError(e.message || 'Status check failed');
           setQrLoading(false);
           setWaConnecting(false);
@@ -233,7 +242,7 @@ export default function AgentChannels() {
 
   // 10-second timeout check for QR generation
   useEffect(() => {
-    if (connectStartTime && !waQrCode && waStatus !== 'connected' && !qrTimeout) {
+    if (connectStartTime && !waQrCode && waStatus === 'connecting' && !qrTimeout) {
       const timer = setTimeout(() => {
         setQrTimeout(true);
         setQrLoading(false);
@@ -427,11 +436,7 @@ export default function AgentChannels() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#22577A] border-r-2 border-r-transparent" />
-      </div>
-    );
+    return <LoadingSpinner size="lg" text="Loading channel connections..." />;
   }
 
 

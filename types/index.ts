@@ -1,3 +1,5 @@
+import { MODELS_CATALOG_RAW } from '@/lib/ai/providers/models-list';
+
 // ─── Core Entities ───────────────────────────────────────────────────────────
 
 export type UserProfile = {
@@ -62,7 +64,11 @@ export type ApiProvider =
   | 'groq'
   | 'openrouter'
   | 'deepseek'
-  | 'mistral';
+  | 'mistral'
+  | 'elevenlabs'
+  | 'deepgram'
+  | 'assemblyai'
+  | 'azure';
 
 export type ApiKey = {
   id: string;
@@ -82,17 +88,23 @@ export const PROVIDER_LABELS: Record<ApiProvider, string> = {
   openrouter: 'OpenRouter',
   deepseek: 'DeepSeek',
   mistral: 'Mistral',
+  elevenlabs: 'ElevenLabs',
+  deepgram: 'Deepgram',
+  assemblyai: 'AssemblyAI',
+  azure: 'Azure Speech',
 };
 
-export const PROVIDER_MODELS: Record<ApiProvider, string[]> = {
-  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-  gemini: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-  anthropic: ['claude-sonnet-4-5', 'claude-3-5-haiku', 'claude-3-opus'],
-  groq: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
-  openrouter: ['openai/gpt-4o', 'anthropic/claude-3-5-sonnet', 'meta-llama/llama-3.1-70b'],
-  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  mistral: ['mistral-large-latest', 'mistral-small-latest', 'open-mistral-7b'],
-};
+// Build PROVIDER_MODELS dynamically from MODELS_CATALOG_RAW
+const builtProviderModels: Partial<Record<ApiProvider, string[]>> = {};
+MODELS_CATALOG_RAW.forEach((item) => {
+  const prov = item.provider as ApiProvider;
+  if (!builtProviderModels[prov]) {
+    builtProviderModels[prov] = [];
+  }
+  builtProviderModels[prov]!.push(item.modelId);
+});
+
+export const PROVIDER_MODELS: Record<ApiProvider, string[]> = builtProviderModels as Record<ApiProvider, string[]>;
 
 // ─── Channels ─────────────────────────────────────────────────────────────────
 

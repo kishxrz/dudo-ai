@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { mockAssistant } from '@/services/mockData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,6 +116,10 @@ export default function AgentPersonality() {
   const [telegramAdmins, setTelegramAdmins] = useState('');
   const [takeoverTimeout, setTakeoverTimeout] = useState(30);
   const [bossCode, setBossCode] = useState('');
+  const [sttProvider, setSttProvider] = useState('openai');
+  const [ttsProvider, setTtsProvider] = useState('openai');
+  const [ttsVoice, setTtsVoice] = useState('nova');
+  const [speakingStyle, setSpeakingStyle] = useState('friendly');
 
   // Database values tracker
   const [dbName, setDbName] = useState(mockAssistant.name);
@@ -123,6 +128,10 @@ export default function AgentPersonality() {
   const [dbWhatsappAdmins, setDbWhatsappAdmins] = useState('');
   const [dbTelegramAdmins, setDbTelegramAdmins] = useState('');
   const [dbTakeoverTimeout, setDbTakeoverTimeout] = useState(30);
+  const [dbSttProvider, setDbSttProvider] = useState('openai');
+  const [dbTtsProvider, setDbTtsProvider] = useState('openai');
+  const [dbTtsVoice, setDbTtsVoice] = useState('nova');
+  const [dbSpeakingStyle, setDbSpeakingStyle] = useState('friendly');
 
   // Computed Save states
   const savedName = name.trim() === dbName.trim();
@@ -131,6 +140,10 @@ export default function AgentPersonality() {
   const savedBoss = whatsappAdmins.trim() === dbWhatsappAdmins.trim() &&
                     telegramAdmins.trim() === dbTelegramAdmins.trim() &&
                     (Number(takeoverTimeout) || 30) === dbTakeoverTimeout;
+  const savedVoice = sttProvider === dbSttProvider &&
+                     ttsProvider === dbTtsProvider &&
+                     ttsVoice === dbTtsVoice &&
+                     speakingStyle.trim() === dbSpeakingStyle.trim();
 
   // Build Persona modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -172,6 +185,23 @@ export default function AgentPersonality() {
             savedTg = data.telegramAdmins || savedTg;
             savedTimeout = data.takeoverTimeout || 30;
             if (data.bossCodeHash) savedCode = '••••••';
+
+            if (data.sttProvider) {
+              setSttProvider(data.sttProvider);
+              setDbSttProvider(data.sttProvider);
+            }
+            if (data.ttsProvider) {
+              setTtsProvider(data.ttsProvider);
+              setDbTtsProvider(data.ttsProvider);
+            }
+            if (data.ttsVoice) {
+              setTtsVoice(data.ttsVoice);
+              setDbTtsVoice(data.ttsVoice);
+            }
+            if (data.speakingStyle) {
+              setSpeakingStyle(data.speakingStyle);
+              setDbSpeakingStyle(data.speakingStyle);
+            }
           }
         } catch (e) { console.error(e); }
       }
@@ -189,6 +219,23 @@ export default function AgentPersonality() {
             savedTg = parsed.telegramAdmins || savedTg;
             savedTimeout = parsed.takeoverTimeout || 30;
             if (parsed.bossCodeHash) savedCode = '••••••';
+
+            if (parsed.sttProvider) {
+              setSttProvider(parsed.sttProvider);
+              setDbSttProvider(parsed.sttProvider);
+            }
+            if (parsed.ttsProvider) {
+              setTtsProvider(parsed.ttsProvider);
+              setDbTtsProvider(parsed.ttsProvider);
+            }
+            if (parsed.ttsVoice) {
+              setTtsVoice(parsed.ttsVoice);
+              setDbTtsVoice(parsed.ttsVoice);
+            }
+            if (parsed.speakingStyle) {
+              setSpeakingStyle(parsed.speakingStyle);
+              setDbSpeakingStyle(parsed.speakingStyle);
+            }
           } catch (e) {}
         }
       }
@@ -259,6 +306,20 @@ export default function AgentPersonality() {
       setDbWhatsappAdmins(whatsappAdmins.trim());
       setDbTelegramAdmins(telegramAdmins.trim());
       setDbTakeoverTimeout(timeoutVal);
+    });
+  };
+
+  const handleSaveVoice = () => {
+    saveSection({
+      sttProvider,
+      ttsProvider,
+      ttsVoice,
+      speakingStyle: speakingStyle.trim(),
+    }, () => {
+      setDbSttProvider(sttProvider);
+      setDbTtsProvider(ttsProvider);
+      setDbTtsVoice(ttsVoice);
+      setDbSpeakingStyle(speakingStyle.trim());
     });
   };
 
@@ -422,12 +483,7 @@ export default function AgentPersonality() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4 animate-pulse">
-        <div className="w-8 h-8 rounded-full border-2 border-[#22577A] border-t-transparent animate-spin" />
-        <p className="text-xs text-zinc-400 font-semibold">Loading personality settings...</p>
-      </div>
-    );
+    return <LoadingSpinner size="lg" text="Loading personality settings..." />;
   }
 
   return (
@@ -562,6 +618,122 @@ export default function AgentPersonality() {
           >
             Generate Boss Code
           </Button>
+        </div>
+      </div>
+
+      {/* Voice AI & Language Settings Card */}
+      <div className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm space-y-3.5">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-xs font-bold text-zinc-800 uppercase tracking-wider">Voice AI & Language Settings</h3>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Configure Speech-to-Text, Text-to-Speech, and voice styles</p>
+          </div>
+          <Button
+            onClick={handleSaveVoice}
+            className="h-7.5 text-[10px] font-bold px-3.5 bg-[#22577A] hover:bg-[#1C4662] text-white rounded-md border-none cursor-pointer"
+          >
+            {savedVoice ? 'Saved!' : 'Save Voice Settings'}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="stt-provider" className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">STT Provider</Label>
+            <Select value={sttProvider} onValueChange={(val) => val && setSttProvider(val)}>
+              <SelectTrigger id="stt-provider" className="h-8.5 text-xs border-zinc-200 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                <SelectItem value="google">Google Speech</SelectItem>
+                <SelectItem value="deepgram">Deepgram</SelectItem>
+                <SelectItem value="azure">Azure Speech</SelectItem>
+                <SelectItem value="assemblyai">AssemblyAI</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="tts-provider" className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">TTS Provider</Label>
+            <Select value={ttsProvider} onValueChange={(val) => {
+              if (val) {
+                setTtsProvider(val);
+                // Set default voice accordingly
+                if (val === 'openai') setTtsVoice('nova');
+                else if (val === 'elevenlabs') setTtsVoice('21m00Tcm4TlvDq8ikWAM');
+                else if (val === 'google') setTtsVoice('en-US-Neural2-F');
+                else if (val === 'azure') setTtsVoice('en-US-JennyNeural');
+              }
+            }}>
+              <SelectTrigger id="tts-provider" className="h-8.5 text-xs border-zinc-200 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openai">OpenAI TTS</SelectItem>
+                <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                <SelectItem value="google">Google Cloud TTS</SelectItem>
+                <SelectItem value="azure">Azure TTS</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="tts-voice" className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Default Voice</Label>
+            <Select value={ttsVoice} onValueChange={(val) => val && setTtsVoice(val)}>
+              <SelectTrigger id="tts-voice" className="h-8.5 text-xs border-zinc-200 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ttsProvider === 'openai' && (
+                  <>
+                    <SelectItem value="alloy">Alloy (Neutral)</SelectItem>
+                    <SelectItem value="echo">Echo (Male)</SelectItem>
+                    <SelectItem value="fable">Fable (Neutral)</SelectItem>
+                    <SelectItem value="onyx">Onyx (Male)</SelectItem>
+                    <SelectItem value="nova">Nova (Female)</SelectItem>
+                    <SelectItem value="shimmer">Shimmer (Female)</SelectItem>
+                  </>
+                )}
+                {ttsProvider === 'elevenlabs' && (
+                  <>
+                    <SelectItem value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</SelectItem>
+                    <SelectItem value="AZnzlk1XvdvUeBnXmlld">Domi (Female)</SelectItem>
+                    <SelectItem value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</SelectItem>
+                    <SelectItem value="ErXwobaYiN019PkySvjV">Antoni (Male)</SelectItem>
+                    <SelectItem value="TxGEqn7nUa5To4YHHCOx">Josh (Male)</SelectItem>
+                    <SelectItem value="VR6A4UBqhstHWoyxbc8j">Arnold (Male)</SelectItem>
+                    <SelectItem value="pNInz6obpgdq51JdMT5y">Adam (Male)</SelectItem>
+                    <SelectItem value="yoZ06aOLSsp5O3ADYu15">Sam (Male)</SelectItem>
+                  </>
+                )}
+                {ttsProvider === 'google' && (
+                  <>
+                    <SelectItem value="en-US-Neural2-F">Jenny (US - Female)</SelectItem>
+                    <SelectItem value="en-US-Neural2-H">Guy (US - Male)</SelectItem>
+                    <SelectItem value="hi-IN-Neural2-C">Madhur (Hindi - Male)</SelectItem>
+                    <SelectItem value="hi-IN-Wavenet-D">Swara (Hindi - Female)</SelectItem>
+                    <SelectItem value="ta-IN-Wavenet-A">Valluvar (Tamil - Female)</SelectItem>
+                    <SelectItem value="ta-IN-Wavenet-B">Venkat (Tamil - Male)</SelectItem>
+                  </>
+                )}
+                {ttsProvider === 'azure' && (
+                  <>
+                    <SelectItem value="en-US-JennyNeural">Jenny (US - Female)</SelectItem>
+                    <SelectItem value="en-US-GuyNeural">Guy (US - Male)</SelectItem>
+                    <SelectItem value="hi-IN-SwaraNeural">Swara (Hindi - Female)</SelectItem>
+                    <SelectItem value="hi-IN-MadhurNeural">Madhur (Hindi - Male)</SelectItem>
+                    <SelectItem value="ta-IN-VenkatNeural">Venkat (Tamil - Female)</SelectItem>
+                    <SelectItem value="ta-IN-ValluvarNeural">Valluvar (Tamil - Male)</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="speaking-style" className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Speaking Style / Tone</Label>
+            <Input id="speaking-style" value={speakingStyle} onChange={(e) => setSpeakingStyle(e.target.value)} placeholder="friendly, professional, energetic..." className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400" />
+          </div>
         </div>
       </div>
     </div>

@@ -3,4 +3,5 @@ import { ConversationResponse } from '../types/ConversationResponse';
 
 export interface ILLMProvider {
   generateResponse(request: ConversationRequest): Promise<ConversationResponse>;
+  generateResponseStream?(request: ConversationRequest): AsyncGenerator<{ text: string; inputTokens?: number; outputTokens?: number }>;
 }

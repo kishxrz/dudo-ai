@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Logo({ className = "w-8 h-8", strokeColor = "white" }: { className?: string, strokeColor?: string }) {
+export default function Logo({ className = "w-8 h-8", strokeColor = "none" }: { className?: string, strokeColor?: string }) {
   return (
     <svg 
       viewBox="0 0 100 100" 
@@ -23,14 +23,14 @@ export default function Logo({ className = "w-8 h-8", strokeColor = "white" }: {
       <line x1="50" y1="50" x2="43" y2="82" stroke="url(#logo-gradient)" strokeWidth="6.5" strokeLinecap="round" />
 
       {/* Center Main Circle */}
-      <circle cx="50" cy="50" r="16.5" fill="url(#logo-gradient)" stroke={strokeColor} strokeWidth="3" />
+      <circle cx="50" cy="50" r="16.5" fill="url(#logo-gradient)" stroke={strokeColor !== "none" ? strokeColor : undefined} strokeWidth={strokeColor !== "none" ? "3" : undefined} />
 
       {/* Surrounding Outer Circles */}
-      <circle cx="25" cy="25" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor} strokeWidth="2.5" />
-      <circle cx="75" cy="25" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor} strokeWidth="2.5" />
-      <circle cx="15" cy="52" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor} strokeWidth="2.5" />
-      <circle cx="85" cy="54" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor} strokeWidth="2.5" />
-      <circle cx="43" cy="82" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor} strokeWidth="2.5" />
+      <circle cx="25" cy="25" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor !== "none" ? strokeColor : undefined} strokeWidth={strokeColor !== "none" ? "2.5" : undefined} />
+      <circle cx="75" cy="25" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor !== "none" ? strokeColor : undefined} strokeWidth={strokeColor !== "none" ? "2.5" : undefined} />
+      <circle cx="15" cy="52" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor !== "none" ? strokeColor : undefined} strokeWidth={strokeColor !== "none" ? "2.5" : undefined} />
+      <circle cx="85" cy="54" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor !== "none" ? strokeColor : undefined} strokeWidth={strokeColor !== "none" ? "2.5" : undefined} />
+      <circle cx="43" cy="82" r="9.5" fill="url(#logo-gradient)" stroke={strokeColor !== "none" ? strokeColor : undefined} strokeWidth={strokeColor !== "none" ? "2.5" : undefined} />
     </svg>
   );
 }

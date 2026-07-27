@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
@@ -281,10 +282,7 @@ export default function ConversationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-148px)] bg-white border border-zinc-200 rounded-2xl">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#22577A] border-t-transparent" />
-          <span className="text-xs font-semibold text-zinc-500">Loading conversations…</span>
-        </div>
+        <LoadingSpinner size="lg" text="Loading conversations…" />
       </div>
     );
   }

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '../../../../../lib/firebase-admin';
 import { db } from '../../../../../lib/firebase';
@@ -6,6 +8,7 @@ import { processAdminCommand, isConversationInTakeover } from '../../../../../li
 import { handleIntent } from '../../../../../lib/intent-handler';
 import { WorkspaceContextLoader } from '../../../../../lib/ai/WorkspaceContextLoader';
 import { ConversationService } from '../../../../../lib/ai/ConversationService';
+import { TextExtractionService } from '../../../../../lib/ai/TextExtractionService';
 
 export const runtime = 'nodejs';
 
@@ -178,7 +181,10 @@ export async function POST(req: NextRequest) {
 
   console.log(`[WA_WEBHOOK_TRACE] stage=AUTH_RESULT status=PASS messageId=${messageId}`);
 
-  if (!body || !workspaceId || !externalChatId || !messageId || !messageText) {
+  const hasText = !!messageText;
+  const hasAttachment = !!body?.attachedFile;
+
+  if (!body || !workspaceId || !externalChatId || !messageId || (!hasText && !hasAttachment)) {
     console.log(`[WA_WEBHOOK_TRACE] stage=REQUEST_RECEIVED status=REJECT reason="missing required payload parameters" messageId=${messageId}`);
     return NextResponse.json({ error: 'Missing required payload parameters' }, { status: 400 });
   }
@@ -326,19 +332,45 @@ export async function POST(req: NextRequest) {
       systemPromptOverride += actionResultContext;
     }
 
+    let attachedContent: any = null;
+    let finalMessageText = messageText || '';
+    const attachedFile = body?.attachedFile;
+
+    if (attachedFile) {
+      if (attachedFile.type.startsWith('image/')) {
+        attachedContent = {
+          type: 'image_url',
+          image_url: {
+            url: `data:${attachedFile.type};base64,${attachedFile.base64}`
+          }
+        };
+      } else {
+        const ext = attachedFile.name.split('.').pop()?.toLowerCase() || '';
+        try {
+          const parsedText = TextExtractionService.extractText(attachedFile.base64, ext as any);
+          if (parsedText.trim()) {
+            finalMessageText = `[Document Content: ${attachedFile.name}]\n${parsedText.trim()}\n\n[User Message]: ${messageText || ''}`;
+          }
+        } catch (e) {
+          console.error('[WhatsApp Webhook] Document AI extraction failed:', e);
+        }
+      }
+    }
+
     console.log(`[WA_WEBHOOK_TRACE] stage=AI_PROVIDER_START provider=${context.provider?.name || 'unknown'} model=${context.provider?.model || 'unknown'} messageId=${messageId}`);
 
     // 7. Call shared ConversationService
     const result = await ConversationService.generateReply(
       context,
-      messageText,
+      finalMessageText,
       history,
       {
         model: context.provider.model,
         temperature: 0.7,
         memoryEnabled: true,
         knowledgeEnabled: true,
-        systemPrompt: systemPromptOverride
+        systemPrompt: systemPromptOverride,
+        attachedContent: attachedContent
       }
     );
 

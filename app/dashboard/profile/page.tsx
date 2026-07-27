@@ -630,7 +630,7 @@ export default function ProfilePage() {
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98765 43210"
+                placeholder="Your phone number"
                 className="h-9 text-[13px] border-zinc-200 font-medium text-zinc-800 bg-white placeholder:text-zinc-400 focus:ring-[#22577A]/30 focus:border-[#22577A]"
               />
             </div>
@@ -801,8 +801,8 @@ export default function ProfilePage() {
       </Card>
 
       {/* ── Danger Zone ──────────────────────────────────────────────────── */}
-      <div className="border border-red-200 bg-red-50/40 rounded-xl p-5">
-        <p className="text-[12px] font-bold text-red-700 uppercase tracking-wide mb-3">
+      <div className="border border-red-200/80 bg-red-50/70 rounded-xl p-5">
+        <p className="text-[12px] font-extrabold text-red-700 uppercase tracking-wide mb-3">
           Danger Zone
         </p>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

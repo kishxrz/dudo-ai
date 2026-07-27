@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import { useToast } from '@/contexts/ToastContext';
 import metadataListRaw from '@/data/skills/metadata.json';
 
 interface CommunitySkill {
@@ -163,6 +164,7 @@ const CATEGORIES = [
 
 export default function AgentSkillStore() {
   const { workspaceId } = useWorkspace();
+  const toast = useToast();
   const [skills, setSkills] = useState<CommunitySkill[]>([]);
   const [prompt, setPrompt] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -301,7 +303,7 @@ export default function AgentSkillStore() {
       window.dispatchEvent(new Event('dudo-skills-changed'));
     } catch (err) {
       console.error(`[AgentSkillStore] Install toggle failed for action: ${action}`, err);
-      alert(`Failed to ${action} skill. Please try again.`);
+      toast.error(`Failed to ${action} skill. Please try again.`);
     } finally {
       // Clear transition state
       setTransitioning(prev => {
@@ -332,15 +334,15 @@ export default function AgentSkillStore() {
           setReviewSkill(data.skill);
           setPrompt('');
         } else {
-          alert(data.error || 'Failed to generate custom skill.');
+          toast.error(data.error || 'Failed to generate custom skill.');
         }
       } else {
         const errText = await res.text();
-        alert(`Error: ${errText}`);
+        toast.error(`Error: ${errText}`);
       }
     } catch (e) {
       console.error('[AgentSkillStore] AI generation failed:', e);
-      alert('An error occurred during skill generation.');
+      toast.error('An error occurred during skill generation.');
     } finally {
       setCreating(false);
     }

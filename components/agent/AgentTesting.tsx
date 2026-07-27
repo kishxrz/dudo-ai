@@ -1,19 +1,22 @@
 'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useRef, useEffect } from 'react';
 import { ApiProvider, PROVIDER_LABELS, PROVIDER_MODELS } from '@/types';
+import { ProviderModelRegistry } from '@/lib/ai/providers/ProviderModelRegistry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bot, Send, User, RotateCcw, Activity, ShieldAlert, Cpu, Sparkles } from 'lucide-react';
+import { Bot, Send, User, RotateCcw, Activity, ShieldAlert, Cpu, Sparkles, Paperclip, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { generate2000Skills } from '@/lib/skills-generator';
 import { mockAssistant } from '@/services/mockData';
+import VoiceButton from '@/components/voice/VoiceButton';
 
 type ChatMessage = {
   id: string;
@@ -40,7 +43,7 @@ interface DiagnosticsData {
   executionErrors?: string[];
 }
 
-const PROVIDER_LOGOS: Record<ApiProvider, React.ReactNode> = {
+const PROVIDER_LOGOS: Partial<Record<ApiProvider, React.ReactNode>> = {
   openai: (
     <svg viewBox="0 0 24 24" className="w-4.5 h-4.5" fill="#10A37F">
       <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z" fill="#10A37F" />
@@ -95,6 +98,14 @@ export default function AgentTesting() {
   const [memoryEnabled, setMemoryEnabled] = useState<boolean>(true);
   const [knowledgeEnabled, setKnowledgeEnabled] = useState<boolean>(true);
 
+  // Voice settings
+  const [ttsEnabled, setTtsEnabled] = useState<boolean>(false);
+  const [lastAiReply, setLastAiReply] = useState<string | undefined>(undefined);
+  const [voiceErrorMsg, setVoiceErrorMsg] = useState<string | null>(null);
+
+  // File attachment state
+  const [attachedFile, setAttachedFile] = useState<{ name: string; type: string; base64: string } | null>(null);
+
   // State to check which providers are connected
   const [connectedProviders, setConnectedProviders] = useState<Record<ApiProvider, boolean>>({
     openai: false,
@@ -104,7 +115,15 @@ export default function AgentTesting() {
     openrouter: false,
     deepseek: false,
     mistral: false,
+    elevenlabs: false,
+    deepgram: false,
+    assemblyai: false,
+    azure: false,
   });
+
+  const [playgroundStt, setPlaygroundStt] = useState('openai');
+  const [playgroundTts, setPlaygroundTts] = useState('openai');
+  const [playgroundVoice, setPlaygroundVoice] = useState('nova');
 
   // Diagnostics State
   const [diagnostics, setDiagnostics] = useState<DiagnosticsData | null>(null);
@@ -268,23 +287,31 @@ export default function AgentTesting() {
     if (!val) return;
     const prov = val as ApiProvider;
     setSelectedProvider(prov);
-    setSelectedModel(PROVIDER_MODELS[prov]?.[0] || '');
+    setSelectedModel(ProviderModelRegistry.getDefaultModel(prov).modelId);
   };
 
-  const handleSend = async () => {
-    if (!inputVal.trim() || isTyping) return;
+  const handleSend = async (overrideText?: string) => {
+    const userText = (overrideText || inputVal).trim();
+    if (!userText && !attachedFile && !isTyping) return;
     setErrorMsg(null);
 
-    const userText = inputVal.trim();
+    const textToShow = attachedFile
+      ? `${userText} (Uploaded file: ${attachedFile.name})`
+      : userText;
+
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       sender: 'user',
-      text: userText,
+      text: textToShow,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMsg]);
-    setInputVal('');
+    if (!overrideText) setInputVal('');
+    else setInputVal('');
+    
+    const fileToSend = attachedFile;
+    setAttachedFile(null); // Clear attachment UI
     setIsTyping(true);
 
     let knowledgeData = null;
@@ -301,6 +328,15 @@ export default function AgentTesting() {
       }
     }
 
+    const agentMsgId = `a-${Date.now()}`;
+    // Add empty agent message for streaming
+    setMessages(prev => [...prev, {
+      id: agentMsgId,
+      sender: 'agent',
+      text: '',
+      timestamp: new Date(),
+    }]);
+
     try {
       const response = await fetch('/api/playground/chat', {
         method: 'POST',
@@ -309,47 +345,84 @@ export default function AgentTesting() {
         },
         body: JSON.stringify({
           message: userText,
+          attachedFile: fileToSend,
           history: messages,
           provider: selectedProvider,
           model: selectedModel,
           temperature: temperature,
           memoryEnabled: memoryEnabled,
           knowledgeEnabled: knowledgeEnabled,
-          // Use the saved system prompt directly (backend resolves dynamic skill instructions)
           systemPrompt: savedSystemPrompt || mockAssistant.systemPrompt,
           workspaceId: workspaceId,
-          // Pass the resolved API key directly — the client is authenticated,
-          // the server Route Handler is not (no Firebase Auth token).
           apiKey: resolvedApiKeys[selectedProvider] || '',
           knowledgeData,
+          stream: true,
+          voiceSettings: {
+            sttProvider: playgroundStt,
+            ttsProvider: playgroundTts,
+            ttsVoice: playgroundVoice,
+          },
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to communicate with proxy.');
+        const errText = await response.text();
+        throw new Error(errText || 'Failed to communicate with chat api.');
       }
 
-      setMessages(prev => [...prev, {
-        id: `a-${Date.now()}`,
-        sender: 'agent',
-        text: data.reply,
-        timestamp: new Date(),
-      }]);
-
-      if (data.diagnostics) {
-        setDiagnostics(data.diagnostics);
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Streaming not supported by browser/server.');
       }
+
+      const decoder = new TextDecoder();
+      let replyText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          const cleaned = line.trim();
+          if (cleaned.startsWith('data:')) {
+            const dataStr = cleaned.substring(5).trim();
+            if (dataStr === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.text) {
+                if (replyText === '') {
+                  setIsTyping(false);
+                }
+                replyText += parsed.text;
+                setMessages(prev => prev.map(m => m.id === agentMsgId ? { ...m, text: replyText } : m));
+              }
+              if (parsed.diagnostics) {
+                setDiagnostics(parsed.diagnostics);
+              }
+            } catch (e) {
+              // ignore partials
+            }
+          }
+        }
+      }
+
+      setLastAiReply(replyText);
+
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || 'An unexpected error occurred.');
-      setMessages(prev => [...prev, {
-        id: `err-${Date.now()}`,
-        sender: 'agent',
-        text: `⚠️ Error: ${err.message || 'Could not fetch response from model.'}`,
-        timestamp: new Date(),
-      }]);
+      setMessages(prev => {
+        // Remove empty placeholder and add error message instead
+        const filtered = prev.filter(m => m.id !== agentMsgId);
+        return [...filtered, {
+          id: `err-${Date.now()}`,
+          sender: 'agent',
+          text: `⚠️ Error: ${err.message || 'Could not fetch response from model.'}`,
+          timestamp: new Date(),
+        }];
+      });
     } finally {
       setIsTyping(false);
     }
@@ -433,11 +506,13 @@ export default function AgentTesting() {
               <Label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Model Endpoint</Label>
               <Select value={selectedModel} onValueChange={(val) => val && setSelectedModel(val)}>
                 <SelectTrigger className="h-8 text-xs border-zinc-200 w-full">
-                  <SelectValue>{selectedModel}</SelectValue>
+                  <SelectValue>
+                    {ProviderModelRegistry.getModel(selectedProvider, selectedModel)?.displayName || selectedModel}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(PROVIDER_MODELS[selectedProvider] || []).map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  {ProviderModelRegistry.getModelsByProvider(selectedProvider).map(m => (
+                    <SelectItem key={m.modelId} value={m.modelId}>{m.displayName}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -477,6 +552,110 @@ export default function AgentTesting() {
               </div>
               <Switch checked={knowledgeEnabled} onCheckedChange={setKnowledgeEnabled} />
             </div>
+
+            {/* TTS Auto-Speak Toggle */}
+            <div className="flex items-center justify-between py-1 border-b border-zinc-50">
+              <div className="flex flex-col">
+                <span className="text-[11px] font-semibold text-zinc-700">Auto-Speak Replies</span>
+                <span className="text-[9px] text-zinc-400">Read AI responses aloud</span>
+              </div>
+              <Switch checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
+            </div>
+
+            {/* STT/TTS Provider Overrides */}
+            {ttsEnabled && (
+              <div className="space-y-2 pt-2 border-t border-zinc-50">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Playground STT</Label>
+                  <Select value={playgroundStt} onValueChange={(val) => val && setPlaygroundStt(val)}>
+                    <SelectTrigger className="h-7.5 text-xs border-zinc-200 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                      <SelectItem value="google">Google Speech</SelectItem>
+                      <SelectItem value="deepgram">Deepgram</SelectItem>
+                      <SelectItem value="azure">Azure Speech</SelectItem>
+                      <SelectItem value="assemblyai">AssemblyAI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Playground TTS</Label>
+                  <Select value={playgroundTts} onValueChange={(val) => {
+                    if (val) {
+                      setPlaygroundTts(val);
+                      if (val === 'openai') setPlaygroundVoice('nova');
+                      else if (val === 'elevenlabs') setPlaygroundVoice('21m00Tcm4TlvDq8ikWAM');
+                      else if (val === 'google') setPlaygroundVoice('en-US-Neural2-F');
+                      else if (val === 'azure') setPlaygroundVoice('en-US-JennyNeural');
+                    }
+                  }}>
+                    <SelectTrigger className="h-7.5 text-xs border-zinc-200 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openai">OpenAI TTS</SelectItem>
+                      <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                      <SelectItem value="google">Google Cloud TTS</SelectItem>
+                      <SelectItem value="azure">Azure TTS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Playground Voice</Label>
+                  <Select value={playgroundVoice} onValueChange={(val) => val && setPlaygroundVoice(val)}>
+                    <SelectTrigger className="h-7.5 text-xs border-zinc-200 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {playgroundTts === 'openai' && (
+                        <>
+                          <SelectItem value="alloy">Alloy (Neutral)</SelectItem>
+                          <SelectItem value="echo">Echo (Male)</SelectItem>
+                          <SelectItem value="fable">Fable (Neutral)</SelectItem>
+                          <SelectItem value="onyx">Onyx (Male)</SelectItem>
+                          <SelectItem value="nova">Nova (Female)</SelectItem>
+                          <SelectItem value="shimmer">Shimmer (Female)</SelectItem>
+                        </>
+                      )}
+                      {playgroundTts === 'elevenlabs' && (
+                        <>
+                          <SelectItem value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</SelectItem>
+                          <SelectItem value="AZnzlk1XvdvUeBnXmlld">Domi (Female)</SelectItem>
+                          <SelectItem value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</SelectItem>
+                          <SelectItem value="ErXwobaYiN019PkySvjV">Antoni (Male)</SelectItem>
+                          <SelectItem value="TxGEqn7nUa5To4YHHCOx">Josh (Male)</SelectItem>
+                          <SelectItem value="VR6A4UBqhstHWoyxbc8j">Arnold (Male)</SelectItem>
+                          <SelectItem value="pNInz6obpgdq51JdMT5y">Adam (Male)</SelectItem>
+                          <SelectItem value="yoZ06aOLSsp5O3ADYu15">Sam (Male)</SelectItem>
+                        </>
+                      )}
+                      {playgroundTts === 'google' && (
+                        <>
+                          <SelectItem value="en-US-Neural2-F">Jenny (US - Female)</SelectItem>
+                          <SelectItem value="en-US-Neural2-H">Guy (US - Male)</SelectItem>
+                          <SelectItem value="hi-IN-Neural2-C">Madhur (Hindi - Male)</SelectItem>
+                          <SelectItem value="hi-IN-Wavenet-D">Swara (Hindi - Female)</SelectItem>
+                          <SelectItem value="ta-IN-Wavenet-A">Valluvar (Tamil - Female)</SelectItem>
+                          <SelectItem value="ta-IN-Wavenet-B">Venkat (Tamil - Male)</SelectItem>
+                        </>
+                      )}
+                      {playgroundTts === 'azure' && (
+                        <>
+                          <SelectItem value="en-US-JennyNeural">Jenny (US - Female)</SelectItem>
+                          <SelectItem value="en-US-GuyNeural">Guy (US - Male)</SelectItem>
+                          <SelectItem value="hi-IN-SwaraNeural">Swara (Hindi - Female)</SelectItem>
+                          <SelectItem value="hi-IN-MadhurNeural">Madhur (Hindi - Male)</SelectItem>
+                          <SelectItem value="ta-IN-VenkatNeural">Venkat (Tamil - Female)</SelectItem>
+                          <SelectItem value="ta-IN-ValluvarNeural">Valluvar (Tamil - Male)</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -509,6 +688,7 @@ export default function AgentTesting() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-zinc-50/30">
           {messages.map((msg) => {
             const isAgent = msg.sender === 'agent';
+            if (isAgent && !msg.text) return null;
             return (
               <div
                 key={msg.id}
@@ -559,21 +739,83 @@ export default function AgentTesting() {
 
         {/* Input Form */}
         <div className="border-t border-zinc-150 p-2 bg-zinc-50/50">
+          {voiceErrorMsg && (
+            <p className="text-[10px] text-red-500 font-medium px-1 pb-1 truncate">{voiceErrorMsg}</p>
+          )}
+          {attachedFile && (
+            <div className="flex items-center gap-1.5 bg-zinc-100 border border-zinc-200 rounded-lg px-2 py-1 mb-2 max-w-fit animate-in fade-in slide-in-from-bottom-2 select-none">
+              <span className="text-[10px] font-bold text-zinc-700 truncate max-w-[150px]">{attachedFile.name}</span>
+              <button
+                type="button"
+                onClick={() => setAttachedFile(null)}
+                className="text-zinc-400 hover:text-red-500 bg-transparent border-none cursor-pointer p-0"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
           <form
             onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-            className="flex gap-2"
+            className="flex gap-2 items-center"
           >
+            <input
+              type="file"
+              id="playground-file-upload"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const base64 = (reader.result as string).split(',')[1];
+                    setAttachedFile({
+                      name: file.name,
+                      type: file.type,
+                      base64,
+                    });
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => document.getElementById('playground-file-upload')?.click()}
+              disabled={isTyping}
+              className="h-8.5 w-8.5 p-0 bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 shrink-0 cursor-pointer rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <Paperclip size={13} />
+            </button>
             <Input
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
               disabled={isTyping}
-              placeholder="Type your message to test AI..."
+              placeholder="Type or use the mic to speak..."
               className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400"
+            />
+            {/* Voice Button — STT + TTS */}
+            <VoiceButton
+              apiKey={resolvedApiKeys[selectedProvider] || resolvedApiKeys['openai'] || ''}
+              disabled={isTyping}
+              ttsEnabled={ttsEnabled}
+              lastAiReply={lastAiReply}
+              workspaceId={workspaceId}
+              sttProvider={playgroundStt}
+              ttsProvider={playgroundTts}
+              ttsVoice={playgroundVoice}
+              onTranscript={(transcript) => {
+                setInputVal(transcript);
+                handleSend(transcript);
+              }}
+              onError={(msg) => {
+                setVoiceErrorMsg(msg);
+                setTimeout(() => setVoiceErrorMsg(null), 5000);
+              }}
             />
             <Button
               type="submit"
-              disabled={!inputVal.trim() || isTyping}
-              className="h-8.5 w-8.5 p-0 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg flex items-center justify-center cursor-pointer border-none animate-in fade-in"
+              disabled={(!inputVal.trim() && !attachedFile) || isTyping}
+              className="h-8.5 w-8.5 p-0 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg flex items-center justify-center cursor-pointer border-none animate-in fade-in shrink-0"
             >
               <Send size={13} />
             </Button>

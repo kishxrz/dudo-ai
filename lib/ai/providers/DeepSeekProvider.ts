@@ -18,6 +18,8 @@ export class DeepSeekProvider implements ILLMProvider {
       }))
     ];
 
+    const startTs = Date.now();
+    console.log(`[DeepSeekProvider] ▶ fetch START — model=${request.model}`);
     const res = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
@@ -29,7 +31,9 @@ export class DeepSeekProvider implements ILLMProvider {
         messages,
         temperature: request.temperature,
       }),
+      signal: AbortSignal.timeout(30000),
     });
+    console.log(`[DeepSeekProvider] ✔ fetch DONE — ${Date.now() - startTs}ms status=${res.status}`);
 
     if (!res.ok) {
       const text = await res.text();

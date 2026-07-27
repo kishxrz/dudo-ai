@@ -22,19 +22,34 @@ export async function GET(req: NextRequest) {
     const serviceUrl = process.env.WHATSAPP_SERVICE_URL || 'https://dudo-ai-production.up.railway.app';
     const internalSecret = process.env.WHATSAPP_INTERNAL_SECRET || process.env.WHATSAPP_SERVICE_SECRET || '948ae6bcb0f8421c1e060aadee9d08d3cd75c366946fdc966ee290f7262ee7f1';
     if (!serviceUrl || !internalSecret) {
-      return NextResponse.json({ error: 'WhatsApp service is not configured' }, { status: 500 });
+      // Graceful fallback — don't expose config errors to the client
+      return NextResponse.json({ status: 'disconnected', message: 'Service not configured' });
     }
 
-    const response = await fetch(`${serviceUrl}/v1/workspaces/${workspaceId}/status`, {
-      method: 'GET',
-      headers: {
-        'Authorization': authorization,
-        'x-internal-secret': internalSecret,
-        'Content-Type': 'application/json'
-      }
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${serviceUrl}/v1/workspaces/${workspaceId}/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': authorization,
+          'x-internal-secret': internalSecret,
+          'Content-Type': 'application/json'
+        },
+        // 8-second timeout to prevent hanging
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch (fetchErr: any) {
+      // Network error / timeout — treat as disconnected gracefully
+      console.warn('[WhatsApp Status] Upstream service unreachable:', fetchErr.message);
+      return NextResponse.json({ status: 'disconnected', message: 'Service temporarily unavailable' });
+    }
 
+    // If the upstream returns 5xx, return disconnected gracefully instead of propagating the error
     if (!response.ok) {
+      if (response.status >= 500) {
+        console.warn(`[WhatsApp Status] Upstream returned ${response.status} — returning disconnected gracefully`);
+        return NextResponse.json({ status: 'disconnected', message: 'Service temporarily unavailable' });
+      }
       const errText = await response.text();
       let errorJson;
       try {
@@ -53,6 +68,8 @@ export async function GET(req: NextRequest) {
       message: err.message,
       stack: err.stack
     });
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+    // Return a graceful disconnected state rather than a 500
+    return NextResponse.json({ status: 'disconnected', message: 'Status check failed' });
   }
 }
+

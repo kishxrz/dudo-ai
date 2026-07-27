@@ -2,6 +2,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/contexts/ToastContext';
 import { useSearchParams } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, doc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
@@ -243,6 +246,7 @@ function BillingStatusBadge({ status }: { status: string }) {
 export default function BillingPage() {
   const { workspaceId } = useWorkspace();
   const { currentUser } = useAuth();
+  const toast = useToast();
   const searchParams = useSearchParams();
   const checkoutAuto = searchParams.get('checkout_auto');
 
@@ -256,6 +260,7 @@ export default function BillingPage() {
   const [managingPortal, setManagingPortal] = useState(false);
   const [cancellingSub, setCancellingSub] = useState(false);
   const [resumingSub, setResumingSub] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [trialRemainingText, setTrialRemainingText] = useState('');
 
   useEffect(() => {
@@ -303,7 +308,7 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (data.error) {
-        alert(data.error);
+        toast.error(data.error);
         return;
       }
       if (data.checkoutUrl) {
@@ -312,7 +317,7 @@ export default function BillingPage() {
     } catch (err) {
       console.error('Failed to upgrade:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to initiate checkout session';
-      alert(errMsg);
+      toast.error(errMsg);
     } finally {
       setUpgradingId(null);
     }
@@ -345,7 +350,7 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (data.error) {
-        alert(data.error);
+        toast.error(data.error);
         return;
       }
       if (data.portalUrl) {
@@ -354,14 +359,13 @@ export default function BillingPage() {
     } catch (err) {
       console.error('Failed to open customer portal:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to open billing portal';
-      alert(errMsg);
+      toast.error(errMsg);
     } finally {
       setManagingPortal(false);
     }
   };
 
   const handleCancelSubscription = async () => {
-    if (!confirm('Are you sure you want to cancel subscription auto-renewal?')) return;
     if (!workspaceId || !currentUser) return;
     setCancellingSub(true);
     try {
@@ -376,16 +380,17 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (data.error) {
-        alert(data.error);
+        toast.error(data.error);
         return;
       }
-      alert('Subscription cancelled successfully.');
+      toast.success('Subscription cancelled successfully.');
     } catch (err) {
       console.error('Failed to cancel:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to cancel subscription';
-      alert(errMsg);
+      toast.error(errMsg);
     } finally {
       setCancellingSub(false);
+      setShowCancelConfirm(false);
     }
   };
 
@@ -404,14 +409,14 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (data.error) {
-        alert(data.error);
+        toast.error(data.error);
         return;
       }
-      alert('Subscription resumed successfully.');
+      toast.success('Subscription resumed successfully.');
     } catch (err) {
       console.error('Failed to resume:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to resume subscription';
-      alert(errMsg);
+      toast.error(errMsg);
     } finally {
       setResumingSub(false);
     }
@@ -519,14 +524,7 @@ export default function BillingPage() {
   if (loading) {
     return (
       <PageLayout className="max-w-[1200px] w-full mx-auto gap-5 px-6 box-border">
-        <div className="flex flex-col gap-5">
-          <LoadingSkeleton rows={1} type="text" />
-          <LoadingSkeleton rows={3} type="card" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <LoadingSkeleton rows={2} type="card" />
-            <LoadingSkeleton rows={2} type="card" />
-          </div>
-        </div>
+        <LoadingSpinner size="lg" text="Loading subscription details..." />
       </PageLayout>
     );
   }
@@ -649,7 +647,7 @@ export default function BillingPage() {
                 </Button>
               ) : (
                 <Button
-                  onClick={handleCancelSubscription}
+                  onClick={() => setShowCancelConfirm(true)}
                   disabled={cancellingSub}
                   className="h-8 px-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01] w-full sm:w-auto"
                 >
@@ -702,7 +700,7 @@ export default function BillingPage() {
                 </div>
               ) : convUsed !== null && convPct !== null ? (
                 <>
-                  <div className="h-2 rounded-full bg-zinc-100 overflow-hidden border border-zinc-200/30">
+                  <div className="h-2 rounded-full bg-zinc-100 overflow-hidden">
                     <div
                       className={cn(
                         'h-full rounded-full transition-all duration-500',
@@ -711,16 +709,16 @@ export default function BillingPage() {
                       style={{ width: `${convPct}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className={cn(
-                      'text-[10px] font-semibold uppercase tracking-wide',
-                      convPct > 85 ? 'text-red-500' : 'text-zinc-400'
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className={cn(
+                      'font-extrabold uppercase tracking-wider',
+                      convPct > 85 ? 'text-red-500' : 'text-[#22577A]'
                     )}>
-                      {convPct}% used
-                    </p>
-                    <p className="text-[10px] text-zinc-400 font-medium">
+                      {convPct}% USED
+                    </span>
+                    <span className="text-zinc-400 font-medium">
                       {(convLimit - convUsed).toLocaleString()} remaining
-                    </p>
+                    </span>
                   </div>
                 </>
               ) : (
@@ -734,7 +732,7 @@ export default function BillingPage() {
                 <span>Campaigns Sent</span>
                 {campLimit === null || campLimit === 0 ? (
                   <span className="text-zinc-400 font-mono">
-                    {campUsed !== null ? campUsed : '—'} / Unlimited
+                    {campUsed !== null ? campUsed : '0'} / Unlimited
                   </span>
                 ) : (
                   <span className="text-zinc-400 font-mono">
@@ -744,9 +742,15 @@ export default function BillingPage() {
               </div>
 
               {campLimit === null || campLimit === 0 ? (
-                <div className="h-2 rounded-full bg-zinc-100 flex items-center px-2">
-                  <span className="text-[9px] text-zinc-400 font-semibold uppercase tracking-wide">Unlimited</span>
-                </div>
+                <>
+                  <div className="h-2 rounded-full bg-zinc-100 overflow-hidden">
+                    <div className="h-full bg-[#22577A] rounded-full w-full opacity-20" />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-[#22577A] font-extrabold uppercase tracking-wider">Unlimited Access</span>
+                    <span className="text-zinc-400 font-medium">No campaign limit</span>
+                  </div>
+                </>
               ) : campUsed !== null && campPct !== null ? (
                 <>
                   <div className="h-2 rounded-full bg-zinc-100 overflow-hidden border border-zinc-200/30">
@@ -758,16 +762,13 @@ export default function BillingPage() {
                       style={{ width: `${campPct}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className={cn(
-                      'text-[10px] font-semibold uppercase tracking-wide',
-                      campPct > 85 ? 'text-red-500' : 'text-zinc-400'
-                    )}>
-                      {campPct}% used
-                    </p>
-                    <p className="text-[10px] text-zinc-400 font-medium">
-                      {(campLimit - campUsed)} remaining
-                    </p>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className={cn('font-bold', campPct > 85 ? 'text-red-500' : 'text-[#22577A]')}>
+                      {campPct}% USED
+                    </span>
+                    <span className="text-zinc-400 font-medium">
+                      {(campLimit - campUsed).toLocaleString()} remaining
+                    </span>
                   </div>
                 </>
               ) : (
@@ -856,64 +857,8 @@ export default function BillingPage() {
         </div>
       </Card>
 
-      {/* ── Payment & Billing ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Payment Method */}
-        <Card>
-          <SectionLabel title="Payment Method" />
-          {paymentMethod ? (
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-zinc-100 flex items-center justify-center shrink-0">
-                <Wallet size={16} className="text-zinc-500" />
-              </div>
-              <div className="min-w-0">
-                {paymentMethod.type === 'card' && (
-                  <>
-                    <p className="text-[13px] font-bold text-zinc-800">
-                      {paymentMethod.brand || 'Card'} •••• {paymentMethod.last4 || '——'}
-                    </p>
-                    <p className="text-[11px] text-zinc-400 font-medium">
-                      Expires {paymentMethod.expMonth}/{paymentMethod.expYear}
-                    </p>
-                  </>
-                )}
-                {paymentMethod.type === 'upi' && (
-                  <>
-                    <p className="text-[13px] font-bold text-zinc-800">UPI</p>
-                    <p className="text-[11px] text-zinc-400 font-medium [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal">
-                      {paymentMethod.upiId || 'Not available'}
-                    </p>
-                  </>
-                )}
-                {!paymentMethod.type && (
-                  <p className="text-[13px] font-bold text-zinc-800">Payment method on file</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
-              <div className="w-9 h-9 rounded-lg bg-zinc-100 flex items-center justify-center">
-                <CreditCard size={16} className="text-zinc-400" />
-              </div>
-              <p className="text-[12px] text-zinc-500 font-medium">No payment method added</p>
-              <p className="text-[11px] text-zinc-400">Add a card or UPI to enable billing.</p>
-            </div>
-          )}
-
-          <div className="mt-4 pt-3 border-t border-zinc-100">
-            <Button
-              onClick={handleManageBilling}
-              disabled={managingPortal}
-              className="w-full h-8 bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 rounded-lg text-[12px] font-semibold cursor-pointer transition-all"
-            >
-              {managingPortal ? 'Opening Portal...' : paymentMethod ? 'Update Payment Method' : 'Add Payment Method'}
-            </Button>
-          </div>
-        </Card>
-
-        {/* Billing History / Invoice Section */}
-        <Card className="lg:col-span-2">
+      {/* ── Billing History & Invoices ────────────────────────────────────────── */}
+      <Card>
           <SectionLabel title="Billing History & Invoices" sub="Your recent transactions, payment methods, and downloadable invoices" />
 
           {!historyLoaded ? (
@@ -1004,7 +949,16 @@ export default function BillingPage() {
           )}
         </Card>
 
-      </div>
+      {showCancelConfirm && (
+        <ConfirmDialog
+          title="Cancel Subscription Auto-Renewal"
+          description="Are you sure you want to cancel subscription auto-renewal? You will lose access to premium features once the current period ends."
+          confirmLabel="Cancel Auto-Renewal"
+          confirmClassName="bg-red-600 hover:bg-red-700 text-white"
+          onConfirm={handleCancelSubscription}
+          onCancel={() => setShowCancelConfirm(false)}
+        />
+      )}
 
     </PageLayout>
   );

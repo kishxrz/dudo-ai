@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
@@ -699,15 +700,7 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <PageLayout className="max-w-[1200px] w-full mx-auto gap-4 px-6">
-        <div className="flex flex-col gap-4">
-          <LoadingSkeleton rows={1} type="text" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <LoadingSkeleton rows={2} type="card" />
-            <LoadingSkeleton rows={2} type="card" />
-            <LoadingSkeleton rows={2} type="card" />
-            <LoadingSkeleton rows={2} type="card" />
-          </div>
-        </div>
+        <LoadingSpinner size="lg" text="Loading analytics..." />
       </PageLayout>
     );
   }

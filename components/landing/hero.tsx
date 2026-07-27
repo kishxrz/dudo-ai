@@ -1,7 +1,8 @@
 "use client";
 
 import Link from 'next/link';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, Flame } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { COMPANY_NAME, SIGNUP_URL } from '@/lib/constants';
 import AnimatedCounter from '@/components/ui/animated-counter';
 
@@ -14,12 +15,31 @@ export default function Hero() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col gap-12 lg:gap-16 relative z-10">
         
-        {/* Announcement badge centered globally */}
+        {/* Announcement badge centered globally - Prominent Large Launch Banner with Animated Fire */}
         <div className="flex justify-center w-full animate-float-slow">
-          <div className="bg-gradient-to-r from-[#DBA11A] to-[#F3BE42] border border-[#22577A]/30 rounded-full px-8 py-3.5 flex items-center gap-3.5 shadow-[0_0_22px_rgba(219,161,26,0.5)]">
-            <span className="w-3 h-3 rounded-full bg-white animate-pulse shrink-0" />
-            <span className="text-[11px] sm:text-sm font-black uppercase tracking-wider text-white leading-none">
-              LAUNCH OFFER • ₹2,499 FOR 6 MONTHS • FIRST 100 SEATS — MOVING FAST
+          <div className="bg-gradient-to-r from-[#DBA11A] via-[#F3BE42] to-[#DBA11A] border-2 border-white/40 rounded-full px-6 sm:px-8 py-3 sm:py-3.5 flex items-center gap-3 shadow-[0_0_35px_rgba(219,161,26,0.6)] max-w-full overflow-hidden hover:scale-105 transition-transform duration-300">
+            
+            {/* Subtle Animated Fire Emoji */}
+            <motion.span
+              className="text-sm sm:text-base leading-none inline-block shrink-0 select-none"
+              animate={{
+                scale: [1, 1.15, 1],
+              }}
+              transition={{
+                duration: 1.2,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            >
+              🔥
+            </motion.span>
+
+            <span className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-white leading-none whitespace-nowrap drop-shadow-xs flex items-center gap-2">
+              <span>LAUNCH OFFER</span>
+              <span>•</span>
+              <span>₹2,499 FOR 6 MONTHS</span>
+              <span>•</span>
+              <span>60-SECOND SETUP</span>
             </span>
           </div>
         </div>

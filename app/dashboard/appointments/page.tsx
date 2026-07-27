@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Link from 'next/link';
 import {
   Calendar,
@@ -373,7 +374,7 @@ export default function AppointmentsPage() {
   if (loading) {
     return (
       <PageLayout className="max-w-[1200px] w-full mx-auto px-6 py-6 flex items-center justify-center min-h-[400px]">
-        <div className="w-5 h-5 rounded-full border-2 border-[#22577A] border-t-transparent animate-spin" />
+        <LoadingSpinner size="lg" text="Loading appointments..." />
       </PageLayout>
     );
   }

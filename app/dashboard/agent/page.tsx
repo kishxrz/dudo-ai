@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import AgentSkills from '@/components/agent/AgentSkills';
 import AgentSkillStore from '@/components/agent/AgentSkillStore';
 import AgentChannels from '@/components/agent/AgentChannels';
@@ -175,11 +176,7 @@ function AgentPageInner() {
 
 export default function AgentPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-20">
-        <div className="w-5 h-5 rounded-full border-2 border-[#22577A] border-t-transparent animate-spin" />
-      </div>
-    }>
+    <Suspense fallback={<LoadingSpinner size="lg" text="Loading Agent Config..." />}>
       <AgentPageInner />
     </Suspense>
   );

@@ -18,6 +18,8 @@ export class MistralProvider implements ILLMProvider {
       }))
     ];
 
+    const startTs = Date.now();
+    console.log(`[MistralProvider] ▶ fetch START — model=${request.model}`);
     const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -29,7 +31,9 @@ export class MistralProvider implements ILLMProvider {
         messages,
         temperature: request.temperature,
       }),
+      signal: AbortSignal.timeout(30000),
     });
+    console.log(`[MistralProvider] ✔ fetch DONE — ${Date.now() - startTs}ms status=${res.status}`);
 
     if (!res.ok) {
       const text = await res.text();

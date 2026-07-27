@@ -1,13 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PromptBuilder } from './PromptBuilder';
 import { ProviderRegistry } from './ProviderRegistry';
 import { KnowledgeService } from './KnowledgeService';
 import { ConversationRequest, Message } from './types/ConversationRequest';
 import { ConversationResponse } from './types/ConversationResponse';
 import { WorkspaceContext } from './types/WorkspaceContext';
-import { SkillService, SkillDefinition } from './SkillService';
+import { SkillService } from './SkillService';
 import { ToolRegistry } from './ToolRegistry';
 import { KnowledgeRetrievalService } from './KnowledgeRetrievalService';
 import { RAGContextBuilder } from './RAGContextBuilder';
+import { EnterpriseOrchestrator, readWorkspaceMemory, writeWorkspaceMemory, detectConversationStyle } from './EnterpriseOrchestrationEngine';
 
 export interface GenerateReplyOptions {
   model?: string;
@@ -15,6 +17,7 @@ export interface GenerateReplyOptions {
   memoryEnabled?: boolean;
   knowledgeEnabled?: boolean;
   systemPrompt?: string;
+  attachedContent?: any;
 }
 
 export class ConversationService {
@@ -143,7 +146,17 @@ Ensure your response contains nothing else when executing a tool. Once the tool 
       }
 
       // Append current user message
-      requestMessages.push({ role: 'user', content: message });
+      if (options.attachedContent) {
+        requestMessages.push({
+          role: 'user',
+          content: [
+            { type: 'text', text: message },
+            options.attachedContent
+          ]
+        });
+      } else {
+        requestMessages.push({ role: 'user', content: message });
+      }
 
       // Construct unified request
       const request: ConversationRequest = {
@@ -159,14 +172,31 @@ Ensure your response contains nothing else when executing a tool. Once the tool 
         model,
       });
 
-      // Execute via ProviderRegistry
+      // Execute via EnterpriseOrchestrator
       const startLLM = Date.now();
-      let response = await ProviderRegistry.generate(providerName, apiKey, request);
+      const orchResult = await EnterpriseOrchestrator.routeAndExecute(
+        {
+          ...context,
+          knowledge: knowledgeForPrompt,
+          assistant: {
+            ...context.assistant,
+            systemPrompt: baseSystemPrompt
+          }
+        },
+        message,
+        history,
+        options.attachedContent
+      );
+      let response: ConversationResponse = {
+        reply: orchResult.reply,
+        inputTokens: 0,
+        outputTokens: 0
+      };
       const durationLLM = Date.now() - startLLM;
-      console.log(`[Timer] LLM response generation took ${durationLLM}ms`);
+      console.log(`[Timer] Enterprise Orchestrator response generation took ${durationLLM}ms`);
 
-      let toolsExecuted: string[] = [];
-      let executionErrors: string[] = [];
+      const toolsExecuted: string[] = [];
+      const executionErrors: string[] = [];
 
       // Loop up to 3 times to allow multi-step tool calls/workflows!
       let loopCount = 0;
@@ -294,5 +324,140 @@ Ensure your response contains nothing else when executing a tool. Once the tool 
         }
       };
     }
+  }
+
+  static async *generateReplyStream(
+    context: WorkspaceContext,
+    message: string,
+    history: { sender: string; text: string }[] = [],
+    options: GenerateReplyOptions = {}
+  ): AsyncGenerator<{ text: string; inputTokens?: number; outputTokens?: number }> {
+    if (!context.workspaceId) {
+      throw new Error('Workspace context is missing.');
+    }
+    if (!message || !message.trim()) {
+      throw new Error('Input message content cannot be empty.');
+    }
+
+    const providerName = context.provider.name;
+    const apiKey = context.provider.apiKey;
+    const model = options.model || context.provider.model;
+    const temp = typeof options.temperature === 'number' ? options.temperature : 0.7;
+
+    if (!apiKey) {
+      throw new Error(
+        `API key for provider '${providerName}' is not configured. Please add your key in the API Keys tab.`
+      );
+    }
+
+    let knowledgeForPrompt = '';
+    if (options.knowledgeEnabled !== false) {
+      knowledgeForPrompt = context.knowledge?.trim() || '';
+
+      if (!knowledgeForPrompt) {
+        knowledgeForPrompt = await KnowledgeService.getFormattedKnowledge(context.workspaceId);
+      }
+
+      try {
+        const retrievedChunks = await KnowledgeRetrievalService.retrieve(
+          context.workspaceId,
+          message,
+          4,
+          0.45,
+          context.provider
+        );
+        const ragContext = RAGContextBuilder.buildUntrustedRAGContext(retrievedChunks);
+        if (ragContext) {
+          knowledgeForPrompt = knowledgeForPrompt 
+            ? `${knowledgeForPrompt}\n\n${ragContext}`
+            : ragContext;
+        }
+      } catch (e) {
+        console.error('[ConversationService] dynamic RAG retrieval error:', e);
+      }
+    }
+
+    const enabledSkills = context.enabledSkills || [];
+    const activeSkills = SkillService.routeRelevantSkills(message, enabledSkills);
+
+    let skillInstructions = '';
+    if (activeSkills.length > 0) {
+      skillInstructions = '=== ACTIVE SYSTEM SKILLS & CAPABILITIES ===\nYou have the following skills currently active. Respond and behave strictly according to these active capabilities:\n\n' + 
+        activeSkills.map((s, idx) => `${idx + 1}. [Skill: ${s.name}]\n   - Description: ${s.description}\n   - Instructions: ${s.instructions}`).join('\n\n');
+    }
+
+    let baseSystemPrompt = options.systemPrompt || context.assistant.systemPrompt || '';
+    if (skillInstructions) {
+      baseSystemPrompt += `\n\n${skillInstructions}`;
+    }
+
+    // Load and update style memory
+    let memoryContext = '';
+    try {
+      const memory = await readWorkspaceMemory(context.workspaceId);
+      const memParts: string[] = [];
+      if (memory.customerName) memParts.push(`Customer name: ${memory.customerName}`);
+      if (memory.preferredLanguage) memParts.push(`Preferred language: ${memory.preferredLanguage}`);
+      if (memory.preferredStyle) memParts.push(`Preferred conversation/writing style: ${memory.preferredStyle}`);
+      if (memParts.length > 0) {
+        memoryContext = `\n\n[CUSTOMER MEMORY]\n${memParts.join('\n')}`;
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const styleDetection = detectConversationStyle(message);
+      if (styleDetection) {
+        await writeWorkspaceMemory(context.workspaceId, {
+          preferredLanguage: styleDetection.language,
+          preferredStyle: styleDetection.style,
+        });
+        if (!memoryContext.includes(styleDetection.style)) {
+          memoryContext += `\nPreferred conversation/writing style: ${styleDetection.style}`;
+        }
+      }
+    } catch (e) {
+      console.error('[Memory] Saving style preference during stream failed:', e);
+    }
+
+    const systemPrompt = PromptBuilder.buildSystemPrompt(
+      {
+        ...context,
+        knowledge: knowledgeForPrompt,
+      },
+      baseSystemPrompt + memoryContext
+    );
+
+    const requestMessages: Message[] = [];
+    if (options.memoryEnabled !== false && history.length > 0) {
+      history.forEach((h) => {
+        requestMessages.push({
+          role: h.sender === 'user' ? 'user' : 'assistant',
+          content: h.text,
+        });
+      });
+    }
+
+    if (options.attachedContent) {
+      requestMessages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: message },
+          options.attachedContent
+        ]
+      });
+    } else {
+      requestMessages.push({ role: 'user', content: message });
+    }
+
+    const request: ConversationRequest = {
+      systemPrompt,
+      messages: requestMessages,
+      model,
+      temperature: temp,
+    };
+
+    yield* ProviderRegistry.generateStream(providerName, apiKey, request);
   }
 }

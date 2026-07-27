@@ -68,15 +68,7 @@ export default function LearningPage() {
         ...doc.data()
       })) as Skill[];
       
-      if (loaded.length > 0) {
-        setSkills(loaded);
-      } else {
-        // Fallback mock data if empty
-        setSkills([
-          { id: 'skill-1', name: 'Lead Capturing Assistant', description: 'Automatically extracts name, contact info, and business size from potential leads.', createdAt: new Date().toISOString() },
-          { id: 'skill-2', name: 'Appointment Scheduling Guide', description: 'Checks calendar availability and books support appointments seamlessly.', createdAt: new Date().toISOString() }
-        ]);
-      }
+      setSkills(loaded);
     }, (err) => {
       console.error('Skills listener error:', err);
     });
@@ -89,15 +81,7 @@ export default function LearningPage() {
         ...doc.data()
       })) as Customer[];
 
-      if (loaded.length > 0) {
-        setCustomers(loaded);
-      } else {
-        // Fallback mock data if empty
-        setCustomers([
-          { id: 'cust-1', name: 'Rahul Khanna', email: 'rahul.khanna@dudo.com', phone: '+91 98765 43210', preferences: 'Prefers custom bulk orders, usually contacts on weekends.', lastActive: new Date().toISOString() },
-          { id: 'cust-2', name: 'Ananya Sharma', email: 'ananya@sharmagroup.in', phone: '+91 99988 87766', preferences: 'Inquires about pricing package options, wants a 6-month trial.', lastActive: new Date().toISOString() }
-        ]);
-      }
+      setCustomers(loaded);
     }, (err) => {
       console.error('Customers listener error:', err);
     });
@@ -106,27 +90,7 @@ export default function LearningPage() {
     const factsQuery = query(collection(db, 'workspaces', workspaceId, 'learning_facts'));
     const unsubscribeFacts = onSnapshot(factsQuery, (snapshot) => {
       const loaded = snapshot.docs.map(doc => doc.data().fact) as string[];
-      if (loaded.length > 0) {
-        setFacts(loaded);
-      } else {
-        // LocalStorage / static fallback
-        const raw = localStorage.getItem('__dudo_dev_learning_facts');
-        if (raw) {
-          try {
-            setFacts(JSON.parse(raw));
-          } catch {
-            setFacts([]);
-          }
-        } else {
-          const defaultFacts = [
-            "We are closed on Sundays.",
-            "Standard delivery time across India is 3-5 business days.",
-            "Refunds are processed within 7 business days to the original payment method."
-          ];
-          setFacts(defaultFacts);
-          localStorage.setItem('__dudo_dev_learning_facts', JSON.stringify(defaultFacts));
-        }
-      }
+      setFacts(loaded);
       setLoading(false);
     }, (err) => {
       console.error('Facts listener error:', err);
@@ -353,7 +317,7 @@ export default function LearningPage() {
                       value={newFact}
                       onChange={(e) => setNewFact(e.target.value)}
                       placeholder="e.g. We're closed on Sundays."
-                      className="w-full max-w-md bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-[13px] placeholder:text-zinc-400 outline-none focus:border-[#22577A] transition-colors"
+                      className="w-full max-w-md bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-[13px] text-zinc-800 placeholder:text-zinc-400 outline-none focus:border-[#22577A] transition-colors"
                     />
                     <Button
                       onClick={handleAddFact}

@@ -109,6 +109,7 @@ export async function handleIntent(
     const parsed = parseDateTime(userMessage);
     const baseUrl = process.env.INTERNAL_API_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
     try {
+      console.log(`[intent-handler] ▶ Calling Appointment Tool: ${baseUrl}/api/integrations/google/calendar`);
       const res = await fetch(`${baseUrl}/api/integrations/google/calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,19 +119,21 @@ export async function handleIntent(
           date: parsed.date,
           time: parsed.time,
         }),
+        signal: AbortSignal.timeout(10000), // 10-second hard timeout
       });
 
       if (!res.ok) {
-        console.error('Calendar integration error:', await res.text());
+        console.error('[intent-handler] Calendar integration error:', await res.text());
         return null;
       }
 
+      console.log('[intent-handler] ✔ Appointment Tool completed successfully.');
       return {
         actionTaken: true,
         actionResult: `[BACKGROUND: Appointment created in calendar]`,
       };
     } catch (e) {
-      console.error('Calendar execution failed:', e);
+      console.error('[intent-handler] Calendar execution failed (timeout or network error):', e);
       return null;
     }
   }
@@ -353,7 +356,7 @@ export async function handleIntent(
       // Fetch first 200 characters of each document (up to top 5)
       const docsToFetch = docsList.slice(0, 5);
       const detailedDocs = await Promise.all(
-        docsToFetch.map(async (docObj: any) => {
+        docsToFetch.map(async (docObj: { id: string; name?: string }) => {
           try {
             const detailRes = await fetch(`${baseUrl}/api/integrations/google/docs?workspaceId=${workspaceId}&id=${docObj.id}`);
             if (detailRes.ok) {

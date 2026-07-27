@@ -27,11 +27,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+
 const assistantId = 'assistant-1';
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
   const { workspaceId } = useWorkspace();
+  const [loading, setLoading] = useState(true);
 
   const [progress, setProgress] = useState({
     generalCompleted: false,
@@ -65,6 +68,7 @@ export default function DashboardPage() {
   });
 
   const [recentConversations, setRecentConversations] = useState<any[]>([]);
+  const [activeSkills, setActiveSkills] = useState<any[]>([]);
 
   useEffect(() => {
     async function checkSetup() {
@@ -80,6 +84,22 @@ export default function DashboardPage() {
       let modelName = 'Not configured';
       let knowledgeCount = 0;
       let channelName = 'Not connected';
+
+      // Load active skills from Agent Skills API
+      if (workspaceId) {
+        try {
+          const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.skills) {
+              const enabledSkills = data.skills.filter((s: any) => s.enabled);
+              setActiveSkills(enabledSkills);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load active skills:', e);
+        }
+      }
 
       // 1. Assistant config & status
       if (db) {
@@ -267,6 +287,7 @@ export default function DashboardPage() {
           console.error('[Dashboard Page] Error loading conversations for metrics:', e);
         }
       }
+      setLoading(false);
     }
 
     checkSetup();
@@ -282,6 +303,14 @@ export default function DashboardPage() {
 
   const completedCount = Object.values(progress).filter(Boolean).length;
   const totalCount = 4;
+
+  if (loading) {
+    return (
+      <div className="max-w-[1400px] mx-auto space-y-5 select-none pb-8 px-4 lg:px-6 min-w-0 flex items-center justify-center min-h-[500px]">
+        <LoadingSpinner size="lg" text="Loading Dashboard" />
+      </div>
+    );
+  }
 
   const userDisplayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User';
 
@@ -422,17 +451,15 @@ export default function DashboardPage() {
               ].map((card, i) => {
                 const Icon = card.icon;
                 return (
-                  <div key={i} className="bg-white border border-zinc-150/80 rounded-xl p-3 flex flex-col justify-between h-[84px] hover:shadow-sm hover:border-zinc-300/80 transition-all duration-200">
-                    <div className="flex items-center justify-between">
-                      <div className={cn("w-6 h-6 rounded-md flex items-center justify-center shrink-0 border text-[11px]", card.color)}>
-                        <Icon size={12} />
+                  <div key={i} className="bg-white border border-zinc-150/80 rounded-xl p-3.5 flex flex-col justify-between h-[84px] hover:shadow-sm hover:border-zinc-300/80 transition-all duration-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border text-xs", card.color)}>
+                        <Icon size={14} />
                       </div>
+                      <div className="text-xl font-extrabold text-[#22577A] leading-none">{card.value}</div>
                     </div>
-                    <div className="mt-1">
-                      <div className="text-lg font-bold text-zinc-950 leading-none">{card.value}</div>
-                      <div className="text-[9px] text-zinc-400 font-medium uppercase tracking-wider mt-1.5 leading-none">
-                        {card.label}
-                      </div>
+                    <div className="text-[9.5px] text-zinc-500 font-bold uppercase tracking-wider leading-none">
+                      {card.label}
                     </div>
                   </div>
                 );
@@ -442,7 +469,7 @@ export default function DashboardPage() {
 
           {/* 5. QUICK ACTIONS */}
           <div className="space-y-2.5 text-left">
-            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Quick Actions</h3>
+            <h3 className="text-[10px] font-extrabold text-[#22577A] uppercase tracking-wider">Quick Actions</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
               {[
                 { 
@@ -488,7 +515,7 @@ export default function DashboardPage() {
           {/* 6. RECENT CONVERSATIONS */}
           <div className="space-y-2.5 text-left">
             <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Recent Conversations</h3>
+              <h3 className="text-[10px] font-extrabold text-[#22577A] uppercase tracking-wider">Recent Conversations</h3>
               <Link 
                 href="/dashboard/conversations" 
                 className="text-[9.5px] font-bold text-[#22577A] hover:underline no-underline flex items-center gap-0.5"
@@ -546,7 +573,7 @@ export default function DashboardPage() {
           {/* Getting Started Card */}
           <div className="bg-white border border-zinc-150/80 rounded-xl p-4 shadow-none space-y-3 text-left">
             <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Getting Started</h3>
+              <h3 className="text-[10px] font-extrabold text-[#22577A] uppercase tracking-wider">Getting Started</h3>
               <span className="text-[11px] font-bold text-[#22577A]">
                 {completedCount}/{totalCount}
               </span>
@@ -604,9 +631,9 @@ export default function DashboardPage() {
           {/* Active Skills Card */}
           <div className="bg-white border border-zinc-150/80 rounded-xl p-4 shadow-none space-y-3 text-left">
             <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Active Skills</h3>
+              <h3 className="text-[10px] font-extrabold text-[#22577A] uppercase tracking-wider">Active Skills</h3>
               <Link 
-                href="/dashboard/agent?tab=behaviour" 
+                href="/dashboard/agent?tab=skills" 
                 className="text-[9.5px] font-bold text-[#22577A] hover:underline no-underline"
               >
                 Manage
@@ -614,25 +641,27 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-2 pt-2 border-t border-zinc-100">
-              {[
-                { title: 'FAQ Bot' },
-                { title: 'Appointment Scheduler' },
-                { title: 'Lead Capture' },
-              ].map((skill, i) => (
-                <div key={i} className="flex items-center gap-2 py-0.5">
-                  <div className="w-5.5 h-5.5 rounded bg-[#FFF3E5] text-[#22577A] flex items-center justify-center shrink-0 border border-[#EED9B4]">
-                    <Sparkles size={10} className="text-[#22577A] fill-[#22577A]/10" />
-                  </div>
-                  <span className="text-[10px] font-bold text-zinc-700">{skill.title}</span>
+              {activeSkills.length === 0 ? (
+                <div className="text-[10px] text-zinc-400 font-semibold py-1">
+                  No active skills enabled. Toggle skills in Agent Config.
                 </div>
-              ))}
+              ) : (
+                activeSkills.map((skill, i) => (
+                  <div key={skill.id || i} className="flex items-center gap-2 py-0.5">
+                    <div className="w-5.5 h-5.5 rounded bg-[#FFF3E5] text-[#22577A] flex items-center justify-center shrink-0 border border-[#EED9B4]">
+                      <Sparkles size={10} className="text-[#22577A] fill-[#22577A]/10" />
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-700 truncate">{skill.name}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
           {/* Channels Card */}
           <div className="bg-white border border-zinc-150/80 rounded-xl p-4 shadow-none space-y-3 text-left">
             <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Channels</h3>
+              <h3 className="text-[10px] font-extrabold text-[#22577A] uppercase tracking-wider">Channels</h3>
               <Link 
                 href="/dashboard/agent?tab=channels" 
                 className="text-[9.5px] font-bold text-[#22577A] hover:underline no-underline"
@@ -656,19 +685,19 @@ export default function DashboardPage() {
           {/* Agent Status Card */}
           <div className="bg-white border border-zinc-150/80 rounded-xl p-4 shadow-none space-y-3 text-left">
             <div className="flex items-center gap-2">
-              <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Agent Status</h3>
+              <h3 className="text-[10px] font-extrabold text-[#22577A] uppercase tracking-wider">Agent Status</h3>
             </div>
             
             <div className="space-y-2 pt-2 border-t border-zinc-100 text-xs">
               <div className="flex justify-between items-center text-[10px]">
                 <span className="text-zinc-400 font-semibold">Status</span>
                 <span className="text-[#22577A] font-bold bg-[#FFF3E5] px-2 py-0.5 rounded-full border border-[#EED9B4] text-[8.5px] uppercase tracking-wide">
-                  active
+                  {assistantDetails.status || 'draft'}
                 </span>
               </div>
               <div className="flex justify-between items-center text-[10px]">
                 <span className="text-zinc-400 font-semibold">Skills</span>
-                <span className="font-bold text-zinc-700">3 active</span>
+                <span className="font-bold text-zinc-700">{activeSkills.length} active</span>
               </div>
               <div className="flex justify-between items-center text-[10px]">
                 <span className="text-zinc-400 font-semibold">Channels</span>

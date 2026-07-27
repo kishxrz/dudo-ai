@@ -18,6 +18,8 @@ export class OpenRouterProvider implements ILLMProvider {
       }))
     ];
 
+    const startTs = Date.now();
+    console.log(`[OpenRouterProvider] ▶ fetch START — model=${request.model}`);
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -31,7 +33,9 @@ export class OpenRouterProvider implements ILLMProvider {
         messages,
         temperature: request.temperature,
       }),
+      signal: AbortSignal.timeout(30000),
     });
+    console.log(`[OpenRouterProvider] ✔ fetch DONE — ${Date.now() - startTs}ms status=${res.status}`);
 
     if (!res.ok) {
       const text = await res.text();

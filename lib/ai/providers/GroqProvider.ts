@@ -23,6 +23,8 @@ export class GroqProvider implements ILLMProvider {
       model = 'llama-3.3-70b-versatile';
     }
 
+    const startTs = Date.now();
+    console.log(`[GroqProvider] ▶ fetch START — model=${model}`);
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -34,7 +36,9 @@ export class GroqProvider implements ILLMProvider {
         messages,
         temperature: request.temperature,
       }),
+      signal: AbortSignal.timeout(30000),
     });
+    console.log(`[GroqProvider] ✔ fetch DONE — ${Date.now() - startTs}ms status=${res.status}`);
 
     if (!res.ok) {
       const text = await res.text();

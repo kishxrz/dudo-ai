@@ -80,8 +80,8 @@ export default function Comparison() {
               transition={{ duration: 0.6, ease: "easeOut" }}
               className="w-full h-full flex"
             >
-              <div className="bg-[#FFF8F0] border-2 border-[#22577A] rounded-[2rem] p-8 sm:p-10 shadow-xl shadow-[#DBA11A]/5 hover:shadow-2xl hover:-translate-y-1.5 transition-[transform,box-shadow] duration-300 flex flex-col justify-between space-y-8 relative overflow-hidden w-full">
-                <div className="absolute -right-16 -top-16 w-36 h-36 bg-[#22577A]/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="bg-[#FFF8F0] border-2 border-[#DBA11A] rounded-[2rem] p-8 sm:p-10 shadow-xl shadow-[#DBA11A]/20 hover:shadow-2xl hover:-translate-y-1.5 transition-[transform,box-shadow] duration-300 flex flex-col justify-between space-y-8 relative overflow-hidden w-full">
+                <div className="absolute -right-16 -top-16 w-36 h-36 bg-[#DBA11A]/10 rounded-full blur-2xl pointer-events-none" />
                 
                 <div className="space-y-6 relative z-10">
                   <div className="inline-flex bg-gradient-to-r from-[#DBA11A] to-[#F3BE42] text-white px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider shadow-sm">

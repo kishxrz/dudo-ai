@@ -710,17 +710,17 @@ export default function DocumentationPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
         {/* ── Left Nav (260px) ─────────────────────────────────────────── */}
-        {/* Mobile backdrop */}
+        {/* Backdrop overlay when menu is toggled */}
         {mobileDocNavOpen && (
           <div
             onClick={() => setMobileDocNavOpen(false)}
-            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 md:hidden"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
           />
         )}
         <aside
           className={cn(
-            "w-[260px] shrink-0 border-r border-zinc-200/50 flex flex-col bg-white h-full overflow-hidden",
-            "transition-transform duration-200 ease-in-out z-50",
+            "w-[270px] shrink-0 border-r border-zinc-200 flex flex-col bg-white h-full overflow-hidden shadow-2xl md:shadow-none",
+            "transition-transform duration-200 ease-in-out z-30 md:z-auto",
             "fixed inset-y-0 left-0 md:relative md:translate-x-0",
             mobileDocNavOpen ? "translate-x-0" : "-translate-x-full"
           )}
@@ -736,8 +736,8 @@ export default function DocumentationPage() {
             </button>
           </div>
 
-          {/* Search only */}
-          <div className="p-3 shrink-0 border-b border-zinc-100">
+          {/* Search container */}
+          <div className="p-3 shrink-0 border-b border-zinc-100 w-full max-w-full overflow-hidden box-border">
             <SearchBar
               placeholder="Search documentation..."
               value={searchTerm}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1275,7 +1276,7 @@ ${text}`;
               />
             </div>
             <div className="flex justify-end gap-2 pt-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-300 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
               <Button size="sm" onClick={handleAddText} disabled={!formTitle.trim() || !formContent.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save Knowledge</Button>
             </div>
           </div>
@@ -1306,7 +1307,7 @@ ${text}`;
               />
             </div>
             <div className="flex justify-end gap-2 pt-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-300 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
               <Button size="sm" onClick={handleAddFaq} disabled={!formTitle.trim() || !formFaqAnswer.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save FAQ</Button>
             </div>
           </div>
@@ -1336,7 +1337,7 @@ ${text}`;
               />
             </div>
             <div className="flex justify-end gap-2 pt-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-250 text-zinc-750 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-300 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
               <Button size="sm" onClick={handleAddUrl} disabled={!formTitle.trim() || !formUrl.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save Link</Button>
             </div>
           </div>
@@ -1382,10 +1383,7 @@ ${text}`;
 
         <div className="p-5">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 space-y-3">
-            <Loader2 size={20} className="text-[#22577A] animate-spin" />
-            <p className="text-xs text-zinc-500 font-semibold">Syncing knowledge resources...</p>
-          </div>
+          <LoadingSpinner size="lg" text="Syncing knowledge resources..." />
         ) : items.length === 0 ? (
           <EmptyState
             icon={FolderOpen}
@@ -1764,7 +1762,7 @@ ${text}`;
                     <Button 
                       onClick={() => handleRejectSuggestion(sug)} 
                       variant="outline" 
-                      className="h-7 text-xs font-semibold px-3 border-zinc-200 text-zinc-750 bg-white rounded-xl cursor-pointer"
+                      className="h-7 text-xs font-semibold px-3 border-zinc-300 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 bg-white rounded-xl cursor-pointer"
                     >
                       Reject
                     </Button>

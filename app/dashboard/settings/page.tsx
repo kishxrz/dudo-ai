@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -192,12 +193,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <PageLayout className="max-w-4xl">
-        <div className="min-h-[400px] flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2">
-            <span className="w-1.5 h-1.5 bg-[#22577A] rounded-full animate-bounce shrink-0" />
-            <span className="text-sm text-zinc-500 font-semibold">Loading settings...</span>
-          </div>
-        </div>
+        <LoadingSpinner size="lg" text="Loading settings" />
       </PageLayout>
     );
   }
@@ -290,15 +286,15 @@ export default function SettingsPage() {
       </div>
 
       {/* Danger Zone */}
-      <div className="bg-[#FFF3E5]/20 border border-[#EED9B4] rounded-[20px] p-5 text-left select-none">
-        <div className="text-xs font-extrabold text-[#8B1A1A] uppercase tracking-wider mb-2">Danger Zone</div>
+      <div className="bg-red-50/70 border border-red-200/80 rounded-[20px] p-5 text-left select-none">
+        <div className="text-xs font-extrabold text-red-700 uppercase tracking-wider mb-2">Danger Zone</div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className="text-xs font-bold text-zinc-800">Delete Account</div>
-            <div className="text-[11px] text-zinc-500 font-semibold mt-0.5">Permanently delete your account and all data. This cannot be undone.</div>
+            <div className="text-xs font-bold text-zinc-900">Delete Account</div>
+            <div className="text-[11px] text-zinc-600 font-medium mt-0.5">Permanently delete your account and all data. This cannot be undone.</div>
           </div>
           <Button 
-            className="h-8.5 px-4 bg-white hover:bg-[#FFF3E5]/50 border border-[#EED9B4] text-[#8B1A1A] font-bold rounded-xl shadow-sm text-xs cursor-pointer"
+            className="h-8.5 px-4 bg-white hover:bg-red-100 border border-red-300 text-red-600 font-extrabold rounded-xl shadow-xs text-xs cursor-pointer transition-all hover:scale-[1.01]"
           >
             Delete Account
           </Button>

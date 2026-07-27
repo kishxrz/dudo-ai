@@ -14,12 +14,17 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import { SubscriptionProvider, useSubscriptionContext } from '@/contexts/SubscriptionContext';
 import { LockedPage } from '@/components/subscription/FeatureGate';
 import { motion, AnimatePresence } from 'framer-motion';
+import Logo from '@/components/ui/logo';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <SubscriptionProvider>
-        <DashboardBody>{children}</DashboardBody>
+        <ToastProvider>
+          <DashboardBody>{children}</DashboardBody>
+        </ToastProvider>
       </SubscriptionProvider>
     </AuthProvider>
   );
@@ -63,11 +68,11 @@ interface AiStatusConfig {
 }
 
 const AI_STATUS_MAP: Record<AiStatus, AiStatusConfig> = {
-  online:       { label: 'Online',              dot: 'bg-emerald-500', pulse: true,  ring: 'border-emerald-300' },
-  paused:       { label: 'Paused',              dot: 'bg-amber-400',   pulse: false, ring: 'border-amber-300'   },
-  training:     { label: 'Training / Syncing',  dot: 'bg-blue-500',    pulse: true,  ring: 'border-blue-300'    },
-  offline:      { label: 'Offline',             dot: 'bg-red-500',     pulse: false, ring: 'border-red-300'     },
-  unconfigured: { label: 'Not Configured',      dot: 'bg-zinc-400',    pulse: false, ring: 'border-zinc-300'    },
+  online:       { label: 'Online',              dot: 'bg-emerald-500', pulse: true,  ring: 'border-emerald-300 text-emerald-700 bg-emerald-50/40' },
+  paused:       { label: 'Paused',              dot: 'bg-amber-500',   pulse: false, ring: 'border-amber-300 text-amber-700 bg-amber-50/40'   },
+  training:     { label: 'Training / Syncing',  dot: 'bg-blue-500',    pulse: true,  ring: 'border-blue-300 text-blue-700 bg-blue-50/40'    },
+  offline:      { label: 'Offline',             dot: 'bg-red-500',     pulse: false, ring: 'border-red-300 text-red-700 bg-red-50/40'     },
+  unconfigured: { label: 'Not Configured',      dot: 'bg-red-500',     pulse: false, ring: 'border-red-200 text-red-600 bg-red-50/30'    },
 };
 
 function DashboardBody({ children }: { children: React.ReactNode }) {
@@ -118,20 +123,13 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   const requiredFeature = getRequiredFeature(pathname);
   const isFeatureAllowed = requiredFeature ? canUse(requiredFeature) : true;
 
-  const currentUser = authUser || {
-    uid: 'mock-user-id',
-    email: 'rahul.khanna@dudo.com',
-    displayName: 'Rahul Khanna',
-    emailVerified: true,
-  };
-
-  const loading = authLoading && !authUser;
+  const currentUser = authUser;
 
   useEffect(() => {
-    if (!loading && !currentUser) {
+    if (!authLoading && !currentUser) {
       router.replace('/login');
     }
-  }, [currentUser, loading, router]);
+  }, [currentUser, authLoading, router]);
 
   // Auto-redirect to billing if plan/trial is expired
   useEffect(() => {
@@ -295,7 +293,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   // MUST be before any early returns to comply with React Rules of Hooks
   useEffect(() => {
     if (!subLoading && isExpired && workspaceId) {
-      console.log('[Subscription] Plan/trial expired. Auto-disconnecting connected channels...');
+      console.log('[Subscription] Plan/trial expired. Local development bypass: skipping auto-disconnect.');
+      /*
       // Disconnect WhatsApp
       fetch('/api/whatsapp/disconnect', {
         method: 'POST',
@@ -315,16 +314,14 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
         localStorage.setItem('__dudo_telegram_connected', 'false');
         window.dispatchEvent(new Event('dudo-status-changed'));
       }
+      */
     }
   }, [subLoading, isExpired, workspaceId]);
 
-  if (loading) {
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-[#22577A] rounded-full animate-bounce shrink-0" />
-          <span className="text-sm text-zinc-500 font-semibold">Loading...</span>
-        </div>
+      <div className="min-h-screen bg-[#FFF8F0] flex flex-col items-center justify-center p-4">
+        <LoadingSpinner size="lg" text="Loading Dudo" />
       </div>
     );
   }
@@ -379,7 +376,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   const handleSignOut = async () => {
     try { await signOut?.(); } catch {}
-    router.replace('/login');
+    router.replace('/');
   };
 
 
@@ -539,24 +536,28 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
                         label: 'AI Status',
                         value: statusCfg.label,
                         dotCls: statusCfg.dot,
+                        textCls: aiStatus === 'online' ? 'text-emerald-600' : aiStatus === 'paused' ? 'text-amber-600' : 'text-red-500',
                         pulse: statusCfg.pulse,
                       },
                       {
                         label: 'WhatsApp',
                         value: waConnected ? 'Connected' : 'Not connected',
-                        dotCls: waConnected ? 'bg-emerald-500' : 'bg-zinc-300',
+                        dotCls: waConnected ? 'bg-emerald-500' : 'bg-red-500',
+                        textCls: waConnected ? 'text-emerald-600' : 'text-red-500',
                         pulse: false,
                       },
                       {
                         label: 'Telegram',
                         value: tgConnected ? 'Connected' : 'Not connected',
-                        dotCls: tgConnected ? 'bg-blue-500' : 'bg-zinc-300',
+                        dotCls: tgConnected ? 'bg-emerald-500' : 'bg-red-500',
+                        textCls: tgConnected ? 'text-emerald-600' : 'text-red-500',
                         pulse: false,
                       },
                       {
                         label: 'Knowledge',
                         value: knowledgeCount > 0 ? `${knowledgeCount} item${knowledgeCount !== 1 ? 's' : ''}` : 'Empty',
-                        dotCls: knowledgeCount > 0 ? 'bg-emerald-500' : 'bg-zinc-300',
+                        dotCls: knowledgeCount > 0 ? 'bg-emerald-500' : 'bg-amber-500',
+                        textCls: knowledgeCount > 0 ? 'text-emerald-600' : 'text-amber-600',
                         pulse: false,
                       },
                     ].map((row) => (
@@ -564,7 +565,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
                         <span className="text-[11px] font-semibold text-zinc-500">{row.label}</span>
                         <div className="flex items-center gap-1.5">
                           <span className={cn("w-1.5 h-1.5 rounded-full", row.dotCls, row.pulse && "animate-pulse")} />
-                          <span className="text-[11px] font-bold text-zinc-800">{row.value}</span>
+                          <span className={cn("text-[11px] font-extrabold", row.textCls)}>{row.value}</span>
                         </div>
                       </div>
                     ))}

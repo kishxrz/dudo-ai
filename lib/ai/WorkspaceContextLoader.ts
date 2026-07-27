@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any */
 // @ts-nocheck
 import { db } from '@/lib/firebase';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -5,6 +6,8 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { WorkspaceContext } from './types/WorkspaceContext';
 import { KnowledgeService } from './KnowledgeService';
 import { SkillService, SkillDefinition } from './SkillService';
+import { ProviderModelRegistry } from '@/lib/ai/providers/ProviderModelRegistry';
+import { ApiProvider } from '@/types';
 
 const LEGACY_ID_MAP: Record<string, string> = {
   'faq-bot': 'customer-support-general-helpdesk-faq',
@@ -175,13 +178,11 @@ export class WorkspaceContextLoader {
 
     // Assign default models if undefined
     if (!provider.model) {
-      if (provider.name === 'openai') provider.model = 'gpt-4o-mini';
-      else if (provider.name === 'gemini') provider.model = 'gemini-2.5-flash';
-      else if (provider.name === 'anthropic') provider.model = 'claude-3-5-haiku-latest';
-      else if (provider.name === 'groq') provider.model = 'llama-3.3-70b-versatile';
-      else if (provider.name === 'openrouter') provider.model = 'openrouter-best-value';
-      else if (provider.name === 'deepseek') provider.model = 'deepseek-chat';
-      else if (provider.name === 'mistral') provider.model = 'mistral-large-latest';
+      try {
+        provider.model = ProviderModelRegistry.getDefaultModel(provider.name as ApiProvider).modelId;
+      } catch (err) {
+        console.warn(`[WorkspaceContextLoader] Failed to resolve default model for: ${provider.name}`, err);
+      }
     }
 
     console.log('[WorkspaceContextLoader] Knowledge loaded statically', {

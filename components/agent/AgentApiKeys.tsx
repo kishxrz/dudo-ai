@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { ApiProvider } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,8 @@ import { doc, deleteDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useAuth } from '@/contexts/AuthContext';
+
+import { ProviderModelRegistry } from '@/lib/ai/providers/ProviderModelRegistry';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -28,43 +31,16 @@ interface ProviderState {
   validationError: string | null;
 }
 
-// ─── Static Provider Data ────────────────────────────────────────────────────
+// ─── Static Provider Metadata (logo, names) ───
 
-const MODEL_PRICES: Record<string, { recommended: boolean; context: string; price: string }> = {
-  'gpt-4o': { recommended: true, context: '128K', price: '$2.50 / $10.00 per 1M tokens' },
-  'gpt-4o-mini': { recommended: false, context: '128K', price: '$0.15 / $0.60 per 1M tokens' },
-  'claude-3-5-sonnet-latest': { recommended: true, context: '200K', price: '$3.00 / $15.00 per 1M tokens' },
-  'claude-3-5-haiku-latest': { recommended: false, context: '200K', price: '$0.25 / $1.25 per 1M tokens' },
-  'gemini-2.5-flash': { recommended: true, context: '1M', price: '$0.075 / $0.30 per 1M tokens' },
-  'gemini-2.5-pro': { recommended: false, context: '2M', price: '$1.25 / $5.00 per 1M tokens' },
-  'llama-3.3-70b-versatile': { recommended: true, context: '128K', price: '$0.00 / Free tier' },
-  'llama-3-8b-instant': { recommended: false, context: '8K', price: '$0.00 / Free tier' },
-  'mixtral-8x7b-32768': { recommended: false, context: '32K', price: '$0.00 / Free tier' },
-  'openrouter-best-value': { recommended: true, context: 'Varies', price: 'Dynamic billing' },
-  'openai/gpt-4o': { recommended: false, context: '128K', price: '$2.50 / $10.00 per 1M tokens' },
-  'anthropic/claude-3.5-sonnet': { recommended: false, context: '200K', price: '$3.00 / $15.00 per 1M tokens' },
-  'deepseek-chat': { recommended: true, context: '64K', price: '$0.14 / $0.28 per 1M tokens' },
-  'deepseek-reasoner': { recommended: false, context: '64K', price: '$0.55 / $2.19 per 1M tokens' },
-  'mistral-large-latest': { recommended: true, context: '128K', price: '$2.00 / $6.00 per 1M tokens' },
-  'mistral-medium-latest': { recommended: false, context: '32K', price: '$0.75 / $2.25 per 1M tokens' },
-  'mistral-small-latest': { recommended: false, context: '32K', price: '$0.20 / $0.60 per 1M tokens' },
-};
-
-const PROVIDER_DATA: Record<ApiProvider, {
+const PROVIDER_METADATA: Record<ApiProvider, {
   name: string;
-  subtext: string;
   placeholderKey: string;
-  models: { id: string; name: string }[];
   logo: React.ReactNode;
 }> = {
   openai: {
     name: 'OpenAI',
-    subtext: 'GPT-4o, GPT-4o-mini',
     placeholderKey: 'Paste your OpenAI API key (sk-...)',
-    models: [
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-      { id: 'gpt-4o', name: 'GPT-4o' },
-    ],
     logo: (
       <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="#10A37F">
         <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z" />
@@ -73,12 +49,7 @@ const PROVIDER_DATA: Record<ApiProvider, {
   },
   anthropic: {
     name: 'Anthropic',
-    subtext: 'Claude 3.5 Sonnet / Haiku',
     placeholderKey: 'Paste your Anthropic API key',
-    models: [
-      { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
-    ],
     logo: (
       <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="#CC5A37">
         <path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z" />
@@ -86,13 +57,8 @@ const PROVIDER_DATA: Record<ApiProvider, {
     ),
   },
   gemini: {
-    name: 'Google',
-    subtext: 'Gemini 2.5 Pro / Flash',
+    name: 'Google Gemini',
     placeholderKey: 'Paste your Gemini API key (AIzaSy...)',
-    models: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-    ],
     logo: (
       <svg viewBox="0 0 24 24" className="w-5.5 h-5.5">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -104,12 +70,7 @@ const PROVIDER_DATA: Record<ApiProvider, {
   },
   groq: {
     name: 'Groq',
-    subtext: 'Llama 3.3 / fast free tier',
     placeholderKey: 'Paste your Groq API key',
-    models: [
-      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B' },
-      { id: 'llama-3-8b-instant', name: 'Llama 3 8B' },
-    ],
     logo: (
       <svg viewBox="0 0 512 512" className="w-5.5 h-5.5" fill="#F05A28">
         <path d="M256.867 16.007c-92.47-.84-167.997 71.999-168.861 162.741-.84 90.767 73.319 164.926 165.789 165.766h58.08V282.93h-55.008c-57.767.672-105.118-44.784-105.79-101.519-.696-56.687 45.623-103.15 103.39-103.822h2.4c57.767 0 104.59 45.96 104.758 102.67v151.318c0 56.207-46.655 101.998-103.75 102.694a104.988 104.988 0 01-72.79-30.047l-44.424 43.63c30.983 30.432 72.599 47.712 116.038 48.144h2.208c91.27-1.344 164.59-73.99 165.093-163.581V176.42c-2.232-89.302-76.39-160.413-167.133-160.413z" />
@@ -118,12 +79,7 @@ const PROVIDER_DATA: Record<ApiProvider, {
   },
   openrouter: {
     name: 'OpenRouter',
-    subtext: 'Any LLM provider unified API',
     placeholderKey: 'Paste your OpenRouter API key',
-    models: [
-      { id: 'openrouter-best-value', name: 'Best Value Auto-route' },
-      { id: 'openai/gpt-4o', name: 'GPT-4o via OpenRouter' },
-    ],
     logo: (
       <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="currentColor">
         <path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z" />
@@ -132,12 +88,7 @@ const PROVIDER_DATA: Record<ApiProvider, {
   },
   deepseek: {
     name: 'DeepSeek',
-    subtext: 'V3.2 Chat & Reasoner',
     placeholderKey: 'Paste your DeepSeek API key',
-    models: [
-      { id: 'deepseek-chat', name: 'DeepSeek-V3 Chat' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek-R1 Reasoner' },
-    ],
     logo: (
       <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="#5786FE">
         <path d="M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588" />
@@ -146,14 +97,46 @@ const PROVIDER_DATA: Record<ApiProvider, {
   },
   mistral: {
     name: 'Mistral',
-    subtext: 'Large, Medium, Small',
     placeholderKey: 'Paste your Mistral API key',
-    models: [
-      { id: 'mistral-large-latest', name: 'Mistral Large' },
-    ],
     logo: (
       <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="#FA520F">
         <path d="M17.143 3.429v3.428h-3.429v3.429h-3.428V6.857H6.857V3.43H3.43v13.714H0v3.428h10.286v-3.428H6.857v-3.429h3.429v3.429h3.429v-3.429h3.428v3.429h-3.428v3.428H24v-3.428h-3.43V3.429z" />
+      </svg>
+    ),
+  },
+  elevenlabs: {
+    name: 'ElevenLabs',
+    placeholderKey: 'Paste your ElevenLabs API key',
+    logo: (
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#22577A" strokeWidth="2" strokeLinecap="round">
+        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
+      </svg>
+    ),
+  },
+  deepgram: {
+    name: 'Deepgram',
+    placeholderKey: 'Paste your Deepgram API key',
+    logo: (
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#F05A28" strokeWidth="2" strokeLinecap="round">
+        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
+      </svg>
+    ),
+  },
+  assemblyai: {
+    name: 'AssemblyAI',
+    placeholderKey: 'Paste your AssemblyAI API key',
+    logo: (
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#4285F4" strokeWidth="2" strokeLinecap="round">
+        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
+      </svg>
+    ),
+  },
+  azure: {
+    name: 'Azure Speech',
+    placeholderKey: 'Paste your Azure Speech API key',
+    logo: (
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#0078D4" strokeWidth="2" strokeLinecap="round">
+        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
       </svg>
     ),
   },
@@ -214,6 +197,10 @@ const INITIAL_PROVIDERS: Record<ApiProvider, ProviderState> = {
   openrouter: { provider: 'openrouter', model: 'openrouter-best-value', apiKeyInput: '', isValidated: false, validationStatus: 'not_configured', validationError: null },
   deepseek: { provider: 'deepseek', model: 'deepseek-chat', apiKeyInput: '', isValidated: false, validationStatus: 'not_configured', validationError: null },
   mistral: { provider: 'mistral', model: 'mistral-large-latest', apiKeyInput: '', isValidated: false, validationStatus: 'not_configured', validationError: null },
+  elevenlabs: { provider: 'elevenlabs', model: 'eleven_multilingual_v2', apiKeyInput: '', isValidated: false, validationStatus: 'not_configured', validationError: null },
+  deepgram: { provider: 'deepgram', model: 'nova-2', apiKeyInput: '', isValidated: false, validationStatus: 'not_configured', validationError: null },
+  assemblyai: { provider: 'assemblyai', model: 'best', apiKeyInput: '', isValidated: false, validationStatus: 'not_configured', validationError: null },
+  azure: { provider: 'azure', model: 'azure-speech-standard', apiKeyInput: '', isValidated: false, validationStatus: 'not_configured', validationError: null },
 };
 
 export default function AgentApiKeys() {
@@ -242,7 +229,7 @@ export default function AgentApiKeys() {
             const hasKey = !!data.apiKey;
             updated[key] = {
               ...updated[key],
-              model: data.model || PROVIDER_DATA[key].models[0].id,
+              model: data.model || ProviderModelRegistry.getDefaultModel(key).modelId,
               apiKeyInput: '',             // never populate with real key
               isValidated: hasKey,
               validationStatus: hasKey ? 'valid' : 'not_configured',
@@ -406,17 +393,19 @@ export default function AgentApiKeys() {
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <div className="w-8 h-8 rounded-full border-2 border-[#22577A] border-t-transparent animate-spin" />
-        <p className="text-xs text-zinc-400 font-semibold animate-pulse">Loading API Configurations...</p>
-      </div>
-    );
+    return <LoadingSpinner size="lg" text="Loading API Configurations..." />;
   }
 
   const activeConf = providers[activeProvider];
-  const info = PROVIDER_DATA[activeProvider];
-  const priceInfo = MODEL_PRICES[activeConf.model] || { recommended: false, context: '—', price: '—' };
+  const metadata = PROVIDER_METADATA[activeProvider];
+  const regModel = ProviderModelRegistry.getModel(activeProvider, activeConf.model);
+  const contextText = regModel ? (regModel.contextWindow >= 1000000 ? `${regModel.contextWindow / 1000000}M` : `${regModel.contextWindow / 1000}K`) : '—';
+  const priceInfo = {
+    recommended: regModel?.recommended ?? false,
+    context: contextText,
+    price: regModel?.price ?? '—',
+  };
+  const availableModels = ProviderModelRegistry.getModelsByProvider(activeProvider);
   const isValidating = activeConf.validationStatus === 'validating';
 
   const saveButtonLabel = () => {
@@ -431,9 +420,11 @@ export default function AgentApiKeys() {
       {/* Left Column: Provider List */}
       <div className="md:col-span-1 bg-white border border-zinc-200 rounded-xl p-3.5 shadow-sm space-y-1.5 h-fit">
         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider px-1.5 mb-2.5">AI Providers</h3>
-        {(Object.entries(PROVIDER_DATA) as [ApiProvider, typeof PROVIDER_DATA[ApiProvider]][]).map(([key, data]) => {
+        {(Object.entries(PROVIDER_METADATA) as [ApiProvider, typeof PROVIDER_METADATA[ApiProvider]][]).map(([key, metaData]) => {
           const isConnected = providers[key].isValidated;
           const isSelected = activeProvider === key;
+          const models = ProviderModelRegistry.getModelsByProvider(key);
+          const subtext = models.map(m => m.displayName).slice(0, 3).join(', ');
           return (
             <button
               key={key}
@@ -450,11 +441,11 @@ export default function AgentApiKeys() {
                   'w-7.5 h-7.5 rounded-lg flex items-center justify-center border shrink-0',
                   isSelected ? 'bg-white/10 border-white/10' : 'bg-zinc-50 border-zinc-200'
                 )}>
-                  {data.logo}
+                  {metaData.logo}
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold capitalize leading-none">{data.name}</h4>
-                  <span className="text-[9px] block text-zinc-400 mt-1 leading-none">{data.subtext}</span>
+                  <h4 className="text-xs font-bold capitalize leading-none">{metaData.name}</h4>
+                  <span className="text-[9px] block text-zinc-400 mt-1 leading-none">{subtext}</span>
                 </div>
               </div>
               {isConnected && (
@@ -472,11 +463,11 @@ export default function AgentApiKeys() {
           {/* Header */}
           <div className="flex items-center gap-3 pb-3 border-b border-zinc-100">
             <div className="w-8.5 h-8.5 rounded-lg bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0 text-zinc-800">
-              {info.logo}
+              {metadata.logo}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold text-zinc-900">{info.name} Setup</h3>
+                <h3 className="text-xs font-bold text-zinc-900">{metadata.name} Setup</h3>
                 <ValidationBadge status={activeConf.validationStatus} />
               </div>
               <p className="text-[10px] text-zinc-400 mt-0.5">Configure your API key to enable this provider</p>
@@ -491,8 +482,8 @@ export default function AgentApiKeys() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {info.models.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                {availableModels.map((m) => (
+                  <SelectItem key={m.modelId} value={m.modelId}>{m.displayName}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -543,23 +534,23 @@ export default function AgentApiKeys() {
                 placeholder={
                   activeConf.isValidated
                     ? 'Enter a new key to replace the saved one'
-                    : info.placeholderKey
+                    : metadata.placeholderKey
                 }
                 className="h-8.5 pr-10 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400"
               />
               <Key size={13} className="absolute right-3 top-2.5 text-zinc-400" />
             </div>
             {activeConf.validationStatus === 'invalid' && activeConf.validationError && (
-              <p className="text-[10.5px] text-red-655 font-medium flex items-center gap-1 mt-1">
-                <AlertCircle size={10.5} className="text-red-500" />
-                {activeConf.validationError}
-              </p>
+              <div className="text-[11px] text-red-700 font-bold flex items-center gap-1.5 mt-2 bg-red-50 border border-red-200 p-2.5 rounded-lg leading-snug">
+                <AlertCircle size={14} className="text-red-600 shrink-0" />
+                <span>{activeConf.validationError}</span>
+              </div>
             )}
             {activeConf.validationStatus === 'error' && activeConf.validationError && (
-              <p className="text-[10.5px] text-orange-655 font-medium flex items-center gap-1 mt-1">
-                <AlertCircle size={10.5} className="text-orange-500" />
-                {activeConf.validationError}
-              </p>
+              <div className="text-[11px] text-amber-900 font-bold flex items-center gap-1.5 mt-2 bg-amber-50 border border-amber-200 p-2.5 rounded-lg leading-snug">
+                <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                <span>{activeConf.validationError}</span>
+              </div>
             )}
           </div>
 

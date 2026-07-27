@@ -1,7 +1,7 @@
 import zlib from 'zlib';
 
 /**
- * Service to extract and normalize text from PDF, DOCX, TXT, MD, and URLs.
+ * Service to extract and normalize text from PDF, DOCX, TXT, MD, CSV, Excel, PowerPoint, and URLs.
  */
 export class TextExtractionService {
   /**
@@ -9,7 +9,7 @@ export class TextExtractionService {
    */
   static extractText(
     base64OrText: string,
-    type: 'pdf' | 'docx' | 'txt' | 'md' | 'url' | 'faq'
+    type: 'pdf' | 'docx' | 'txt' | 'md' | 'url' | 'faq' | 'csv' | 'xlsx' | 'xls' | 'pptx' | 'ppt'
   ): string {
     if (!base64OrText) return '';
 
@@ -17,7 +17,6 @@ export class TextExtractionService {
       switch (type) {
         case 'txt':
         case 'md':
-          // TXT and MD are stored directly as base64 or plaintext
           return this.decodeBase64IfNeeded(base64OrText);
 
         case 'pdf':
@@ -26,9 +25,19 @@ export class TextExtractionService {
         case 'docx':
           return this.extractFromDocx(base64OrText);
 
+        case 'csv':
+          return this.extractFromCSV(base64OrText);
+
+        case 'xlsx':
+        case 'xls':
+          return this.extractFromXlsx(base64OrText);
+
+        case 'pptx':
+        case 'ppt':
+          return this.extractFromPptx(base64OrText);
+
         case 'url':
         case 'faq':
-          // These are already text/JSON formats
           return base64OrText.trim();
 
         default:
@@ -106,10 +115,6 @@ export class TextExtractionService {
     return Buffer.from(bytes);
   }
 
-  /**
-   * PDF Parsing via binary character grouping and octal normalization.
-   * Handles /FlateDecode and /ASCII85Decode streams recursively.
-   */
   private static extractFromPDF(base64Str: string): string {
     const buffer = Buffer.from(base64Str, 'base64');
     let textContent = '';
@@ -169,7 +174,6 @@ export class TextExtractionService {
       pos = endStreamIdx + 9;
     }
     
-    // Clean up escapes in PDF strings
     textContent = textContent.replace(/\\(\d{3})/g, (_, octal) => {
       return String.fromCharCode(parseInt(octal, 8));
     });
@@ -178,17 +182,27 @@ export class TextExtractionService {
     const cleanText = textContent.replace(/\s+/g, ' ').trim();
     if (cleanText) return cleanText;
     
-    // Final fallback to raw ASCII replacement if streams yielded no text
     return buffer.toString('binary').replace(/[^\x20-\x7E\s\n\r]/g, '').replace(/\s+/g, ' ').trim();
   }
 
-  /**
-   * DOCX Parsing via structural ASCII text scanning and header filtering.
-   */
   private static extractFromDocx(base64Str: string): string {
+    try {
+      const buffer = Buffer.from(base64Str, 'base64');
+      const files = this.unzip(buffer);
+      const documentXml = files['word/document.xml'];
+      if (documentXml) {
+        const textMatches = documentXml.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g);
+        if (textMatches) {
+          const text = textMatches.map(m => this.decodeXmlEntities(m.slice(m.indexOf('>') + 1, -6))).join(' ');
+          if (text.trim()) return text.trim();
+        }
+      }
+    } catch (e) {
+      console.warn('[TextExtractionService] Docx unzipping failed, falling back to structural scan:', e);
+    }
+
     const buffer = Buffer.from(base64Str, 'base64');
     const ascii = buffer.toString('ascii');
-    // Regex matches sequences of readable English characters of length >= 4
     const matches = ascii.match(/[A-Za-z0-9\s.,!?:;@()'-]{4,}/g);
     if (matches) {
       return matches.join(' ')
@@ -199,5 +213,137 @@ export class TextExtractionService {
         .trim();
     }
     return ascii.replace(/[^\x20-\x7E\s\n\r]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  private static extractFromCSV(base64Str: string): string {
+    const csvContent = this.decodeBase64IfNeeded(base64Str);
+    return csvContent
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  private static extractFromXlsx(base64Str: string): string {
+    try {
+      const buffer = Buffer.from(base64Str, 'base64');
+      const files = this.unzip(buffer);
+      let sheetText = '';
+
+      let sharedStrings: string[] = [];
+      const sharedStringsXml = files['xl/sharedStrings.xml'];
+      if (sharedStringsXml) {
+        const stringMatches = sharedStringsXml.match(/<t[^>]*>([\s\S]*?)<\/t>/g);
+        if (stringMatches) {
+          sharedStrings = stringMatches.map(m => this.decodeXmlEntities(m.slice(m.indexOf('>') + 1, -4)));
+        }
+      }
+
+      const sheets = Object.keys(files).filter(k => k.startsWith('xl/worksheets/sheet'));
+      for (const sheet of sheets) {
+        const sheetXml = files[sheet];
+        if (sheetXml) {
+          const rowMatches = sheetXml.match(/<row[^>]*>([\s\S]*?)<\/row>/g);
+          if (rowMatches) {
+            for (const row of rowMatches) {
+              const cellMatches = row.match(/<c[^>]*>([\s\S]*?)<\/c>/g);
+              if (cellMatches) {
+                const rowValues = cellMatches.map(cell => {
+                  const typeMatch = cell.match(/t="([^"]+)"/);
+                  const valMatch = cell.match(/<v>(.*?)<\/v>/);
+                  const val = valMatch ? valMatch[1] : '';
+                  if (typeMatch && typeMatch[1] === 's') {
+                    const idx = parseInt(val, 10);
+                    return sharedStrings[idx] || '';
+                  }
+                  return val;
+                }).filter(v => v !== '').join('\t');
+                if (rowValues) sheetText += rowValues + '\n';
+              }
+            }
+          }
+        }
+      }
+      
+      if (sheetText.trim()) return sheetText.trim();
+    } catch (e) {
+      console.warn('[TextExtractionService] Excel parsing failed, falling back:', e);
+    }
+
+    const raw = Buffer.from(base64Str, 'base64').toString('ascii');
+    return raw.replace(/[^\x20-\x7E\s\n\r]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  private static extractFromPptx(base64Str: string): string {
+    try {
+      const buffer = Buffer.from(base64Str, 'base64');
+      const files = this.unzip(buffer);
+      let pptxText = '';
+
+      const slides = Object.keys(files).filter(k => k.startsWith('ppt/slides/slide')).sort();
+      for (const slide of slides) {
+        const slideXml = files[slide];
+        if (slideXml) {
+          const textMatches = slideXml.match(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g);
+          if (textMatches) {
+            const slideText = textMatches.map(m => this.decodeXmlEntities(m.slice(m.indexOf('>') + 1, -6))).join(' ');
+            if (slideText.trim()) {
+              pptxText += `[Slide ${slide.match(/\d+/)?.[0] || ''}]: ${slideText.trim()}\n`;
+            }
+          }
+        }
+      }
+
+      if (pptxText.trim()) return pptxText.trim();
+    } catch (e) {
+      console.warn('[TextExtractionService] PowerPoint parsing failed, falling back:', e);
+    }
+
+    const raw = Buffer.from(base64Str, 'base64').toString('ascii');
+    return raw.replace(/[^\x20-\x7E\s\n\r]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  private static decodeXmlEntities(str: string): string {
+    return str
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'");
+  }
+
+  private static unzip(buffer: Buffer): Record<string, string> {
+    const files: Record<string, string> = {};
+    let offset = 0;
+    while (offset < buffer.length) {
+      if (offset + 30 > buffer.length) break;
+      const sig = buffer.readUInt32LE(offset);
+      if (sig !== 0x04034b50) {
+        break;
+      }
+      const compression = buffer.readUInt16LE(offset + 8);
+      const compressedSize = buffer.readUInt32LE(offset + 18);
+      const nameLen = buffer.readUInt16LE(offset + 26);
+      const extraLen = buffer.readUInt16LE(offset + 28);
+      if (offset + 30 + nameLen > buffer.length) break;
+      const fileName = buffer.toString('utf8', offset + 30, offset + 30 + nameLen);
+      const dataStart = offset + 30 + nameLen + extraLen;
+      if (dataStart + compressedSize > buffer.length) break;
+      const compressedData = buffer.subarray(dataStart, dataStart + compressedSize);
+      
+      if (compression === 8) {
+        try {
+          const decompressed = zlib.inflateRawSync(compressedData);
+          files[fileName] = decompressed.toString('utf8');
+        } catch {
+          // Decompression error
+        }
+      } else if (compression === 0) {
+        files[fileName] = compressedData.toString('utf8');
+      }
+      
+      offset = dataStart + compressedSize;
+    }
+    return files;
   }
 }

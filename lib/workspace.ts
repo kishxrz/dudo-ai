@@ -15,18 +15,20 @@ export function getWorkspaceId(uid: string): string {
  * Also provisions the 30-minute free trial subscription via the server API.
  * Safe to call multiple times (idempotent).
  */
-export async function ensureWorkspace(uid: string, displayName?: string | null) {
+export async function ensureWorkspace(uid: string, displayName?: string | null, businessName?: string | null) {
   if (!db) return;
 
   const wsRef = doc(db, 'workspaces', uid);
   const wsSnap = await getDoc(wsRef);
+
+  const finalBizName = businessName?.trim() || displayName || 'My';
 
   if (!wsSnap.exists()) {
     // Create workspace
     await setDoc(wsRef, {
       id: uid,
       ownerId: uid,
-      name: `${displayName ?? 'My'} Workspace`,
+      name: businessName?.trim() ? `${businessName.trim()} Workspace` : `${displayName ?? 'My'} Workspace`,
       plan: 'trial',
       timezone: 'Asia/Kolkata',
       createdAt: serverTimestamp(),
@@ -37,7 +39,7 @@ export async function ensureWorkspace(uid: string, displayName?: string | null) 
     await setDoc(assistantRef, {
       id: 'assistant-1',
       workspaceId: uid,
-      name: `${displayName ? `${displayName}'s` : 'My'} AI Assistant`,
+      name: `${finalBizName}'s AI Assistant`,
       description: 'A helpful AI assistant for customer support',
       systemPrompt: 'You are a helpful assistant. Answer questions clearly and concisely.',
       personality: 'friendly',

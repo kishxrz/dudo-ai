@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "services/whatsapp-service/dist/**",
+    "services/whatsapp-service/src/**",
+    "scripts/**",
   ]),
 ]);
 

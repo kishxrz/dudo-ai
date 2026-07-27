@@ -8,6 +8,7 @@
 
 import { getAdminDb } from '@/lib/firebase-admin';
 import { ApiProvider } from '@/types';
+import { ProviderModelRegistry } from '@/lib/ai/providers/ProviderModelRegistry';
 
 export interface ResolvedProvider {
   name: ApiProvider;
@@ -16,15 +17,7 @@ export interface ResolvedProvider {
   apiKey: string;
 }
 
-const DEFAULT_MODELS: Record<ApiProvider, string> = {
-  openai: 'gpt-4o-mini',
-  gemini: 'gemini-2.5-flash',
-  anthropic: 'claude-3-5-haiku-latest',
-  groq: 'llama-3.3-70b-versatile',
-  openrouter: 'openrouter-best-value',
-  deepseek: 'deepseek-chat',
-  mistral: 'mistral-large-latest',
-};
+
 
 /**
  * Resolve the active provider for a workspace.
@@ -88,7 +81,7 @@ export async function resolveActiveProvider(
 
   const name = (chosen as DocEntry).id as ApiProvider;
   const chosenData = (chosen as DocEntry).data;
-  const model: string = (chosenData.model as string) || DEFAULT_MODELS[name] || 'gpt-4o-mini';
+  const model: string = (chosenData.model as string) || ProviderModelRegistry.getDefaultModel(name).modelId;
   const apiKey: string = chosenData.apiKey as string;
 
   return { name, model, apiKey };
@@ -179,6 +172,44 @@ export async function validateProviderKey(
         if (res.ok) return { valid: true };
         const errData = await res.json().catch(() => ({}));
         return { valid: false, reason: errData?.error?.message || `HTTP ${res.status}` };
+      }
+
+      case 'elevenlabs': {
+        const res = await fetch('https://api.elevenlabs.io/v1/user', {
+          headers: { 'xi-api-key': apiKey },
+        });
+        if (res.ok) return { valid: true };
+        const errData = await res.json().catch(() => ({}));
+        return { valid: false, reason: errData?.detail?.status || `HTTP ${res.status}` };
+      }
+
+      case 'deepgram': {
+        const res = await fetch('https://api.deepgram.com/v1/projects', {
+          headers: { Authorization: `Token ${apiKey}` },
+        });
+        if (res.ok) return { valid: true };
+        const errData = await res.json().catch(() => ({}));
+        return { valid: false, reason: errData?.err_msg || `HTTP ${res.status}` };
+      }
+
+      case 'assemblyai': {
+        const res = await fetch('https://api.assemblyai.com/v2/transcript?limit=1', {
+          headers: { Authorization: apiKey },
+        });
+        if (res.ok) return { valid: true };
+        const errData = await res.json().catch(() => ({}));
+        return { valid: false, reason: errData?.error || `HTTP ${res.status}` };
+      }
+
+      case 'azure': {
+        const region = process.env.AZURE_SPEECH_REGION || 'eastus';
+        const res = await fetch(`https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
+          method: 'POST',
+          headers: { 'Ocp-Apim-Subscription-Key': apiKey },
+        });
+        if (res.ok) return { valid: true };
+        const errText = await res.text();
+        return { valid: false, reason: errText || `HTTP ${res.status}` };
       }
 
       default:

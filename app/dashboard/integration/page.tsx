@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import Link from 'next/link';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
@@ -292,9 +293,7 @@ export default function IntegrationsPage() {
   if (isLoading) {
     return (
       <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-5 px-6 pb-16 box-border">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#22577A] border-r-2 border-r-transparent" />
-        </div>
+        <LoadingSpinner size="lg" text="Loading Integrations..." />
       </PageLayout>
     );
   }

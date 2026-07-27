@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { getAdminDb } from '@/lib/firebase-admin';
-import { collection, addDoc, query, orderBy, getDocs, deleteDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { WorkspaceContextLoader } from '@/lib/ai/WorkspaceContextLoader';
 import { ConversationService } from '@/lib/ai/ConversationService';
 import { requireSubscription, checkSubscription, incrementConversationCount } from '@/lib/subscription/SubscriptionService';
+import { TextExtractionService } from '@/lib/ai/TextExtractionService';
 
 function formatKnowledgeDoc(data: any): string {
   if (!data) return '';
   const lines: string[] = [];
 
-  // Check custom business profile fields
   if (data.businessName?.trim()) lines.push(`Business Name: ${data.businessName.trim()}`);
   if (data.industry?.trim()) lines.push(`Industry: ${data.industry.trim()}`);
   
@@ -22,12 +22,10 @@ function formatKnowledgeDoc(data: any): string {
   if (data.supportPhone?.trim()) lines.push(`Support Phone: ${data.supportPhone.trim()}`);
   if (data.website?.trim()) lines.push(`Website: ${data.website.trim()}`);
 
-  // Check legacy fields
   if (data.businessDetails?.trim()) lines.push(`Business Details: ${data.businessDetails.trim()}`);
   if (data.commonQuestions?.trim()) lines.push(`Common Questions: ${data.commonQuestions.trim()}`);
   if (data.policies?.trim()) lines.push(`Policies: ${data.policies.trim()}`);
 
-  // Check dynamic knowledge item fields
   if (data.type === 'faq') {
     const q = (data.question || data.title || '').trim();
     const a = (data.answer || data.source || '').trim();
@@ -36,7 +34,7 @@ function formatKnowledgeDoc(data: any): string {
     if (data.title?.trim() && data.source?.trim()) {
       lines.push(`[${data.title.trim()}]\n${data.source.trim()}`);
     }
-  } else if (['pdf', 'docx', 'txt', 'md'].includes(data.type)) {
+  } else if (['pdf', 'docx', 'txt', 'md', 'csv', 'xlsx', 'xls', 'pptx', 'ppt'].includes(data.type)) {
     if (data.title?.trim()) {
       const content = data.source && data.source !== data.title
         ? `\nParsed Content:\n${data.source.trim()}`
@@ -44,7 +42,6 @@ function formatKnowledgeDoc(data: any): string {
       lines.push(`${data.title.trim()}${content}`);
     }
   } else {
-    // General fallback
     if (data.content?.trim()) {
       lines.push(data.content.trim());
     }
@@ -76,8 +73,6 @@ function parseLocalKnowledge(val: any): string {
   return '';
 }
 
-
-
 export async function POST(req: NextRequest) {
   try {
     const startSetup = Date.now();
@@ -85,6 +80,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       message,
+      attachedFile,
       history = [],
       provider,
       model,
@@ -93,13 +89,26 @@ export async function POST(req: NextRequest) {
       knowledgeEnabled = true,
       systemPrompt,
       workspaceId = 'workspace-1',
-      // apiKey is sent by the client (authenticated browser read) so the server
-      // doesn't need to re-read Firestore without an auth token.
       apiKey = '',
+      stream = false,
+      voiceSettings,
     } = body;
 
     if (!workspaceId) {
       return NextResponse.json({ error: 'Workspace context is missing.' }, { status: 400 });
+    }
+
+    // Save voice preferences to Firestore if provided
+    if (adminDb && voiceSettings) {
+      try {
+        await adminDb.doc(`workspaces/${workspaceId}/assistants/assistant-1`).set({
+          sttProvider: voiceSettings.sttProvider,
+          ttsProvider: voiceSettings.ttsProvider,
+          ttsVoice: voiceSettings.ttsVoice,
+        }, { merge: true });
+      } catch (saveErr) {
+        console.warn('[Playground Chat] Failed to save assistant voice preferences:', saveErr);
+      }
     }
 
     // Enforce active subscription + conversation limit
@@ -113,45 +122,56 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: providerCheck.reason ?? `The provider '${activeProv}' is not available on your plan.`, code: providerCheck.code }, { status: 403 });
     }
 
-    if (!message || !message.trim()) {
-      return NextResponse.json({ error: 'Message content is required.' }, { status: 400 });
+    if ((!message || !message.trim()) && !attachedFile) {
+      return NextResponse.json({ error: 'Message content or file is required.' }, { status: 400 });
     }
 
-    const firstWord = message.trim().split(/\s+/)[0]?.toLowerCase();
+    // Process attachment / parsing on the fly
+    let messageText = message || '';
+    let attachedContent: any = null;
+
+    if (attachedFile) {
+      const { name, type, base64 } = attachedFile;
+      if (type.startsWith('image/')) {
+        attachedContent = {
+          type: 'image_url',
+          image_url: {
+            url: `data:${type};base64,${base64}`,
+          },
+        };
+      } else {
+        const ext = name.split('.').pop()?.toLowerCase() || '';
+        try {
+          const parsedText = TextExtractionService.extractText(base64, ext as any);
+          if (parsedText.trim()) {
+            messageText = `[Document Content: ${name}]\n${parsedText.trim()}\n\n[User Message]: ${message || ''}`;
+          }
+        } catch (e) {
+          console.error('[Playground Chat] Document extraction failed:', e);
+        }
+      }
+    }
+
+    const firstWord = messageText.trim().split(/\s+/)[0]?.toLowerCase();
     if (['/takeover', '/resume', '/status'].includes(firstWord)) {
       return NextResponse.json({
-        reply: "🚫 System Commands (such as /takeover, /resume, /status) are only supported and executed on connected WhatsApp or Telegram channels, not within the testing playground or website chat."
+        reply: "🚫 System Commands are only supported and executed on WhatsApp or Telegram channels, not within the testing playground."
       });
     }
 
-    const durationSetup = Date.now() - startSetup;
-    console.log(`[Timer] Playground setup/auth checks took ${durationSetup}ms`);
-
     const startTime = Date.now();
-
-    // 1. Load workspace context ONCE — the clientApiKey is injected so no
-    //    unauthenticated Firestore re-read is needed anywhere downstream.
-    const startContext = Date.now();
     let context;
     try {
       context = await WorkspaceContextLoader.load(workspaceId, provider, apiKey);
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : 'Failed to load workspace context.';
-      console.error('[Chat Route] WorkspaceContextLoader failed:', e);
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
-    const durationContext = Date.now() - startContext;
-    console.log(`[Timer] Playground WorkspaceContextLoader.load took ${durationContext}ms`);
 
     const activeProvider = provider || context.provider.name;
     const activeModel    = model    || context.provider.model;
-
-    // 2. Generate AI reply — context (with apiKey) passed directly.
-    //    ConversationService no longer calls WorkspaceContextLoader internally.
     let activeSystemPrompt = systemPrompt || context.assistant.systemPrompt || '';
 
-    // FIX 4 - Overriding context knowledge with custom local draft values if provided,
-    // avoiding manual loading/injection here to prevent duplication.
     if (knowledgeEnabled && body?.knowledgeData) {
       const kData = body.knowledgeData;
       const localKnowledgeTexts: string[] = [];
@@ -167,12 +187,92 @@ export async function POST(req: NextRequest) {
       context.knowledge = customKnowledgeText;
     }
 
-    // Bound Playground conversation history to the latest 15 messages (between 10 and 20) in chronological order
     const boundedHistory = (history || []).slice(-15);
+    const generateOptions = {
+      model: activeModel,
+      temperature,
+      memoryEnabled,
+      knowledgeEnabled,
+      systemPrompt: activeSystemPrompt,
+      attachedContent,
+    };
 
+    // If streaming requested
+    if (stream) {
+      const encoder = new TextEncoder();
+      const customStream = new ReadableStream({
+        async start(controller) {
+          try {
+            const streamGen = ConversationService.generateReplyStream(
+              {
+                ...context,
+                provider: {
+                  name: activeProvider,
+                  model: activeModel,
+                  apiKey: context.provider.apiKey,
+                },
+              },
+              messageText,
+              boundedHistory,
+              generateOptions
+            );
+
+            let replyText = '';
+            for await (const chunk of streamGen) {
+              replyText += chunk.text;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk.text })}\n`));
+            }
+
+            const diagnostics = {
+              provider: activeProvider,
+              model: activeModel,
+              latency: Date.now() - startTime,
+              status: 'Success',
+              time: new Date().toLocaleTimeString(),
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ diagnostics })}\n`));
+            controller.enqueue(encoder.encode('data: [DONE]\n'));
+
+            try {
+              if (adminDb) {
+                const sessionPayload = {
+                  provider: activeProvider,
+                  model: activeModel,
+                  temperature,
+                  memoryEnabled,
+                  knowledgeEnabled,
+                  message: messageText,
+                  reply: replyText,
+                  latency: Date.now() - startTime,
+                  tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+                  statusCode: 200,
+                  createdAt: new Date(),
+                };
+                await adminDb.collection(`workspaces/${workspaceId}/playground_sessions`).add(sessionPayload);
+              }
+              await incrementConversationCount(workspaceId);
+            } catch (err) {
+              console.warn('Logging session after stream failed:', err);
+            }
+          } catch (e: any) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: `⚠️ Error: ${e.message}` })}\n`));
+          } finally {
+            controller.close();
+          }
+        }
+      });
+
+      return new Response(customStream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
+    // Otherwise standard JSON response
     const result = await ConversationService.generateReply(
-      // Merge the selected provider/model overrides into the context so the
-      // service always uses whatever the UI has selected.
       {
         ...context,
         provider: {
@@ -181,15 +281,9 @@ export async function POST(req: NextRequest) {
           apiKey: context.provider.apiKey,
         },
       },
-      message,
+      messageText,
       boundedHistory,
-      {
-        model,
-        temperature,
-        memoryEnabled,
-        knowledgeEnabled,
-        systemPrompt: activeSystemPrompt,
-      }
+      generateOptions
     );
 
     const endTime = Date.now();
@@ -204,17 +298,15 @@ export async function POST(req: NextRequest) {
     const outputTokens = result.outputTokens || 0;
     const totalTokens  = inputTokens + outputTokens;
 
-    // 3. Log playground session (capped at 50 entries)
     if (adminDb || db) {
       try {
-        const startPersistence = Date.now();
         const sessionPayload = {
           provider: activeProvider,
           model:    activeModel,
           temperature,
           memoryEnabled,
           knowledgeEnabled,
-          message,
+          message: messageText,
           reply:   result.reply,
           latency: llmLatency,
           tokenUsage: { inputTokens, outputTokens, totalTokens },
@@ -225,43 +317,21 @@ export async function POST(req: NextRequest) {
         if (adminDb) {
           const sessionsRef = adminDb.collection(`workspaces/${workspaceId}/playground_sessions`);
           await sessionsRef.add(sessionPayload);
-          const qSnap = await sessionsRef.orderBy('createdAt', 'desc').get();
-          if (qSnap.size > 50) {
-            for (const sessionDoc of qSnap.docs.slice(50)) {
-              await sessionDoc.ref.delete();
-            }
-          }
-        } else if (db) {
-          const sessionsRef = collection(db, 'workspaces', workspaceId, 'playground_sessions');
-          await addDoc(sessionsRef, sessionPayload);
-
-          const qSnap = await getDocs(query(sessionsRef, orderBy('createdAt', 'desc')));
-          if (qSnap.size > 50) {
-            for (const d of qSnap.docs.slice(50)) {
-              await deleteDoc(d.ref);
-            }
-          }
         }
-        const durationPersistence = Date.now() - startPersistence;
-        console.log(`[Timer] Playground session logging took ${durationPersistence}ms`);
       } catch (logError) {
-        console.error('Failed to log playground session to Firestore:', logError);
+        console.error('Failed to log playground session:', logError);
       }
     }
 
     await incrementConversationCount(workspaceId);
 
-    const durationTotal = Date.now() - startSetup;
-    console.log(`[Timer] Playground total API route duration took ${durationTotal}ms`);
-
-    // 4. Return response
     return NextResponse.json({
       reply: result.reply,
       diagnostics: {
         provider:     activeProvider,
         model:        activeModel,
         latency:      llmLatency,
-        totalLatency: durationTotal,
+        totalLatency: Date.now() - startSetup,
         inputTokens,
         outputTokens,
         totalTokens,

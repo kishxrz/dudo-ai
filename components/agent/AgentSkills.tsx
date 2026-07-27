@@ -26,6 +26,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import metadataListRaw from '@/data/skills/metadata.json';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Skill {
   id: string;
@@ -140,17 +141,20 @@ const DEFAULT_STYLE = {
   colorHex: '#71717a'
 };
 
+const DEFAULT_CATALOG = metadataList.slice(0, 200);
+
 export default function AgentSkills() {
   const { workspaceId } = useWorkspace();
+  const toast = useToast();
   const [skills, setSkills] = useState<Skill[]>(() => {
-    // Interleave by category so that the "All" section shows mixed skills
-    const groups: Record<string, typeof metadataList> = {};
-    metadataList.forEach(s => {
+    // Interleave by category from default 200 built-in skills so "All" section shows mixed skills
+    const groups: Record<string, typeof DEFAULT_CATALOG> = {};
+    DEFAULT_CATALOG.forEach(s => {
       if (!groups[s.category]) groups[s.category] = [];
       groups[s.category].push(s);
     });
 
-    const interleaved: typeof metadataList = [];
+    const interleaved: typeof DEFAULT_CATALOG = [];
     const categoriesKeys = Object.keys(groups);
     let hasMore = true;
     let index = 0;
@@ -267,7 +271,7 @@ export default function AgentSkills() {
       window.dispatchEvent(new Event('dudo-skills-changed'));
     } catch (err) {
       console.error('[AgentSkills] Toggle skill failed:', err);
-      alert(`Failed to ${action} skill. Please try again.`);
+      toast.error(`Failed to ${action} skill. Please try again.`);
     } finally {
       setTransitioning(prev => {
         const copy = { ...prev };

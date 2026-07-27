@@ -26,6 +26,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import Logo from '@/components/ui/logo';
+import { useToast } from '@/contexts/ToastContext';
 
 const mainNavItems = [
   { href: '/dashboard',               label: 'Dashboard',         icon: LayoutDashboard },
@@ -59,6 +60,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { signOut, currentUser } = useAuth();
+  const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [showBugModal, setShowBugModal] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
@@ -158,7 +160,7 @@ export default function Sidebar({
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/login');
+    router.push('/');
   };
 
   const initials = displayName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -166,7 +168,7 @@ export default function Sidebar({
   const handleSendSupport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bugName.trim() || !bugEmail.trim() || !bugMessage.trim()) {
-      alert("Please fill in Name, Email, and Message.");
+      toast.warning("Please fill in Name, Email, and Message.");
       return;
     }
     setBugLoading(true);
@@ -197,7 +199,7 @@ export default function Sidebar({
       }, 2000);
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'An error occurred while sending your message. Please try again.');
+      toast.error(err.message || 'An error occurred while sending your message. Please try again.');
     } finally {
       setBugLoading(false);
     }
@@ -205,11 +207,23 @@ export default function Sidebar({
 
   return (
     <>
+      {/* Dark backdrop overlay when sidebar is expanded or opened on mobile */}
+      {(expanded || mobileOpen) && (
+        <div
+          onClick={() => {
+            setIsClickClosed(true);
+            updateExpanded(false);
+            onMobileClose?.();
+          }}
+          className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 transition-opacity duration-200"
+        />
+      )}
+
       <aside
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col h-[100dvh] bg-white border-r border-zinc-200 select-none overflow-hidden group",
+          "fixed inset-y-0 left-0 z-50 flex flex-col h-[100dvh] bg-white border-r border-zinc-200 select-none overflow-hidden group shadow-none",
           "transition-all duration-200 ease-in-out",
           "w-[240px] md:w-[60px]",
           expanded ? "md:w-[240px]" : "md:w-[60px]",
@@ -232,7 +246,7 @@ export default function Sidebar({
             <Logo className="w-[26px] h-[26px] shrink-0" strokeColor="white" />
             <span
               className={cn(
-                'text-[19px] font-black text-zinc-950 tracking-tight leading-none whitespace-nowrap transition-all duration-150',
+                'text-[19px] font-black text-[#22577A] tracking-tight leading-none whitespace-nowrap transition-all duration-150',
                 'w-auto opacity-100',
                 expanded
                   ? 'md:w-auto md:opacity-100'

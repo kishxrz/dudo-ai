@@ -1,6 +1,6 @@
 export interface Message {
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | any[];
 }
 
 export interface ConversationRequest {

@@ -1,5 +1,7 @@
 import { ProviderRegistry } from './ProviderRegistry';
 import { WorkspaceContextLoader } from './WorkspaceContextLoader';
+import { ProviderModelRegistry } from './providers/ProviderModelRegistry';
+import { ApiProvider } from '@/types';
 
 export interface ExtractedFacts {
   businessName?: string | null;
@@ -63,7 +65,7 @@ ${text}`;
         const res = await ProviderRegistry.generate(provider, apiKey, {
           systemPrompt: 'You are a precise data extraction system. Output JSON only.',
           messages: [{ role: 'user', content: prompt }],
-          model: model || 'gpt-4o-mini',
+          model: model || ProviderModelRegistry.getDefaultModel(provider as ApiProvider).modelId,
           temperature: 0.1
         });
 
@@ -79,7 +81,7 @@ ${text}`;
     return this.fallbackExtraction(text);
   }
 
-  private static parseJSON(text: string): any {
+  private static parseJSON(text: string): Record<string, unknown> | null {
     let clean = text.trim();
     if (clean.includes('```')) {
       const parts = clean.split('```');

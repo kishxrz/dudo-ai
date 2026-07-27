@@ -886,8 +886,9 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       return;
     }
 
-    if (message.type !== 'chat') {
-      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=unsupported_type workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
+    const isSupported = message.type === 'chat' || message.hasMedia;
+    if (!isSupported) {
+      console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=FILTERED reason=unsupported_type type=${message.type} workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId}`);
       return;
     }
     
@@ -907,13 +908,32 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     let removedFromInFlight = false;
     try {
       state.inFlightMessages.add(messageId);
+
+      let attachedFile = null;
+      if (message.hasMedia) {
+        try {
+          console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=MEDIA_DOWNLOAD_START workspaceId=${workspaceId} messageId=${messageId}`);
+          const media = await message.downloadMedia();
+          if (media) {
+            attachedFile = {
+              name: media.filename || (message.type === 'image' ? 'image.jpg' : 'document.pdf'),
+              type: media.mimetype,
+              base64: media.data
+            };
+            console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=MEDIA_DOWNLOAD_SUCCESS filename=${attachedFile.name} mime=${attachedFile.type} size=${attachedFile.base64?.length || 0} messageId=${messageId}`);
+          }
+        } catch (mediaErr: any) {
+          console.error(`[WA_PIPELINE_TRACE] seq=${seq} stage=MEDIA_DOWNLOAD_ERROR error=${mediaErr.message} messageId=${messageId}`);
+        }
+      }
       
       const payload = {
         externalChatId: message.from,
         messageId: messageId,
         senderId: message.author || message.from,
-        messageText: message.body,
-        timestamp: message.timestamp
+        messageText: message.body || '',
+        timestamp: message.timestamp,
+        attachedFile
       };
 
       // Call Next.js endpoint to process AI reply
