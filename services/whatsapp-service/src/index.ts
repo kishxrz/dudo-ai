@@ -471,7 +471,24 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     '--disable-accelerated-2d-canvas',
     '--no-first-run',
     '--no-zygote',
-    '--disable-gpu'
+    '--disable-gpu',
+    '--js-flags="--max-old-space-size=150 --expose-gc"',
+    '--disable-extensions',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-default-apps',
+    '--mute-audio',
+    '--no-default-browser-check',
+    '--disable-background-networking',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-ipc-flooding-protection',
+    '--disable-client-side-phishing-detection',
+    '--disable-hang-monitor',
+    '--disable-prompt-on-repost',
+    '--password-store=basic',
+    '--use-mock-keychain',
+    '--memory-pressure-thresholds=1'
   ];
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     console.log(`[Puppeteer] Using executable path: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
@@ -1155,14 +1172,18 @@ app.post('/v1/workspaces/:workspaceId/disconnect', authenticate, authorizeWorksp
       clearInterval(state.watchdogInterval);
     }
 
-    // Log out from WhatsApp if connected
+    // Log out from WhatsApp if connected, with a strict 2.5s timeout to prevent blocking when Chromium hangs
     try {
       if (state.status === 'connected') {
-        console.log(`[Disconnect] Logging out client for workspace: ${workspaceId}`);
-        await state.client.logout();
+        console.log(`[Disconnect] Logging out client for workspace: ${workspaceId} (2.5s timeout limit)`);
+        await Promise.race([
+          state.client.logout(),
+          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Logout timed out')), 2500))
+        ]);
+        console.log(`[Disconnect] Clean logout completed for workspace: ${workspaceId}`);
       }
-    } catch (logoutErr) {
-      console.error(`[Disconnect] Error during logout for ${workspaceId}:`, logoutErr);
+    } catch (logoutErr: any) {
+      console.warn(`[Disconnect] Logout failed or timed out for ${workspaceId} (proceeding to hard destroy):`, logoutErr?.message || logoutErr);
     }
 
     try {
