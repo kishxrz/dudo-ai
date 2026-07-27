@@ -138,9 +138,20 @@ Ensure your response contains nothing else when executing a tool. Once the tool 
 
       if (options.memoryEnabled !== false && history.length > 0) {
         history.forEach((h) => {
+          // Force content to a plain string — non-vision providers (e.g. Groq) throw a 400
+          // if content is an array/object from old image turns stored in history.
+          let content: string;
+          if (typeof h.text === 'string') {
+            content = h.text;
+          } else if (Array.isArray(h.text)) {
+            const textPart = (h.text as any[]).find((p) => p.type === 'text');
+            content = textPart?.text ?? '[image]';
+          } else {
+            content = String(h.text ?? '');
+          }
           requestMessages.push({
             role: h.sender === 'user' ? 'user' : 'assistant',
-            content: h.text,
+            content,
           });
         });
       }

@@ -8,13 +8,14 @@ export class PromptBuilder {
    * so it overrides all other language defaults.
    */
   static buildStyleOverride(style: string): string {
+    const noAnnounce = `NEVER announce, mention, or comment on the language or style you are using. Do not say things like "I see you're speaking Tamil" or "I'm back to English". Just reply naturally.`;
+
     if (style === 'English') {
-      return `[⚠️ CRITICAL LANGUAGE OVERRIDE — HIGHEST PRIORITY]
-The user is communicating in plain English.
-YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
-1. REPLY IN STANDARD ENGLISH ONLY.
-2. DO NOT output any regional language transliterations (such as Tanglish or Hinglish) or native scripts (such as Tamil or Hindi).
-3. Even if the previous conversation turns in the chat history contain Tanglish or Tamil, ignore them and write your response exclusively in plain English.`;
+      return `[LANGUAGE RULE — HIGHEST PRIORITY]
+1. Reply in standard English only.
+2. Do NOT use any regional transliterations (Tanglish, Hinglish) or native scripts.
+3. Even if chat history contains regional language turns, reply in plain English.
+4. ${noAnnounce}`;
     }
 
     const isRomanized = style.includes('Romanized') || style.includes('Roman') || style.includes('Tanglish') ||
@@ -25,25 +26,15 @@ YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
     if (isRomanized) {
       const parenMatch = style.match(/\((?:Romanized|Native Script|Roman)\s+(\w+)\)/i);
       const variantName = parenMatch ? parenMatch[1] : (style.match(/^(\w+)/)?.[1] || 'the language');
-      return `[⚠️ CRITICAL LANGUAGE OVERRIDE — HIGHEST PRIORITY]
-` +
-        `The user is writing in ${style}.
-` +
-        `YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
-` +
-        `1. REPLY IN ROMANIZED / TRANSLITERATED FORM ONLY. Example: "Bro sollunga 😄" NOT "சகோதரர் சொல்லுங்கள்".
-` +
-        `2. DO NOT OUTPUT ANY ${variantName.toUpperCase()} UNICODE / NATIVE SCRIPT CHARACTERS.
-` +
-        `3. DO NOT translate the user's message to native script.
-` +
-        `4. Mirror their exact style: casual tone, mixed ${variantName}-English, matching emoji usage.
-` +
-        `5. This rule overrides ALL other language and locale settings in this prompt.`;
+      return `[LANGUAGE RULE — HIGHEST PRIORITY]
+1. Reply ONLY in Romanized/transliterated form. Example: "Bro sollunga 😄" NOT "சகோதரர் சொல்லுங்கள்".
+2. Do NOT output any ${variantName} Unicode/native script characters.
+3. Mirror the user's casual tone, mixed ${variantName}-English style, and emoji usage.
+4. ${noAnnounce}`;
     }
 
-    // Native script — just affirm the language
-    return `[LANGUAGE RULE] The user is communicating in ${style}. Reply in the same language and script.`;
+    // Native script
+    return `[LANGUAGE RULE] Reply in ${style}. ${noAnnounce}`;
   }
 
   static buildSystemPrompt(context: WorkspaceContext, customPrompt?: string): string {

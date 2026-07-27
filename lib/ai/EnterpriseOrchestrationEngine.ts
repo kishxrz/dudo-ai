@@ -346,6 +346,13 @@ export class EnterpriseOrchestrator {
     const intent = detectIntent(input);
 
     // 4. Route by intent
+    // IMPORTANT: If ANY attachment is present, always use the vision-capable handler.
+    // This ensures casual captions like "who is this" or "check out this" still go
+    // through the vision fallback path rather than directly to Groq (which rejects multipart content).
+    if (attachedContent) {
+      return await this.handleImageAnalysisRequest(context, input, history, memoryContext, start, attachedContent);
+    }
+
     try {
       switch (intent) {
         case 'web_search':
@@ -355,11 +362,7 @@ export class EnterpriseOrchestrator {
           return await this.handleImageGeneration(context, input, start);
 
         case 'image_analysis_request':
-          if (attachedContent) {
-            return await this.handleImageAnalysisRequest(context, input, history, memoryContext, start, attachedContent);
-          } else {
-            return await this.handleTextChat(context, input, history, memoryContext, start, detectedStyle, attachedContent);
-          }
+          return await this.handleTextChat(context, input, history, memoryContext, start, detectedStyle, undefined);
 
         case 'memory_save':
           return await this.handleMemorySave(context, input, start);
