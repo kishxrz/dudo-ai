@@ -581,6 +581,20 @@ export class EnterpriseOrchestrator {
       // Try to find a vision-capable provider from the workspace database
       const adminDb = getAdminDb();
       let fallbackResolved = false;
+
+      // Basic key format validators — reject clearly invalid keys early
+      const isKeyValid = (provider: string, key: string): boolean => {
+        if (!key || key.length < 10) return false;
+        if (provider === 'gemini' && !key.startsWith('AIza')) {
+          console.warn(`[VisionFallback] Gemini API key looks invalid (must start with "AIza"). Skipping.`);
+          return false;
+        }
+        if (provider === 'openai' && !key.startsWith('sk-')) {
+          console.warn(`[VisionFallback] OpenAI API key looks invalid (must start with "sk-"). Skipping.`);
+          return false;
+        }
+        return true;
+      };
       
       const visionProviders = ['gemini', 'openai', 'anthropic'];
       for (const p of visionProviders) {
@@ -592,7 +606,7 @@ export class EnterpriseOrchestrator {
           const exists = typeof snap.exists === 'function' ? snap.exists() : snap.exists;
           if (exists) {
             const data = snap.data();
-            if (data?.apiKey) {
+            if (data?.apiKey && isKeyValid(p, data.apiKey)) {
               providerName = p;
               apiKey = data.apiKey;
               model = data.model || ProviderModelRegistry.getDefaultModel(p as any).modelId;
@@ -609,7 +623,7 @@ export class EnterpriseOrchestrator {
       if (!fallbackResolved) {
         return {
           success: false,
-          reply: "I received your image, but you don't have a vision-capable AI provider (like Gemini, OpenAI, or Anthropic) configured in your settings. Please add an API Key for Gemini or OpenAI in your dashboard.",
+          reply: "I can see you sent an image, but I need a vision-capable AI key to analyze it. Please go to your dashboard → API Keys and add a valid **Gemini API key** (starts with 'AIza...') or **OpenAI API key** (starts with 'sk-...'). Your current Groq provider cannot process images.",
           telemetry: { latencyMs: Date.now() - start }
         };
       }
