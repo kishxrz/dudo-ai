@@ -4,6 +4,8 @@ import { PromptBuilder } from './PromptBuilder';
 import { ProviderRegistry } from './ProviderRegistry';
 import { Message } from './types/ConversationRequest';
 import { db } from '@/lib/firebase';
+import { getAdminDb } from '@/lib/firebase-admin';
+import { ProviderModelRegistry } from '@/lib/ai/providers/ProviderModelRegistry';
 import { collection, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 
 // ==========================================
@@ -326,16 +328,9 @@ export class EnterpriseOrchestrator {
           memoryContext = `[CUSTOMER MEMORY]\nPreferred conversation/writing style: ${styleDetection.style}`;
         }
       } else {
-        // Fall back to saved style from memory
-        try {
-          const memory = await readWorkspaceMemory(context.workspaceId);
-          if (memory.preferredStyle) {
-            detectedStyle = memory.preferredStyle;
-            console.log(`[StyleMirror] Using saved style from memory: "${detectedStyle}"`);
-          }
-        } catch {
-          // Non-fatal
-        }
+        // If no regional style matched on the current message, default to English. 
+        // Do not fallback to regional styles from long term memory, matching style per message.
+        detectedStyle = 'English';
       }
     } catch (e) {
       console.error('[Memory] Writing style preference failed:', e);
@@ -564,10 +559,57 @@ export class EnterpriseOrchestrator {
       msgs.push({ role: 'user' as const, content: input });
     }
 
-    const response = await ProviderRegistry.generate(context.provider.name, context.provider.apiKey, {
+    let providerName = context.provider.name;
+    let apiKey = context.provider.apiKey;
+    let model = context.provider.model;
+
+    // Check if the current model supports vision
+    const currentModelDef = ProviderModelRegistry.getModel(providerName as any, model);
+    const supportsVision = currentModelDef?.supportsVision ?? false;
+
+    if (!supportsVision) {
+      console.log(`[VisionFallback] Active provider ${providerName} (${model}) does not support vision. Resolving fallback vision provider...`);
+      // Try to find a vision-capable provider from the workspace database
+      const adminDb = getAdminDb();
+      let fallbackResolved = false;
+      
+      const visionProviders = ['gemini', 'openai', 'anthropic'];
+      for (const p of visionProviders) {
+        try {
+          const path = `workspaces/${context.workspaceId}/providers/${p}`;
+          const snap = adminDb 
+            ? await adminDb.doc(path).get() 
+            : await getDoc(doc(db!, 'workspaces', context.workspaceId, 'providers', p));
+          const exists = typeof snap.exists === 'function' ? snap.exists() : snap.exists;
+          if (exists) {
+            const data = snap.data();
+            if (data?.apiKey) {
+              providerName = p;
+              apiKey = data.apiKey;
+              model = data.model || ProviderModelRegistry.getDefaultModel(p as any).modelId;
+              console.log(`[VisionFallback] Resolved fallback vision provider: ${p} (${model})`);
+              fallbackResolved = true;
+              break;
+            }
+          }
+        } catch (fallbackErr) {
+          console.error(`[VisionFallback] Failed to load provider ${p}:`, fallbackErr);
+        }
+      }
+      
+      if (!fallbackResolved) {
+        return {
+          success: false,
+          reply: "I received your image, but you don't have a vision-capable AI provider (like Gemini, OpenAI, or Anthropic) configured in your settings. Please add an API Key for Gemini or OpenAI in your dashboard.",
+          telemetry: { latencyMs: Date.now() - start }
+        };
+      }
+    }
+
+    const response = await ProviderRegistry.generate(providerName, apiKey, {
       systemPrompt: systemPrompt + '\n\n' + analysisInstruction,
       messages: msgs,
-      model: context.provider.model,
+      model: model,
       temperature: 0.3,
     });
 
