@@ -8,6 +8,15 @@ export class PromptBuilder {
    * so it overrides all other language defaults.
    */
   static buildStyleOverride(style: string): string {
+    if (style === 'English') {
+      return `[⚠️ CRITICAL LANGUAGE OVERRIDE — HIGHEST PRIORITY]
+The user is communicating in plain English.
+YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
+1. REPLY IN STANDARD ENGLISH ONLY.
+2. DO NOT output any regional language transliterations (such as Tanglish or Hinglish) or native scripts (such as Tamil or Hindi).
+3. Even if the previous conversation turns in the chat history contain Tanglish or Tamil, ignore them and write your response exclusively in plain English.`;
+    }
+
     const isRomanized = style.includes('Romanized') || style.includes('Roman') || style.includes('Tanglish') ||
       style.includes('Hinglish') || style.includes('Teluglish') || style.includes('Benglish') ||
       style.includes('Manglish') || style.includes('Kanglish') || style.includes('Marathish') ||

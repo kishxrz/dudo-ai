@@ -292,26 +292,7 @@ export class EnterpriseOrchestrator {
 
     // 2. Load workspace memory and inject into context
     let memoryContext = '';
-    try {
-      const memory = await readWorkspaceMemory(context.workspaceId);
-      const memParts: string[] = [];
-      if (memory.customerName) memParts.push(`Customer name: ${memory.customerName}`);
-      if (memory.preferredLanguage) memParts.push(`Preferred language: ${memory.preferredLanguage}`);
-      if (memory.preferredStyle) memParts.push(`Preferred conversation/writing style: ${memory.preferredStyle}`);
-      if (memory.preferences) {
-        Object.entries(memory.preferences).forEach(([k, v]) => memParts.push(`${k}: ${v}`));
-      }
-      if (memory.customFacts) {
-        Object.entries(memory.customFacts).forEach(([k, v]) => memParts.push(`${k}: ${v}`));
-      }
-      if (memParts.length > 0) {
-        memoryContext = `[CUSTOMER MEMORY]\n${memParts.join('\n')}`;
-      }
-    } catch {
-      // Memory read errors are non-fatal
-    }
-
-    // Auto-detect style and save in memory context and database
+    // Detect style FIRST so we can suppress memory style when user is speaking English
     let detectedStyle: string | null = null;
     try {
       const styleDetection = detectConversationStyle(input);
@@ -322,18 +303,43 @@ export class EnterpriseOrchestrator {
           preferredLanguage: styleDetection.language,
           preferredStyle: styleDetection.style,
         });
-        if (memoryContext) {
-          memoryContext += `\nPreferred conversation/writing style: ${styleDetection.style}`;
-        } else {
-          memoryContext = `[CUSTOMER MEMORY]\nPreferred conversation/writing style: ${styleDetection.style}`;
-        }
       } else {
-        // If no regional style matched on the current message, default to English. 
-        // Do not fallback to regional styles from long term memory, matching style per message.
+        // Plain English — override to English, do NOT fall back to saved regional style
         detectedStyle = 'English';
       }
     } catch (e) {
-      console.error('[Memory] Writing style preference failed:', e);
+      console.error('[Memory] Style detection failed:', e);
+    }
+
+    try {
+      const memory = await readWorkspaceMemory(context.workspaceId);
+      const memParts: string[] = [];
+      if (memory.customerName) memParts.push(`Customer name: ${memory.customerName}`);
+      if (memory.preferredLanguage) memParts.push(`Preferred language: ${memory.preferredLanguage}`);
+      // Only inject the saved preferredStyle if the CURRENT message is also in that style.
+      // When detectedStyle is 'English', we suppress the stored regional style so it can't override English replies.
+      if (memory.preferredStyle && detectedStyle !== 'English') {
+        memParts.push(`Preferred conversation/writing style: ${memory.preferredStyle}`);
+      }
+      if (memory.preferences) {
+        Object.entries(memory.preferences).forEach(([k, v]) => memParts.push(`${k}: ${v}`));
+      }
+      if (memory.customFacts) {
+        Object.entries(memory.customFacts).forEach(([k, v]) => memParts.push(`${k}: ${v}`));
+      }
+      if (memParts.length > 0) {
+        memoryContext = `[CUSTOMER MEMORY]\n${memParts.join('\n')}`;
+      }
+      // If the current message IS regional, append current detected style to memory context
+      if (detectedStyle && detectedStyle !== 'English') {
+        if (memoryContext) {
+          memoryContext += `\nPreferred conversation/writing style: ${detectedStyle}`;
+        } else {
+          memoryContext = `[CUSTOMER MEMORY]\nPreferred conversation/writing style: ${detectedStyle}`;
+        }
+      }
+    } catch {
+      // Memory read errors are non-fatal
     }
 
     // 3. Intent detection
@@ -738,10 +744,24 @@ export class EnterpriseOrchestrator {
 // ==========================================
 
 function history_to_messages(history: { sender: string; text: string }[]): Message[] {
-  return history.slice(-15).map((h) => ({
-    role: h.sender === 'user' ? ('user' as const) : ('assistant' as const),
-    content: h.text,
-  }));
+  return history.slice(-15).map((h) => {
+    // Force content to a plain string — non-vision providers (Groq, DeepSeek, etc.)
+    // throw a 400 if content is an array/object (e.g. multipart image turns from history).
+    let content: string;
+    if (typeof h.text === 'string') {
+      content = h.text;
+    } else if (Array.isArray(h.text)) {
+      // Extract just the text part from multipart content arrays
+      const textPart = (h.text as any[]).find((p) => p.type === 'text');
+      content = textPart?.text ?? '[image]';
+    } else {
+      content = String(h.text ?? '');
+    }
+    return {
+      role: h.sender === 'user' ? ('user' as const) : ('assistant' as const),
+      content,
+    };
+  });
 }
 
 export function detectConversationStyle(input: string): { language: string; style: string } | null {
