@@ -405,7 +405,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     '--no-first-run',
     '--no-zygote',
     '--disable-gpu',
-    '--js-flags="--max-old-space-size=150 --expose-gc"',
+    '--js-flags="--max-old-space-size=512 --expose-gc"',
     '--disable-extensions',
     '--disable-component-extensions-with-background-pages',
     '--disable-default-apps',
@@ -435,7 +435,8 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     puppeteer: {
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: puppeteerArgs
+      args: puppeteerArgs,
+      protocolTimeout: 60000
     },
     webVersionCache: {
       type: 'remote',
