@@ -36,6 +36,7 @@ const registry = new Map<string, ClientState>();
 const initializationPromises = new Map<string, Promise<void>>();
 const restoringWorkspaces = new Set<string>();
 const manualDisconnectWorkspaces = new Set<string>();
+const healingWorkspaces = new Set<string>();
 let isShuttingDown = false;
 
 // Secure endpoint middleware validating BOTH internal secret and Firebase token
@@ -405,7 +406,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     '--no-first-run',
     '--no-zygote',
     '--disable-gpu',
-    '--js-flags="--max-old-space-size=512 --expose-gc"',
+    '--js-flags="--max-old-space-size=384 --expose-gc"',
     '--disable-extensions',
     '--disable-component-extensions-with-background-pages',
     '--disable-default-apps',
@@ -560,6 +561,12 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       });
 
       const selfHeal = (reason: string) => {
+        if (healingWorkspaces.has(workspaceId)) {
+          console.log(`[WA_TRACE] selfHeal already in progress for workspaceId=${workspaceId}, skipping reason="${reason}"`);
+          return;
+        }
+        healingWorkspaces.add(workspaceId);
+
         console.log(`[WA_TRACE] page_crash_detected workspaceId=${workspaceId} instanceId=${instanceId} reason="${reason}"`);
         if (state.watchdogInterval) {
           clearInterval(state.watchdogInterval);
@@ -574,14 +581,21 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
           state.status = 'connecting';
           setTimeout(() => {
             if (!manualDisconnectWorkspaces.has(workspaceId) && !isShuttingDown) {
-              startClient(workspaceId).catch(err => {
-                console.error(`[AutoReconnect] Failed after page crash for ${workspaceId}:`, err);
-              });
+              startClient(workspaceId)
+                .catch(err => {
+                  console.error(`[AutoReconnect] Failed after page crash for ${workspaceId}:`, err);
+                })
+                .finally(() => {
+                  healingWorkspaces.delete(workspaceId);
+                });
+            } else {
+              healingWorkspaces.delete(workspaceId);
             }
           }, 5000);
         } else {
           state.status = 'disconnected';
           state.error = `Page crashed/closed: ${reason}`;
+          healingWorkspaces.delete(workspaceId);
         }
       };
 
@@ -776,6 +790,12 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       } catch {}
       registry.delete(workspaceId);
     } else {
+      if (healingWorkspaces.has(workspaceId)) {
+        console.log(`[Event] Skip transient disconnect reconnect since selfHeal is active for ${workspaceId}`);
+        return;
+      }
+      healingWorkspaces.add(workspaceId);
+
       console.log(`[Event] Transient disconnect detected for workspace ${workspaceId} (reason: ${reason}). Scheduling automatic re-connection...`);
       state.status = 'connecting';
       state.error = null;
@@ -791,9 +811,15 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       setTimeout(() => {
         if (!manualDisconnectWorkspaces.has(workspaceId) && !isShuttingDown) {
           console.log(`[AutoReconnect] Attempting automatic reconnection for workspace: ${workspaceId}`);
-          startClient(workspaceId).catch(err => {
-            console.error(`[AutoReconnect] Failed to reconnect workspace ${workspaceId}:`, err);
-          });
+          startClient(workspaceId)
+            .catch(err => {
+              console.error(`[AutoReconnect] Failed to reconnect workspace ${workspaceId}:`, err);
+            })
+            .finally(() => {
+              healingWorkspaces.delete(workspaceId);
+            });
+        } else {
+          healingWorkspaces.delete(workspaceId);
         }
       }, 5000);
     }
