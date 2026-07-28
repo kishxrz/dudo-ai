@@ -739,10 +739,17 @@ export default function AgentChannels() {
         /* Telegram connection form */
         <div className="bg-white border border-zinc-200 rounded-xl p-4 sm:p-5 shadow-sm space-y-3.5 animate-fade-in">
           {isConnected ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-1.5 p-3.5 bg-green-50 border border-green-200 rounded-lg text-green-700 text-xs font-bold">
-                <Check className="w-4 h-4 text-green-600 stroke-[3]" />
-                <span>Telegram Connected ✅</span>
+            /* Connected state with checkmark animation */
+            <div className="flex flex-col items-center justify-center p-6 bg-green-50/20 border border-green-200 rounded-lg space-y-3">
+              <div className="relative flex items-center justify-center">
+                <span className="absolute inline-flex h-11 w-11 rounded-full bg-green-400 opacity-20 animate-ping"></span>
+                <div className="relative w-10 h-10 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-500/10">
+                  <Check className="w-5 h-5 text-white stroke-[3]" />
+                </div>
+              </div>
+              <div className="text-center">
+                <h4 className="text-xs font-bold text-green-800">Telegram Connected</h4>
+                <p className="text-[10px] text-green-600 mt-0.5 font-semibold">Ready to automate conversations</p>
               </div>
               {successMessage && (
                 <p className="text-xs font-semibold text-green-600">
