@@ -459,13 +459,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
 
   // Helper for async status logging
   const logDiagnostics = async (event: string) => {
-    let stateStr = 'unknown';
-    try {
-      const s = await client.getState();
-      stateStr = String(s);
-    } catch (e: any) {
-      stateStr = `error_${e.message}`;
-    }
+    const stateStr = state.status;
     const msgCount = client.listenerCount('message');
     const msgCreateCount = client.listenerCount('message_create');
     const wid = client.info?.wid?._serialized || client.info?.wid || 'undefined';
@@ -656,13 +650,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       clearInterval(state.watchdogInterval);
     }
     state.watchdogInterval = setInterval(async () => {
-      let stateStr = 'unknown';
-      try {
-        const s = await client.getState();
-        stateStr = String(s);
-      } catch (e: any) {
-        stateStr = `error_${e.message}`;
-      }
+      const stateStr = state.status;
       const msgCount = client.listenerCount('message');
       const msgCreateCount = client.listenerCount('message_create');
       console.log(`[WA_TRACE] watchdog workspaceId=${workspaceId} instanceId=${instanceId} clientState=${stateStr} msgCount=${msgCount} msgCreateCount=${msgCreateCount}`);
@@ -816,13 +804,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   client.on('message', async (message) => {
     const seq = ++eventSequence;
     const messageId = message.id._serialized || message.id.id;
-    let clientState = 'unknown';
-    try {
-      const s = await client.getState();
-      clientState = String(s);
-    } catch (e: any) {
-      clientState = `error_${e.message}`;
-    }
+    const clientState = state.status;
     
     console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=EVENT_RECEIVED event=message workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} from=${message.from} to=${message.to} fromMe=${message.fromMe} type=${message.type} timestamp=${message.timestamp} clientState=${clientState}`);
 
@@ -914,13 +896,7 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   client.on('message_create', async (message) => {
     const seq = ++eventSequence;
     const messageId = message.id._serialized || message.id.id;
-    let clientState = 'unknown';
-    try {
-      const s = await client.getState();
-      clientState = String(s);
-    } catch (e: any) {
-      clientState = `error_${e.message}`;
-    }
+    const clientState = state.status;
     
     console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=EVENT_RECEIVED event=message_create workspaceId=${workspaceId} instanceId=${instanceId} messageId=${messageId} from=${message.from} to=${message.to} fromMe=${message.fromMe} type=${message.type} timestamp=${message.timestamp} clientState=${clientState}`);
   });
@@ -1034,13 +1010,7 @@ app.get('/v1/workspaces/:workspaceId/status', authenticate, authorizeWorkspace, 
   const state = registry.get(workspaceId);
   
   if (state) {
-    let stateStr = 'unknown';
-    try {
-      const s = await state.client.getState();
-      stateStr = String(s);
-    } catch (e: any) {
-      stateStr = `error_${e.message}`;
-    }
+    const stateStr = state.status;
     const msgCount = state.client.listenerCount('message');
     const msgCreateCount = state.client.listenerCount('message_create');
     const wid = state.client.info?.wid?._serialized || state.client.info?.wid || 'undefined';
