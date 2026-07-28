@@ -70,7 +70,8 @@ export async function canUseWhatsapp(workspaceId: string): Promise<boolean> {
     const PLAN_CONFIGS: Record<string, string[]> = {
       trial: ['telegram'],
       monthly: ['telegram', 'whatsapp'],
-      '6months': ['telegram', 'whatsapp']
+      '6months': ['telegram', 'whatsapp'],
+      six_month: ['telegram', 'whatsapp']
     };
 
     const allowedChannels = PLAN_CONFIGS[planId] || PLAN_CONFIGS.trial;

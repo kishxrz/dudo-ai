@@ -279,7 +279,7 @@ async function callDudoWebhookWithRetry(
       console.log(`[Webhook] Attempting webhook call to Dudo (Attempt ${attempt}/${retries}) for workspace: ${workspaceId}`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout limit
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout limit
 
       const response = await fetch(url, {
         method: 'POST',

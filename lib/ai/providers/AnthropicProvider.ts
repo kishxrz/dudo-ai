@@ -18,7 +18,7 @@ export class AnthropicProvider implements ILLMProvider {
             return { type: 'text', text: part.text || '' };
           } else if (part.type === 'image_url' && part.image_url?.url) {
             const url = part.image_url.url;
-            const match = url.match(/^data:(image\/[a-zA-Z+-]+);base64,(.+)$/);
+            const match = url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
             if (match) {
               return {
                 type: 'image',

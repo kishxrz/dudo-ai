@@ -589,7 +589,7 @@ export class EnterpriseOrchestrator {
         return true;
       };
       
-      const visionProviders = ['gemini', 'openai', 'anthropic'];
+      const visionProviders = ['gemini', 'openai', 'anthropic', 'openrouter', 'groq', 'deepseek', 'mistral'];
       for (const p of visionProviders) {
         try {
           const path = `workspaces/${context.workspaceId}/providers/${p}`;

@@ -196,6 +196,27 @@ export default function AgentChannels() {
         // If Railway says disconnected but Firestore says we were connected (Railway may be sleeping),
         // only reset to disconnected if we are actively in a fresh connect flow (connectStartTime set)
         if (currentStatus === 'disconnected' && waFirestoreConnected.current && !connectStartTime) {
+          if (db && workspaceId) {
+            try {
+              const waRef = doc(db, 'workspaces', workspaceId, 'channels', 'ch-wa');
+              const waSnap = await getDoc(waRef);
+              if (waSnap.exists()) {
+                const waData = waSnap.data();
+                if (waData?.status !== 'connected') {
+                  console.log('[AgentChannels] Firestore status is not connected, updating UI to disconnected.');
+                  waFirestoreConnected.current = false;
+                  setWaStatus('disconnected');
+                  return;
+                }
+              } else {
+                waFirestoreConnected.current = false;
+                setWaStatus('disconnected');
+                return;
+              }
+            } catch (err) {
+              console.error('[AgentChannels] Failed to verify Firestore channel status during disconnected fallback:', err);
+            }
+          }
           console.warn('[AgentChannels] Railway returned disconnected but Firestore says connected — keeping connected state (Railway may be restarting).');
           // Don't update UI — keep showing connected from Firestore
           return;
@@ -246,7 +267,7 @@ export default function AgentChannels() {
 
     if (connectStartTime) {
       const elapsed = Date.now() - connectStartTime;
-      if (elapsed > 60000) {
+      if (elapsed > 70000) {
         setQrTimeout(true);
         setQrLoading(false);
         setWaConnecting(false);
@@ -286,7 +307,7 @@ export default function AgentChannels() {
     }
   }, [waQrCode]);
 
-  // 10-second timeout check for QR generation
+  // 15-second timeout check for QR generation
   useEffect(() => {
     if (connectStartTime && !waQrCode && waStatus === 'connecting' && !qrTimeout) {
       const timer = setTimeout(() => {
@@ -294,7 +315,7 @@ export default function AgentChannels() {
         setQrLoading(false);
         setWaConnecting(false);
         setConnectStartTime(null);
-      }, 10000);
+      }, 15000);
       return () => clearTimeout(timer);
     }
   }, [connectStartTime, waQrCode, waStatus, qrTimeout]);
