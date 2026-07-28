@@ -315,12 +315,15 @@ export class EnterpriseOrchestrator {
       const memory = await readWorkspaceMemory(context.workspaceId);
       const memParts: string[] = [];
       if (memory.customerName) memParts.push(`Customer name: ${memory.customerName}`);
-      if (memory.preferredLanguage) memParts.push(`Preferred language: ${memory.preferredLanguage}`);
-      // Only inject the saved preferredStyle if the CURRENT message is also in that style.
-      // When detectedStyle is 'English', we suppress the stored regional style so it can't override English replies.
-      if (memory.preferredStyle && detectedStyle !== 'English') {
-        memParts.push(`Preferred conversation/writing style: ${memory.preferredStyle}`);
+      
+      if (detectedStyle === 'English') {
+        memParts.push(`Preferred language: English`);
+        memParts.push(`Preferred conversation/writing style: English`);
+      } else {
+        if (memory.preferredLanguage) memParts.push(`Preferred language: ${memory.preferredLanguage}`);
+        if (memory.preferredStyle) memParts.push(`Preferred conversation/writing style: ${memory.preferredStyle}`);
       }
+
       if (memory.preferences) {
         Object.entries(memory.preferences).forEach(([k, v]) => memParts.push(`${k}: ${v}`));
       }
@@ -329,14 +332,6 @@ export class EnterpriseOrchestrator {
       }
       if (memParts.length > 0) {
         memoryContext = `[CUSTOMER MEMORY]\n${memParts.join('\n')}`;
-      }
-      // If the current message IS regional, append current detected style to memory context
-      if (detectedStyle && detectedStyle !== 'English') {
-        if (memoryContext) {
-          memoryContext += `\nPreferred conversation/writing style: ${detectedStyle}`;
-        } else {
-          memoryContext = `[CUSTOMER MEMORY]\nPreferred conversation/writing style: ${detectedStyle}`;
-        }
       }
     } catch {
       // Memory read errors are non-fatal

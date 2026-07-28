@@ -403,33 +403,41 @@ Ensure your response contains nothing else when executing a tool. Once the tool 
     }
 
     // Load and update style memory
+    let detectedStyle: string | null = null;
+    try {
+      const styleDetection = detectConversationStyle(message);
+      if (styleDetection) {
+        detectedStyle = styleDetection.style;
+        await writeWorkspaceMemory(context.workspaceId, {
+          preferredLanguage: styleDetection.language,
+          preferredStyle: styleDetection.style,
+        });
+      } else {
+        detectedStyle = 'English';
+      }
+    } catch (e) {
+      console.error('[Memory] Saving style preference during stream failed:', e);
+    }
+
     let memoryContext = '';
     try {
       const memory = await readWorkspaceMemory(context.workspaceId);
       const memParts: string[] = [];
       if (memory.customerName) memParts.push(`Customer name: ${memory.customerName}`);
-      if (memory.preferredLanguage) memParts.push(`Preferred language: ${memory.preferredLanguage}`);
-      if (memory.preferredStyle) memParts.push(`Preferred conversation/writing style: ${memory.preferredStyle}`);
+      
+      if (detectedStyle === 'English') {
+        memParts.push(`Preferred language: English`);
+        memParts.push(`Preferred conversation/writing style: English`);
+      } else {
+        if (memory.preferredLanguage) memParts.push(`Preferred language: ${memory.preferredLanguage}`);
+        if (memory.preferredStyle) memParts.push(`Preferred conversation/writing style: ${memory.preferredStyle}`);
+      }
+
       if (memParts.length > 0) {
         memoryContext = `\n\n[CUSTOMER MEMORY]\n${memParts.join('\n')}`;
       }
     } catch {
       // ignore
-    }
-
-    try {
-      const styleDetection = detectConversationStyle(message);
-      if (styleDetection) {
-        await writeWorkspaceMemory(context.workspaceId, {
-          preferredLanguage: styleDetection.language,
-          preferredStyle: styleDetection.style,
-        });
-        if (!memoryContext.includes(styleDetection.style)) {
-          memoryContext += `\nPreferred conversation/writing style: ${styleDetection.style}`;
-        }
-      }
-    } catch (e) {
-      console.error('[Memory] Saving style preference during stream failed:', e);
     }
 
     const systemPrompt = PromptBuilder.buildSystemPrompt(
