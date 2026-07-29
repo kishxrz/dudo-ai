@@ -659,48 +659,6 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       }
     }
 
-    // Start 30-second watchdog (entitlement + health check)
-    if (state.watchdogInterval) {
-      clearInterval(state.watchdogInterval);
-    }
-    state.watchdogInterval = setInterval(async () => {
-      const stateStr = state.status;
-      const msgCount = client.listenerCount('message');
-      const msgCreateCount = client.listenerCount('message_create');
-      console.log(`[WA_TRACE] watchdog workspaceId=${workspaceId} instanceId=${instanceId} clientState=${stateStr} msgCount=${msgCount} msgCreateCount=${msgCreateCount}`);
-
-      // ── Trial / Subscription Entitlement Check ──────────────────────────────
-      // If the free trial (30 min) has expired or the plan no longer allows
-      // WhatsApp, forcibly disconnect the client.
-      try {
-        const allowed = await canUseWhatsapp(workspaceId);
-        if (!allowed) {
-          console.log(`[Entitlement] Workspace ${workspaceId} is no longer entitled to WhatsApp (trial/plan expired). Auto-disconnecting...`);
-          // Mark as manual disconnect so no auto-reconnect triggers
-          manualDisconnectWorkspaces.add(workspaceId);
-          if (state.watchdogInterval) clearInterval(state.watchdogInterval);
-
-          // Update Firestore status
-          const adminDb = getAdminDb();
-          if (adminDb) {
-            adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
-              status: 'disconnected',
-              disconnectedAt: new Date(),
-              platform: 'whatsapp',
-              disconnectReason: 'trial_expired'
-            }, { merge: true }).catch(() => {});
-          }
-
-          removeFromManifest(workspaceId);
-          deleteSessionFromFirestore(workspaceId).catch(() => {});
-          try { client.destroy().catch(() => {}); } catch {}
-          registry.delete(workspaceId);
-          console.log(`[Entitlement] WhatsApp client for workspace ${workspaceId} auto-disconnected due to trial/plan expiry.`);
-        }
-      } catch (entitlementErr: any) {
-        console.error(`[Entitlement] Failed to check subscription for ${workspaceId}:`, entitlementErr?.message || entitlementErr);
-      }
-    }, 30000);
   });
 
   client.on('auth_failure', (msg) => {
@@ -946,6 +904,79 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
   const messageListenersCount = client.listenerCount('message');
   const messageCreateCount = client.listenerCount('message_create');
   console.log(`[WA_TRACE] message_listener_count workspaceId=${workspaceId} instanceId=${instanceId} count=${messageListenersCount} messageCreateCount=${messageCreateCount}`);
+
+  // Start the watchdog interval before calling initialize() so it can recover from hangs
+  state.watchdogInterval = setInterval(async () => {
+    const stateStr = state.status;
+    const msgCount = client.listenerCount('message');
+    const msgCreateCount = client.listenerCount('message_create');
+    console.log(`[WA_TRACE] watchdog workspaceId=${workspaceId} instanceId=${instanceId} clientState=${stateStr} msgCount=${msgCount} msgCreateCount=${msgCreateCount}`);
+
+    const now = Math.floor(Date.now() / 1000);
+    const elapsed = now - state.startupTime;
+
+    // 1. Stuck in connecting/initialize recovery (more than 45 seconds)
+    if (state.status === 'connecting' && elapsed > 45) {
+      console.log(`[Watchdog] Client stuck in connecting/initialize for ${elapsed}s. Destroying and restarting...`);
+      if (state.watchdogInterval) clearInterval(state.watchdogInterval);
+      
+      try {
+        await client.destroy().catch(() => {});
+      } catch {}
+      
+      // Clean up session directory to get rid of corrupted session data
+      const sessionDir = path.join(WHATSAPP_SESSION_PATH, `session-whatsapp-${workspaceId}`);
+      if (fs.existsSync(sessionDir)) {
+        try {
+          fs.rmSync(sessionDir, { recursive: true, force: true });
+          console.log(`[Watchdog] Cleared corrupted session directory: ${sessionDir}`);
+        } catch (rmErr) {
+          console.error(`[Watchdog] Failed to clear session directory:`, rmErr);
+        }
+      }
+      
+      registry.delete(workspaceId);
+      
+      // Auto-reconnect if not manual disconnect
+      if (!manualDisconnectWorkspaces.has(workspaceId) && !isShuttingDown) {
+        console.log(`[Watchdog] Triggering fresh client restart for workspace ${workspaceId}...`);
+        startClient(workspaceId).catch(err => {
+          console.error(`[Watchdog] Failed to restart client:`, err);
+        });
+      }
+      return;
+    }
+
+    // 2. Trial / Subscription Entitlement Check
+    try {
+      const allowed = await canUseWhatsapp(workspaceId);
+      if (!allowed) {
+        console.log(`[Entitlement] Workspace ${workspaceId} is no longer entitled to WhatsApp (trial/plan expired). Auto-disconnecting...`);
+        // Mark as manual disconnect so no auto-reconnect triggers
+        manualDisconnectWorkspaces.add(workspaceId);
+        if (state.watchdogInterval) clearInterval(state.watchdogInterval);
+
+        // Update Firestore status
+        const adminDb = getAdminDb();
+        if (adminDb) {
+          adminDb.doc(`workspaces/${workspaceId}/channels/ch-wa`).set({
+            status: 'disconnected',
+            disconnectedAt: new Date(),
+            platform: 'whatsapp',
+            disconnectReason: 'trial_expired'
+          }, { merge: true }).catch(() => {});
+        }
+
+        removeFromManifest(workspaceId);
+        deleteSessionFromFirestore(workspaceId).catch(() => {});
+        try { client.destroy().catch(() => {}); } catch {}
+        registry.delete(workspaceId);
+        console.log(`[Entitlement] WhatsApp client for workspace ${workspaceId} auto-disconnected due to trial/plan expiry.`);
+      }
+    } catch (entitlementErr: any) {
+      console.error(`[Entitlement] Failed to check subscription for ${workspaceId}:`, entitlementErr?.message || entitlementErr);
+    }
+  }, 20000); // Check every 20 seconds
 
   console.log(`[WA_TRACE] before_initialize workspaceId=${workspaceId} instanceId=${instanceId}`);
   try {

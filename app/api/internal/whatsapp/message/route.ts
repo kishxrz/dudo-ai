@@ -357,6 +357,7 @@ export async function POST(req: NextRequest) {
 
     let attachedContent: any = null;
     let finalMessageText = messageText || '';
+    let recordedMessageText = messageText || '';
     const attachedFile = body?.attachedFile;
 
     if (attachedFile) {
@@ -367,6 +368,65 @@ export async function POST(req: NextRequest) {
             url: `data:${attachedFile.type};base64,${attachedFile.base64}`
           }
         };
+      } else if (attachedFile.type.startsWith('audio/')) {
+        try {
+          console.log(`[WA_VOICE_TRACE] Transcribing audio message of type: ${attachedFile.type}`);
+          let sttProvider = 'openai';
+          let apiKey = '';
+          const adminDb = getAdminDb();
+          if (adminDb) {
+            try {
+              const assSnap = await adminDb.doc(`workspaces/${workspaceId}/assistants/assistant-1`).get();
+              if (assSnap.exists) {
+                const assData = assSnap.data();
+                if (assData?.sttProvider) {
+                  sttProvider = assData.sttProvider;
+                }
+              }
+              const provSnap = await adminDb.doc(`workspaces/${workspaceId}/providers/${sttProvider}`).get();
+              const provData = provSnap.data();
+              if (provSnap.exists && provData?.apiKey) {
+                apiKey = provData.apiKey;
+              }
+            } catch (dbErr) {
+              console.warn('[WA Voice STT] Firestore lookup failed:', dbErr);
+            }
+          }
+
+          if (!apiKey) {
+            const keyName = sttProvider.toLowerCase();
+            if (keyName === 'openai') {
+              apiKey = process.env.OPENAI_API_KEY || '';
+            } else if (keyName === 'google' || keyName === 'googlecloud') {
+              apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+            } else if (keyName === 'deepgram') {
+              apiKey = process.env.DEEPGRAM_API_KEY || '';
+            } else if (keyName === 'azure') {
+              apiKey = process.env.AZURE_SPEECH_KEY || '';
+            } else if (keyName === 'assemblyai') {
+              apiKey = process.env.ASSEMBLYAI_API_KEY || '';
+            }
+          }
+
+          if (apiKey) {
+            const { SpeechProviderRegistry } = require('../../../../../lib/ai/providers/SpeechProviderRegistry');
+            const audioBuffer = Buffer.from(attachedFile.base64, 'base64');
+            const provider = SpeechProviderRegistry.getProvider(sttProvider, apiKey);
+            const transcriptionResult = await provider.transcribe(audioBuffer, attachedFile.type);
+            if (transcriptionResult?.transcript) {
+              const transcriptText = transcriptionResult.transcript.trim();
+              console.log(`[WA_VOICE_TRACE] Transcribed text: "${transcriptText}"`);
+              finalMessageText = transcriptText;
+              recordedMessageText = `🎙️ [Voice Message]: ${transcriptText}`;
+            }
+          } else {
+            console.warn('[WA Voice STT] Speech-to-text API key is not configured.');
+            recordedMessageText = '🎙️ [Voice Message] (Transcription not configured)';
+          }
+        } catch (sttErr: any) {
+          console.error('[WA Voice STT] Failed to transcribe voice message:', sttErr.message || sttErr);
+          recordedMessageText = '🎙️ [Voice Message] (Transcription failed)';
+        }
       } else {
         const ext = attachedFile.name.split('.').pop()?.toLowerCase() || '';
         try {
@@ -407,7 +467,7 @@ export async function POST(req: NextRequest) {
     console.log(`[WA_WEBHOOK_TRACE] stage=AI_PROVIDER_RESPONSE status=PASS replyLength=${reply.length} messageId=${messageId}`);
     
     // 8. Log the dialogue and complete the lease
-    await logConversation(workspaceId, externalChatId, senderId, senderName, senderPhone, messageText, reply);
+    await logConversation(workspaceId, externalChatId, senderId, senderName, senderPhone, recordedMessageText, reply);
     await completeLease(workspaceId, messageId);
     leaseAcquired = false;
 
