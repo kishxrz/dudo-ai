@@ -9,7 +9,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import { Clock, Menu, LogOut, Wifi, WifiOff, RefreshCw, X, Zap, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { SubscriptionProvider, useSubscriptionContext } from '@/contexts/SubscriptionContext';
 import { LockedPage } from '@/components/subscription/FeatureGate';
@@ -231,12 +231,28 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       }
 
       // API key check
-      const PROVIDERS = ['openai', 'gemini', 'anthropic', 'groq', 'openrouter', 'deepseek', 'mistral'];
       let hasKey = false;
-      for (const p of PROVIDERS) {
-        const raw = localStorage.getItem(`__dudo_dev_provider_${p}`);
-        if (raw) {
-          try { if (JSON.parse(raw)?.apiKey) { hasKey = true; break; } } catch {}
+      if (db && workspaceId) {
+        try {
+          const provsSnap = await getDocs(collection(db, 'workspaces', workspaceId, 'providers'));
+          provsSnap.forEach((doc) => {
+            const data = doc.data();
+            if (data.apiKey && data.active === true) {
+              hasKey = true;
+            }
+          });
+        } catch (e) {
+          console.warn('Failed to check API keys from Firestore:', e);
+        }
+      }
+
+      if (!hasKey) {
+        const PROVIDERS = ['openai', 'gemini', 'anthropic', 'groq', 'openrouter', 'deepseek', 'mistral'];
+        for (const p of PROVIDERS) {
+          const raw = localStorage.getItem(`__dudo_dev_provider_${p}`);
+          if (raw) {
+            try { if (JSON.parse(raw)?.apiKey) { hasKey = true; break; } } catch {}
+          }
         }
       }
       setHasApiKey(hasKey);
@@ -264,6 +280,25 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       setKnowledgeCount(count);
     }, (err: any) => {
       console.warn('Failed to listen to knowledge count:', err);
+    });
+    return unsubscribe;
+  }, [workspaceId]);
+
+  // Real-time Firestore subscription for active API keys check
+  useEffect(() => {
+    if (!db || !workspaceId) return;
+    const collRef = collection(db, 'workspaces', workspaceId, 'providers');
+    const unsubscribe = onSnapshot(collRef, (snap: any) => {
+      let hasKey = false;
+      snap.forEach((doc: any) => {
+        const data = doc.data();
+        if (data.apiKey && data.active === true) {
+          hasKey = true;
+        }
+      });
+      setHasApiKey(hasKey);
+    }, (err: any) => {
+      console.warn('Failed to listen to providers for status check:', err);
     });
     return unsubscribe;
   }, [workspaceId]);
@@ -497,21 +532,18 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
               {/* AI Status Indicator */}
               <div
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-white select-none",
+                  "flex items-center justify-center w-7 h-7 rounded-full border bg-white select-none shadow-xs transition-all",
                   statusCfg.ring
                 )}
                 title={`AI Status: ${statusCfg.label}`}
               >
                 <span
                   className={cn(
-                    "w-2 h-2 rounded-full shrink-0",
+                    "w-2.5 h-2.5 rounded-full shrink-0",
                     statusCfg.dot,
                     statusCfg.pulse && "animate-pulse"
                   )}
                 />
-                <span className="text-[10px] font-bold text-zinc-700 hidden sm:block whitespace-nowrap">
-                  {statusCfg.label}
-                </span>
               </div>
 
               {/* Logout button — mobile only */}
