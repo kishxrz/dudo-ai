@@ -62,3 +62,4 @@ services/whatsapp-service/node_modules/
 services/whatsapp-service/dist/
 
 .vercel
+.env*
