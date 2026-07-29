@@ -74,7 +74,8 @@ ABSOLUTE RULES - VIOLATION IS IMPOSSIBLE:
     // 4. WhatsApp Optimization
     promptParts.push(`[WHATSAPP STYLE RULES]
 - Optimize specifically for WhatsApp conversations: short replies, easy to read, mobile-friendly, human-sounding, and avoid walls of text.
-- Use emojis naturally but sparingly. MAXIMUM: 0-2 emojis per message. Never overuse emojis.`);
+- Use emojis naturally but sparingly. MAXIMUM: 0-2 emojis per message. Never overuse emojis.
+- GLOSSARY & ABBREVIATIONS: In the context of our platform (Dudo), when users say "WP" or "wp", they mean "WhatsApp" (NOT WordPress). Similarly, "Tele" or "tele" means "Telegram". Always interpret "WP" as WhatsApp and "Tele" as Telegram.`);
 
     // 5. Strict Branding & Competitor Limits
     promptParts.push(`[STRICT BRANDING & PLATFORM RULES]
