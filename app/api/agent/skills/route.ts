@@ -3,6 +3,27 @@ import { SkillService, SkillDefinition } from '@/lib/ai/SkillService';
 import { ToolRegistry } from '@/lib/ai/ToolRegistry';
 import { requireSubscription, getPlanLimits } from '@/lib/subscription/SubscriptionService';
 import { PLAN_LIMITS } from '@/lib/subscription/config';
+import { z } from 'zod';
+
+const skillsPayloadSchema = z.object({
+  action: z.enum([
+    'install',
+    'uninstall',
+    'enable',
+    'disable',
+    'createCustom',
+    'saveCustom',
+    'updateCustom',
+    'deleteCustom',
+    'executeTool'
+  ]),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  skillId: z.string().optional(),
+  prompt: z.string().optional(),
+  skill: z.any().optional(),
+  toolName: z.string().optional(),
+  args: z.record(z.string(), z.any()).optional(),
+});
 
 /**
  * GET /api/agent/skills?workspaceId=...
@@ -46,11 +67,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, workspaceId, skillId, prompt, skill, toolName, args } = body;
-
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace ID is required.' }, { status: 400 });
+    const parseResult = skillsPayloadSchema.safeParse(body);
+    
+    if (!parseResult.success) {
+      return NextResponse.json({ 
+        error: 'Invalid payload verification failed', 
+        details: parseResult.error.format() 
+      }, { status: 400 });
     }
+
+    const { action, workspaceId, skillId, prompt, skill, toolName, args } = parseResult.data;
 
     // Enforce active subscription before any skill mutation
     const denied = await requireSubscription(req, workspaceId);

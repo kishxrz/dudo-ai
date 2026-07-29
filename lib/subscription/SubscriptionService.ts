@@ -390,7 +390,8 @@ function checkFeatureAccess(
 export async function requireSubscription(
   req: NextRequest | Request,
   workspaceId: string,
-  feature?: string
+  feature?: string,
+  options: { requireAuth?: boolean } = { requireAuth: true }
 ): Promise<NextResponse | null> {
   if (!workspaceId) {
     return NextResponse.json(
@@ -403,19 +404,31 @@ export async function requireSubscription(
   const adminDb = getAdminDb();
   if (adminDb) {
     const authHeader = (req as Request).headers.get('Authorization');
-    // Only verify token if Authorization header is present.
-    // Some server-to-server routes don't have auth headers.
+    
+    if (options.requireAuth) {
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return NextResponse.json(
+          { error: 'Unauthorized: Missing or invalid Authorization header.', code: 'UNAUTHORIZED' },
+          { status: 401 }
+        );
+      }
+    }
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
         const { getAuth } = await import('@/lib/firebase-admin');
         const token = authHeader.substring(7);
         const decoded = await getAuth().verifyIdToken(token);
-        // Ensure the token owner matches the workspace (workspace ID = Firebase UID)
+        // Ensure the token owner matches the workspace (workspace ID = Firebase UID or workspace.ownerId = UID)
         if (decoded.uid !== workspaceId) {
-          return NextResponse.json(
-            { error: 'Forbidden: You do not own this workspace.', code: 'FORBIDDEN' },
-            { status: 403 }
-          );
+          const wsSnap = await adminDb.doc(`workspaces/${workspaceId}`).get();
+          const wsData = wsSnap.exists ? wsSnap.data() : null;
+          if (!wsData || wsData.ownerId !== decoded.uid) {
+            return NextResponse.json(
+              { error: 'Forbidden: You do not own this workspace.', code: 'FORBIDDEN' },
+              { status: 403 }
+            );
+          }
         }
       } catch {
         return NextResponse.json(

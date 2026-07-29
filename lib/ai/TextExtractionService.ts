@@ -150,9 +150,9 @@ export class TextExtractionService {
         if (isFlate) {
           let decompressed: Buffer;
           try {
-            decompressed = zlib.inflateSync(data);
+            decompressed = zlib.inflateSync(data, { maxOutputLength: 10 * 1024 * 1024 });
           } catch {
-            decompressed = zlib.inflateRawSync(data);
+            decompressed = zlib.inflateRawSync(data, { maxOutputLength: 10 * 1024 * 1024 });
           }
           const text = decompressed.toString('utf8');
           
@@ -333,7 +333,7 @@ export class TextExtractionService {
       
       if (compression === 8) {
         try {
-          const decompressed = zlib.inflateRawSync(compressedData);
+          const decompressed = zlib.inflateRawSync(compressedData, { maxOutputLength: 10 * 1024 * 1024 });
           files[fileName] = decompressed.toString('utf8');
         } catch {
           // Decompression error

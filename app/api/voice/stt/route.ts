@@ -30,6 +30,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Audio file too large. Maximum 25MB.' }, { status: 400 });
     }
 
+    // Validate MIME type is a valid audio format
+    const mimeType = audioFile.type || 'audio/webm';
+    const name = audioFile.name || '';
+    const hasAudioMime = mimeType.startsWith('audio/');
+    const isAudioExt = /\.(webm|ogg|wav|mp3|m4a|amr|flac|aac)$/i.test(name);
+    if (!hasAudioMime && !isAudioExt) {
+      return NextResponse.json({ error: 'Invalid file type. Only audio files are allowed.' }, { status: 400 });
+    }
+
     // Authenticate and enforce workspace isolation if workspaceId is provided
     if (workspaceId) {
       const denied = await requireSubscription(req, workspaceId);
@@ -91,7 +100,6 @@ export async function POST(req: NextRequest) {
 
     // Transcribe using SpeechProviderRegistry
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-    const mimeType = audioFile.type || 'audio/webm';
     
     const provider = SpeechProviderRegistry.getProvider(sttProvider, apiKey);
     const options = requestedLanguage ? { language: requestedLanguage } : undefined;

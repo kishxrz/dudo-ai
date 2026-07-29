@@ -7,6 +7,17 @@ import { LanguageCapabilityRegistry } from '@/lib/ai/providers/LanguageCapabilit
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
+import { z } from 'zod';
+
+const ttsPayloadSchema = z.object({
+  text: z.string().min(1, 'Text is required for speech synthesis.'),
+  workspaceId: z.string().optional(),
+  voice: z.string().optional(),
+  provider: z.string().optional(),
+  speed: z.number().min(0.25).max(4.0).optional().default(1.0),
+  language: z.string().optional().default('en'),
+});
+
 /**
  * POST /api/voice/tts
  *
@@ -17,11 +28,16 @@ export const maxDuration = 30;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { text, workspaceId, voice, provider: requestedProvider, speed = 1.0, language = 'en' } = body;
-
-    if (!text || typeof text !== 'string' || !text.trim()) {
-      return NextResponse.json({ error: 'Text is required for speech synthesis.' }, { status: 400 });
+    const parseResult = ttsPayloadSchema.safeParse(body);
+    
+    if (!parseResult.success) {
+      return NextResponse.json({ 
+        error: 'Invalid payload verification failed', 
+        details: parseResult.error.format() 
+      }, { status: 400 });
     }
+
+    const { text, workspaceId, voice, provider: requestedProvider, speed, language } = parseResult.data;
 
     // Authenticate and enforce workspace isolation if workspaceId is provided
     if (workspaceId) {
