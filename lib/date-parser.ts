@@ -29,22 +29,51 @@ export function parseDateTime(message: string): { date: string; time: string; ti
   const dateStr = `${year}-${month}-${day}`;
 
   // Parse time
-  // Handle patterns like: at 3pm, 3pm, 3:30pm, 10am, 5pm
-  const timeRegex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i;
-  const match = message.match(timeRegex);
-  
   let hours = 10;
   let minutes = 0;
-  
-  if (match) {
-    hours = parseInt(match[1], 10);
-    minutes = match[2] ? parseInt(match[2], 10) : 0;
-    const ampm = match[3].toLowerCase();
-    
+  let timeParsed = false;
+
+  // 1. Check with AM/PM (e.g. 3pm, 10am, 3:30 pm, 12:00 am)
+  const ampmRegex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i;
+  const ampmMatch = message.match(ampmRegex);
+  if (ampmMatch) {
+    hours = parseInt(ampmMatch[1], 10);
+    minutes = ampmMatch[2] ? parseInt(ampmMatch[2], 10) : 0;
+    const ampm = ampmMatch[3].toLowerCase();
     if (ampm === 'pm' && hours < 12) {
       hours += 12;
     } else if (ampm === 'am' && hours === 12) {
       hours = 0;
+    }
+    timeParsed = true;
+  }
+
+  // 2. Check 24-hour style or HH:MM without AM/PM (e.g. 15:30, 3:30, 09:15)
+  if (!timeParsed) {
+    const colonRegex = /\b(\d{1,2}):(\d{2})\b/;
+    const colonMatch = message.match(colonRegex);
+    if (colonMatch) {
+      hours = parseInt(colonMatch[1], 10);
+      minutes = parseInt(colonMatch[2], 10);
+      // If HH is < 8 (e.g. 3:30), it's highly likely PM in standard business hours
+      if (hours > 0 && hours < 8) {
+        hours += 12;
+      }
+      timeParsed = true;
+    }
+  }
+
+  // 3. Check "at X" or "X o'clock" or similar lone number (e.g. at 3, at 15)
+  if (!timeParsed) {
+    const loneNumRegex = /\b(?:at|around|slot|time|@)\s*(\d{1,2})\b/i;
+    const loneNumMatch = message.match(loneNumRegex);
+    if (loneNumMatch) {
+      hours = parseInt(loneNumMatch[1], 10);
+      minutes = 0;
+      if (hours > 0 && hours < 8) {
+        hours += 12;
+      }
+      timeParsed = true;
     }
   }
 

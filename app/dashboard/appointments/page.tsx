@@ -91,7 +91,26 @@ function formatDate(raw: string, ts: Date): string {
 }
 
 function formatTime(raw: string, ts: Date): string {
-  if (!raw) return ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (!raw) {
+    return ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // If raw is in HH:MM format (24-hour)
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // convert hour 0 to 12
+    return `${hours}:${minutes} ${ampm}`;
+  }
+
+  // If it already has AM/PM, return as uppercase
+  if (/(am|pm)/i.test(raw)) {
+    return raw.toUpperCase();
+  }
+
   return raw;
 }
 
