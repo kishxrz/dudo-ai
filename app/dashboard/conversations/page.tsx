@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import {
   MessageSquare,
@@ -94,8 +94,39 @@ function getDateKey(timestamp: any): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
+function formatDisplayName(name?: string, chatId?: string, channel?: string): string {
+  const ch = (channel || 'telegram').toLowerCase();
+  
+  // If we don't have a name, fallback to chatId
+  let rawName = name || chatId || 'Unknown User';
+  
+  if (ch === 'whatsapp') {
+    // If it's a JID like 123456789@c.us or 123456789@lid
+    if (rawName.includes('@')) {
+      const parts = rawName.split('@');
+      const localPart = parts[0];
+      if (/^\d+$/.test(localPart)) {
+        return `+${localPart}`;
+      }
+      return localPart;
+    }
+    if (/^\d+$/.test(rawName)) {
+      return `+${rawName}`;
+    }
+  } else if (ch === 'telegram') {
+    if (/^\d+$/.test(rawName)) {
+      return `+${rawName}`;
+    }
+  }
+  
+  return rawName;
+}
+
 function getInitials(name?: string): string {
   if (!name) return '?';
+  if (name.startsWith('+')) {
+    return name.slice(0, 3); // Return country code prefix like "+1" or "+9"
+  }
   return name
     .split(' ')
     .map((w) => w[0])
@@ -184,6 +215,44 @@ export default function ConversationsPage() {
   const [detailsOpen, setDetailsOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ── Notes syncing states and handlers ──────────────────────────────────
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
+  useEffect(() => {
+    if (!db || !workspaceId || !selectedChatId) {
+      setNoteText('');
+      return;
+    }
+    const docRef = doc(db, 'workspaces', workspaceId, 'conversation_notes', selectedChatId);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setNoteText(docSnap.data().notes || '');
+      } else {
+        setNoteText('');
+      }
+    }, (err) => {
+      console.error("Error loading note:", err);
+    });
+    return () => unsubscribe();
+  }, [workspaceId, selectedChatId]);
+
+  const handleSaveNote = async () => {
+    if (!db || !workspaceId || !selectedChatId) return;
+    setSavingNote(true);
+    try {
+      const docRef = doc(db, 'workspaces', workspaceId, 'conversation_notes', selectedChatId);
+      await setDoc(docRef, {
+        notes: noteText,
+        updatedAt: new Date()
+      }, { merge: true });
+    } catch (e) {
+      console.error("Error saving note:", e);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   // ── Firebase subscription (unchanged) ───────────────────────────────────
   useEffect(() => {
     if (!db || !workspaceId) {
@@ -269,7 +338,8 @@ export default function ConversationsPage() {
     // search filter (new)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const nameMatch = (conv.customer?.name || '').toLowerCase().includes(q);
+      const displayName = formatDisplayName(conv.customer?.name, conv.chatId, conv.channel);
+      const nameMatch = displayName.toLowerCase().includes(q);
       const msgMatch = (conv.latestMessagePreview || '').toLowerCase().includes(q);
       if (!nameMatch && !msgMatch) return false;
     }
@@ -399,8 +469,9 @@ export default function ConversationsPage() {
               const isSelected = selectedChatId === conv.chatId;
               const lastMsg = conv.latestMessagePreview || '';
               const preview = lastMsg.length > 60 ? lastMsg.slice(0, 60) + '…' : lastMsg;
-              const initials = getInitials(conv.customer?.name);
-              const avatarColor = getAvatarColor(conv.customer?.name);
+              const displayName = formatDisplayName(conv.customer?.name, conv.chatId, conv.channel);
+              const initials = getInitials(displayName);
+              const avatarColor = getAvatarColor(displayName);
 
               return (
                 <div
@@ -423,7 +494,7 @@ export default function ConversationsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1 mb-0.5">
                       <span className="text-xs font-bold text-zinc-900 truncate">
-                        {conv.customer?.name || 'Unknown User'}
+                        {displayName}
                       </span>
                       <span className="text-[10px] text-zinc-400 font-medium shrink-0">
                         {formatTimestamp(conv.latestTimestamp)}
@@ -463,21 +534,28 @@ export default function ConversationsPage() {
                   <ChevronLeft size={18} />
                 </button>
                 {/* Avatar */}
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(activeSelected.customer?.name)}`}
-                >
-                  {getInitials(activeSelected.customer?.name)}
-                </div>
+                {(() => {
+                  const headerDisplayName = formatDisplayName(activeSelected.customer?.name, activeSelected.chatId, activeSelected.channel);
+                  return (
+                    <>
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(headerDisplayName)}`}
+                      >
+                        {getInitials(headerDisplayName)}
+                      </div>
 
-                {/* Name + channel badge */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-zinc-900 truncate">
-                      {activeSelected.customer?.name || 'Unknown User'}
-                    </span>
-                    <ChannelBadge channel={activeSelected.channel} />
-                  </div>
-                </div>
+                      {/* Name + channel badge */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-zinc-900 truncate">
+                            {headerDisplayName}
+                          </span>
+                          <ChannelBadge channel={activeSelected.channel} />
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* Info toggle */}
                 <button
@@ -656,20 +734,25 @@ export default function ConversationsPage() {
 
             {detailsOpen && (
               <div
-                className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-4"
+                className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-12 space-y-4"
                 style={{ scrollbarWidth: 'thin', scrollbarColor: '#e4e4e7 transparent' }}
               >
                 {/* Customer Avatar + Name */}
-                <div className="flex flex-col items-center text-center pt-1 pb-2">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold mb-2 ${getAvatarColor(activeSelected.customer?.name)}`}
-                  >
-                    {getInitials(activeSelected.customer?.name)}
-                  </div>
-                  <span className="text-xs font-bold text-zinc-900 leading-snug">
-                    {activeSelected.customer?.name || 'Unknown User'}
-                  </span>
-                </div>
+                {(() => {
+                  const detailsDisplayName = formatDisplayName(activeSelected.customer?.name, activeSelected.chatId, activeSelected.channel);
+                  return (
+                    <div className="flex flex-col items-center text-center pt-1 pb-2">
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold mb-2 ${getAvatarColor(detailsDisplayName)}`}
+                      >
+                        {getInitials(detailsDisplayName)}
+                      </div>
+                      <span className="text-xs font-bold text-zinc-900 leading-snug">
+                        {detailsDisplayName}
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 <div className="h-px bg-zinc-100" />
 
@@ -724,14 +807,28 @@ export default function ConversationsPage() {
                 <div className="h-px bg-zinc-100" />
 
                 {/* Notes */}
-                <div>
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide block mb-1.5">Notes</span>
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide block">Notes</span>
                   <textarea
                     placeholder="Add a note about this conversation…"
                     rows={3}
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
                     className="w-full px-2.5 py-2 rounded-lg border border-zinc-200 text-[11px] text-zinc-700 placeholder:text-zinc-400 resize-none focus:outline-none focus:border-[#22577A]/40 focus:ring-1 focus:ring-[#22577A]/10 transition-all bg-zinc-50 font-medium"
                   />
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={savingNote}
+                    className="w-full h-8 bg-[#22577A] hover:bg-[#1C4662] text-white text-[11px] font-bold rounded-lg border-none cursor-pointer flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    {savingNote ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      'Save Note'
+                    )}
+                  </button>
                 </div>
+                <div className="h-6 shrink-0" />
               </div>
             )}
           </div>

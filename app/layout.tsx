@@ -13,8 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dudo - AI Agent Platform",
+  title: "Dudo - AI Business Agent",
   description: "Build, deploy, and manage AI agents for your business. Connect WhatsApp, Telegram, and more.",
+  icons: {
+    icon: "/icon.png?v=4",
+    shortcut: "/icon.png?v=4",
+    apple: "/icon.png?v=4",
+  },
 };
 
 import { AuthProvider } from "@/contexts/AuthContext";
