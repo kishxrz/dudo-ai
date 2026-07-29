@@ -17,7 +17,7 @@
     "clsx": "^2.1.1",
     "dodopayments": "^2.42.2",
     "firebase": "^12.15.0",
-    "firebase-admin": "^14.1.0",
+    "firebase-admin": "^14.2.0",
     "framer-motion": "^12.42.0",
     "googleapis": "^173.0.0",
     "lucide-react": "^1.21.0",
