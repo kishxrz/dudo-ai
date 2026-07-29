@@ -1,5 +1,5 @@
 import { PricingPlan } from '@/types/landing';
-
+ 
 export const pricingPlans: PricingPlan[] = [
   {
     badge: "START FREE",
@@ -31,6 +31,8 @@ export const pricingPlans: PricingPlan[] = [
       "Handles bookings & scheduling",
       "Learns your custom menu & FAQ",
       "Google Calendar workspace sync",
+      "Voice-based conversations",
+      "Web search + image generation",
       "Standard customer support"
     ],
     actionText: "Get Started",
@@ -50,6 +52,8 @@ export const pricingPlans: PricingPlan[] = [
       "1 Custom AI assistant agent",
       "Handles bookings & scheduling",
       "Learns your custom menu & FAQ",
+      "Voice-based conversations",
+      "Web search + image generation",
       "Priority 24/7 customer support"
     ],
     actionText: "Claim Launch Offer",

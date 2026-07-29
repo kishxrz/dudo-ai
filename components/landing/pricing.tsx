@@ -14,16 +14,34 @@ export default function Pricing() {
         
         {/* Section Header */}
         <div className="space-y-4 max-w-3xl mx-auto">
-          <div className="text-[#22577A] text-xs font-extrabold uppercase tracking-widest block">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-[#22577A] text-xs font-extrabold uppercase tracking-widest block"
+          >
             SIMPLE TRANSPARENT PRICING
-          </div>
-          <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-[#22577A] leading-tight">
+          </motion.div>
+          <motion.h2
+            initial={{ opacity: 0, y: 25 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-3xl sm:text-5xl font-black tracking-tight text-[#22577A] leading-tight"
+          >
             One customer pays for Dudo. <br />
             Every customer after that is profit.
-          </h2>
-          <p className="text-sm sm:text-base text-zinc-500 font-semibold mt-4">
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="text-sm sm:text-base text-zinc-500 font-semibold mt-4"
+          >
             Start free. Upgrade only when your business grows.
-          </p>
+          </motion.p>
         </div>
 
         {/* 3 pricing cards grid */}
