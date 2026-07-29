@@ -270,11 +270,16 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   // Derive AI status from state
   useEffect(() => {
-    const isLive = (waConnected || tgConnected) && hasApiKey;
-    if (isLive) {
+    const hasChannel = waConnected || tgConnected;
+    const isFullyLive = hasChannel && hasApiKey;
+    const isPartiallyLive = hasChannel || hasApiKey;
+
+    if (isFullyLive) {
       setAiStatus('online');
+    } else if (isPartiallyLive) {
+      setAiStatus('paused'); // Show yellow dot
     } else {
-      setAiStatus('unconfigured');
+      setAiStatus('unconfigured'); // Show grey dot
     }
   }, [waConnected, tgConnected, hasApiKey]);
 
@@ -490,92 +495,23 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2 shrink-0">
 
               {/* AI Status Indicator */}
-              <div ref={statusRef} className="relative">
-                <button
-                  onClick={() => setStatusPopoverOpen((p) => !p)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-white hover:bg-zinc-50 transition-all cursor-pointer",
-                    statusCfg.ring
-                  )}
-                  title={`AI Status: ${statusCfg.label}`}
-                >
-                  <span
-                    className={cn(
-                      "w-2 h-2 rounded-full shrink-0",
-                      statusCfg.dot,
-                      statusCfg.pulse && "animate-pulse"
-                    )}
-                  />
-                  <span className="text-[10px] font-bold text-zinc-700 hidden sm:block whitespace-nowrap">
-                    {statusCfg.label}
-                  </span>
-                  <ChevronUp
-                    size={10}
-                    className={cn(
-                      "text-zinc-400 transition-transform hidden sm:block",
-                      statusPopoverOpen ? "rotate-180" : "rotate-0"
-                    )}
-                  />
-                </button>
-
-                {/* Status popover */}
-                {statusPopoverOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-[220px] bg-white border border-zinc-200 rounded-xl shadow-xl z-[9999] p-3 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
-                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">AI Health</span>
-                      <button
-                        onClick={() => setStatusPopoverOpen(false)}
-                        className="w-5 h-5 flex items-center justify-center rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 border-none bg-transparent cursor-pointer"
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-
-                    {[
-                      {
-                        label: 'AI Status',
-                        value: statusCfg.label,
-                        dotCls: statusCfg.dot,
-                        textCls: aiStatus === 'online' ? 'text-emerald-600' : aiStatus === 'paused' ? 'text-amber-600' : aiStatus === 'unconfigured' ? 'text-zinc-500' : 'text-red-500',
-                        pulse: statusCfg.pulse,
-                      },
-                      {
-                        label: 'WhatsApp',
-                        value: waConnected ? 'Connected' : 'Not connected',
-                        dotCls: waConnected ? 'bg-emerald-500' : 'bg-red-500',
-                        textCls: waConnected ? 'text-emerald-600' : 'text-red-500',
-                        pulse: false,
-                      },
-                      {
-                        label: 'Telegram',
-                        value: tgConnected ? 'Connected' : 'Not connected',
-                        dotCls: tgConnected ? 'bg-emerald-500' : 'bg-red-500',
-                        textCls: tgConnected ? 'text-emerald-600' : 'text-red-500',
-                        pulse: false,
-                      },
-                      {
-                        label: 'Knowledge',
-                        value: knowledgeCount > 0 ? `${knowledgeCount} item${knowledgeCount !== 1 ? 's' : ''}` : 'Empty',
-                        dotCls: knowledgeCount > 0 ? 'bg-emerald-500' : 'bg-amber-500',
-                        textCls: knowledgeCount > 0 ? 'text-emerald-600' : 'text-amber-600',
-                        pulse: false,
-                      },
-                    ].map((row) => (
-                      <div key={row.label} className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-zinc-500">{row.label}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className={cn("w-1.5 h-1.5 rounded-full", row.dotCls, row.pulse && "animate-pulse")} />
-                          <span className={cn("text-[11px] font-extrabold", row.textCls)}>{row.value}</span>
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
-                      <span className="text-[10px] text-zinc-400 font-semibold">Last sync</span>
-                      <span className="text-[10px] font-bold text-zinc-600">{lastSync}</span>
-                    </div>
-                  </div>
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-white select-none",
+                  statusCfg.ring
                 )}
+                title={`AI Status: ${statusCfg.label}`}
+              >
+                <span
+                  className={cn(
+                    "w-2 h-2 rounded-full shrink-0",
+                    statusCfg.dot,
+                    statusCfg.pulse && "animate-pulse"
+                  )}
+                />
+                <span className="text-[10px] font-bold text-zinc-700 hidden sm:block whitespace-nowrap">
+                  {statusCfg.label}
+                </span>
               </div>
 
               {/* Logout button — mobile only */}
