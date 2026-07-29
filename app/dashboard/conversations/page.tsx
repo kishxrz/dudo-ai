@@ -606,7 +606,7 @@ export default function ConversationsPage() {
                               <span className="text-[9px] font-bold text-zinc-500">C</span>
                             </div>
                             <div className="max-w-[68%]">
-                              <div className="bg-white text-zinc-800 px-3.5 py-2.5 rounded-2xl rounded-tl-sm border border-zinc-200 shadow-sm text-xs leading-relaxed whitespace-pre-wrap font-medium">
+                              <div className="bg-white text-zinc-800 px-3.5 py-2.5 rounded-2xl rounded-tl-sm border border-zinc-200 shadow-sm text-xs leading-relaxed whitespace-pre-wrap font-medium break-words">
                                 {msg.userMessage}
                               </div>
                               {msg.timestamp && (
@@ -630,7 +630,7 @@ export default function ConversationsPage() {
                               <Bot size={12} className="text-white" />
                             </div>
                             <div className="max-w-[68%]">
-                              <div className="bg-[#22577A] text-white px-3.5 py-2.5 rounded-2xl rounded-tr-sm shadow-sm text-xs leading-relaxed whitespace-pre-wrap font-medium">
+                              <div className="bg-[#22577A] text-white px-3.5 py-2.5 rounded-2xl rounded-tr-sm shadow-sm text-xs leading-relaxed whitespace-pre-wrap font-medium break-words">
                                 {msg.botReply}
                               </div>
                               {msg.timestamp && (

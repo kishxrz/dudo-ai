@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "services/whatsapp-service"]
+  "exclude": ["node_modules", "services/whatsapp-service", "scratch"]
 }
