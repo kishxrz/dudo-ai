@@ -126,18 +126,34 @@ export function useSubscription(): UseSubscriptionReturn {
     }
     setLoading(true);
     const subRef = doc(db, 'workspaces', workspaceId, 'billing', 'subscription');
+    
+    let resolved = false;
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        setLoading(false);
+      }
+    }, 1500); // 1.5s safety timeout for offline support
+
     const unsub = onSnapshot(
       subRef,
       (snap) => {
         setRaw(snap.exists() ? (snap.data() as Record<string, unknown>) : null);
-        setLoading(false);
+        if (!snap.metadata.fromCache) {
+          resolved = true;
+          setLoading(false);
+          clearTimeout(timeoutId);
+        }
       },
       () => {
         setRaw(null);
         setLoading(false);
+        clearTimeout(timeoutId);
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      clearTimeout(timeoutId);
+    };
   }, [workspaceId]);
 
   const subscription = useMemo<ClientSubscription | null>(() => {
