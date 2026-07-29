@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Verify request is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Verify requesting user is the owner of the target workspace
+    function isWorkspaceOwner(workspaceId) {
+      return isAuthenticated() && (
+        workspaceId == request.auth.uid ||
+        firestore.get(/databases/(default)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid
+      );
+    }
+
+    // Limit files under /workspaces/{workspaceId}/ to workspace owners. Reject any uploads outside this path.
+    match /workspaces/{workspaceId}/{allPaths=**} {
+      allow read, write: if isWorkspaceOwner(workspaceId);
+    }
+  }
+}

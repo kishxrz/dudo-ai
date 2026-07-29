@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'X-DNS-Prefetch-Control',
-            value: 'on',
+            value: 'off',
           },
           {
             key: 'Cross-Origin-Opener-Policy',
@@ -42,6 +42,10 @@ const nextConfig: NextConfig = {
           {
             key: 'Cross-Origin-Resource-Policy',
             value: 'same-origin',
+          },
+          {
+            key: 'Origin-Agent-Cluster',
+            value: '?1',
           },
         ],
       },

@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Verify request is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Verify requesting user owns the specific workspace
+    function isWorkspaceOwner(workspaceId) {
+      return isAuthenticated() && (
+        workspaceId == request.auth.uid ||
+        get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid
+      );
+    }
+
+    // Workspaces collection constraints
+    match /workspaces/{workspaceId} {
+      allow read, write: if isAuthenticated() && (workspaceId == request.auth.uid || resource.data.ownerId == request.auth.uid);
+      
+      // Lock down all nested workspace assets (assistants, billing, members, custom_skills, knowledge, etc.)
+      match /{document=**} {
+        allow read, write: if isWorkspaceOwner(workspaceId);
+      }
+    }
+
+    // Centralized system security logs (Clients are write-only for audit integrity)
+    match /system_security_audit_logs/{logId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if false;
+    }
+  }
+}

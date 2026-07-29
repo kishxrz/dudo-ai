@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { ProviderModelRegistry } from '@/lib/ai/providers/ProviderModelRegistry';
 import { collection, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+import { SecurityLogger } from '@/lib/security-logger';
 
 // ==========================================
 // TYPES
@@ -45,11 +46,44 @@ export class EnterpriseSecurityGuard {
     /reveal\s+api\s+keys?/i,
     /what\s+is\s+your\s+system\s+prompt/i,
     /display\s+your\s+context/i,
+    // HTML / Script injection patterns
+    /<script[^>]*>[\s\S]*?<\/script>/i,
+    /javascript:/i,
+    /onload\s*=/i,
+    /onerror\s*=/i,
+    // SQL Injection patterns
+    /UNION\s+SELECT/i,
+    /OR\s+['"]?1['"]?\s*=\s*['"]?1/i,
+    // XML / RAG Poisoning patterns
+    /<!ENTITY/i,
+    /<!DOCTYPE/i,
+    // Jailbreak/Prompt bypass attempts
+    /you\s+are\s+now\s+free/i,
+    /do\s+anything\s+now/i,
+    /jailbreak/i,
   ];
 
-  static sanitizeInput(input: string): { safe: boolean; sanitized: string; reason?: string } {
+  static sanitizeInput(
+    input: string,
+    workspaceId?: string,
+    userId?: string,
+    ip?: string,
+    userAgent?: string
+  ): { safe: boolean; sanitized: string; reason?: string } {
     for (const pattern of this.INJECTION_PATTERNS) {
       if (pattern.test(input)) {
+        // Log suspicious injection attempt to SecurityLogger
+        SecurityLogger.logEvent({
+          eventType: 'injection_attempt',
+          workspaceId,
+          userId,
+          IP: ip,
+          userAgent,
+          severity: 'high',
+          success: false,
+          details: { pattern: pattern.toString(), inputSnippet: input.substring(0, 200) }
+        }).catch(() => {});
+
         return {
           safe: false,
           sanitized: "I can't help with that request. How can I assist you with something else today?",
@@ -279,7 +313,7 @@ export class EnterpriseOrchestrator {
     const start = Date.now();
 
     // 1. Security sanitization
-    const secCheck = EnterpriseSecurityGuard.sanitizeInput(input);
+    const secCheck = EnterpriseSecurityGuard.sanitizeInput(input, context.workspaceId);
     if (!secCheck.safe) {
       await EnterpriseSecurityGuard.logTelemetry(context.workspaceId, {
         type: 'injection_attempt',
