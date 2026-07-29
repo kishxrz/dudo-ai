@@ -4,6 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { collection, addDoc, query, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { WorkspaceContextLoader } from '@/lib/ai/WorkspaceContextLoader';
 import { ConversationService } from '@/lib/ai/ConversationService';
+import { KnowledgeService } from '@/lib/ai/KnowledgeService';
 import { requireSubscription, checkSubscription, incrementConversationCount } from '@/lib/subscription/SubscriptionService';
 import { TextExtractionService } from '@/lib/ai/TextExtractionService';
 
@@ -172,19 +173,80 @@ export async function POST(req: NextRequest) {
     const activeModel    = model    || context.provider.model;
     let activeSystemPrompt = systemPrompt || context.assistant.systemPrompt || '';
 
-    if (knowledgeEnabled && body?.knowledgeData) {
-      const kData = body.knowledgeData;
-      const localKnowledgeTexts: string[] = [];
-      if (kData.knowledgeBase) {
-        const formatted = parseLocalKnowledge(kData.knowledgeBase);
-        if (formatted) localKnowledgeTexts.push(formatted);
+    if (knowledgeEnabled) {
+      let dbKnowledge = context.knowledge || '';
+      if (!dbKnowledge) {
+        dbKnowledge = await KnowledgeService.getFormattedKnowledge(workspaceId);
       }
-      if (kData.businessProfile) {
-        const formatted = parseLocalKnowledge(kData.businessProfile);
-        if (formatted) localKnowledgeTexts.push(formatted);
+
+      if (body?.knowledgeData) {
+        const kData = body.knowledgeData;
+        const localKnowledgeTexts: string[] = [];
+        if (kData.knowledgeBase) {
+          const formatted = parseLocalKnowledge(kData.knowledgeBase);
+          if (formatted) localKnowledgeTexts.push(formatted);
+        }
+        if (kData.businessProfile) {
+          const formatted = parseLocalKnowledge(kData.businessProfile);
+          if (formatted) localKnowledgeTexts.push(formatted);
+        }
+        const customKnowledgeText = Array.from(new Set(localKnowledgeTexts.filter(t => t.trim().length > 0))).join('\n\n');
+
+        const dynamicSections: string[] = [];
+        if (dbKnowledge) {
+          const lines = dbKnowledge.split('\n');
+          let currentSectionHeader = '';
+          let currentSectionLines: string[] = [];
+
+          const flushSection = () => {
+            if (!currentSectionHeader) return;
+            const secContent = currentSectionLines.join('\n').trim();
+            if (!secContent) return;
+
+            if (currentSectionHeader !== '=== BUSINESS PROFILE ===' && currentSectionHeader !== '=== TEXT KNOWLEDGE ===') {
+              dynamicSections.push(`${currentSectionHeader}\n${secContent}`);
+            } else if (currentSectionHeader === '=== TEXT KNOWLEDGE ===') {
+              const textLines = secContent.split('\n');
+              const dynamicTexts: string[] = [];
+              let currentTextItem = '';
+              let currentTextContent: string[] = [];
+
+              for (const line of textLines) {
+                if (line.startsWith('[') && line.endsWith(']')) {
+                  if (currentTextItem && !['[Business Details]', '[Products & Services]', '[Common Questions]', '[Policies]'].includes(currentTextItem)) {
+                    dynamicTexts.push(`${currentTextItem}\n${currentTextContent.join('\n').trim()}`);
+                  }
+                  currentTextItem = line;
+                  currentTextContent = [];
+                } else {
+                  currentTextContent.push(line);
+                }
+              }
+              if (currentTextItem && !['[Business Details]', '[Products & Services]', '[Common Questions]', '[Policies]'].includes(currentTextItem)) {
+                dynamicTexts.push(`${currentTextItem}\n${currentTextContent.join('\n').trim()}`);
+              }
+              if (dynamicTexts.length > 0) {
+                dynamicSections.push(`=== TEXT KNOWLEDGE ===\n${dynamicTexts.join('\n\n')}`);
+              }
+            }
+          };
+
+          for (const line of lines) {
+            if (line.startsWith('=== ') && line.endsWith(' ===')) {
+              flushSection();
+              currentSectionHeader = line;
+              currentSectionLines = [];
+            } else {
+              currentSectionLines.push(line);
+            }
+          }
+          flushSection();
+        }
+
+        context.knowledge = [customKnowledgeText, ...dynamicSections].filter(t => t.trim().length > 0).join('\n\n');
+      } else {
+        context.knowledge = dbKnowledge;
       }
-      const customKnowledgeText = Array.from(new Set(localKnowledgeTexts.filter(t => t.trim().length > 0))).join('\n\n');
-      context.knowledge = customKnowledgeText;
     }
 
     const boundedHistory = (history || []).slice(-15);

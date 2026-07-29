@@ -78,7 +78,7 @@ export class KnowledgeService {
       docs.forEach((knowledgeDoc) => {
         if (RESERVED_IDS.includes(knowledgeDoc.id)) return;
         const item = knowledgeDoc.data();
-        if (item.status !== 'Ready') return;
+        if (item.status !== 'Ready' && item.status !== 'Suggestions Ready') return;
 
         switch (item.type) {
           case 'faq': {

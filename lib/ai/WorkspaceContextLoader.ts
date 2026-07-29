@@ -74,7 +74,7 @@ export class WorkspaceContextLoader {
           adminDb ? adminDb.doc(assistantPath).get() : getDoc(doc(db!, 'workspaces', workspaceId, 'assistants', 'assistant-1')),
           SkillService.resolveEnabledSkills(workspaceId),
           adminDb ? adminDb.collection(providerPath).get() : getDocs(collection(db!, 'workspaces', workspaceId, 'providers')),
-          KnowledgeService.getStaticKnowledge(workspaceId)
+          KnowledgeService.getFormattedKnowledge(workspaceId)
         ]);
 
         const assistantExists = typeof assSnap.exists === 'function' ? assSnap.exists() : assSnap.exists;
