@@ -886,10 +886,26 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
         }
       }
       
+      let senderName = '';
+      let senderPhone = '';
+      try {
+        console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=CONTACT_FETCH_START messageId=${messageId}`);
+        const contact = await message.getContact();
+        if (contact) {
+          senderName = contact.pushname || contact.name || '';
+          senderPhone = contact.number || '';
+          console.log(`[WA_PIPELINE_TRACE] seq=${seq} stage=CONTACT_FETCH_SUCCESS name="${senderName}" phone="${senderPhone}" messageId=${messageId}`);
+        }
+      } catch (contactErr: any) {
+        console.error(`[WA_PIPELINE_TRACE] seq=${seq} stage=CONTACT_FETCH_ERROR error=${contactErr.message} messageId=${messageId}`);
+      }
+
       const payload = {
         externalChatId: message.from,
         messageId: messageId,
         senderId: message.author || message.from,
+        senderName,
+        senderPhone,
         messageText: message.body || '',
         timestamp: message.timestamp,
         attachedFile

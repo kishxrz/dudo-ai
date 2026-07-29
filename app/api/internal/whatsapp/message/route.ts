@@ -125,12 +125,33 @@ async function releaseLease(workspaceId: string, messageId: string) {
 /**
  * Logs a conversation details in Firestore.
  */
-async function logConversation(workspaceId: string, chatId: string, senderId: string, userMessage: string, botReply: string) {
+async function logConversation(
+  workspaceId: string,
+  chatId: string,
+  senderId: string,
+  senderName: string,
+  senderPhone: string,
+  userMessage: string,
+  botReply: string
+) {
   const adminDb = getAdminDb();
+  
+  let displayName = senderName.trim();
+  if (!displayName) {
+    if (senderPhone) {
+      displayName = senderPhone.startsWith('+') ? senderPhone : `+${senderPhone}`;
+    } else {
+      displayName = senderId;
+    }
+  }
+
   const payload = {
     channel: 'whatsapp',
     chatId,
-    customer: { name: senderId },
+    customer: { 
+      name: displayName,
+      phone: senderPhone || ''
+    },
     userMessage,
     botReply,
     timestamp: new Date(),
@@ -160,6 +181,8 @@ export async function POST(req: NextRequest) {
   const messageId = body?.messageId || 'unknown';
   const externalChatId = body?.externalChatId || 'unknown';
   const senderId = body?.senderId || 'unknown';
+  const senderName = body?.senderName || '';
+  const senderPhone = body?.senderPhone || '';
   const messageText = body?.messageText || '';
 
   console.log(`[WA_WEBHOOK_TRACE] stage=REQUEST_RECEIVED workspaceId=${workspaceId} messageId=${messageId} externalChatId=${externalChatId}`);
@@ -213,7 +236,7 @@ export async function POST(req: NextRequest) {
     );
     if (commandResult.isCommand) {
       console.log(`[WA_WEBHOOK_TRACE] stage=AGENT_LOOKUP status=SHORT_CIRCUIT reason="admin command processed" messageId=${messageId}`);
-      await logConversation(workspaceId, externalChatId, senderId, messageText, commandResult.replyMessage);
+      await logConversation(workspaceId, externalChatId, senderId, senderName, senderPhone, messageText, commandResult.replyMessage);
       await completeLease(workspaceId, messageId);
       leaseAcquired = false;
       console.log(`[WA_WEBHOOK_TRACE] stage=HTTP_RESPONSE status=SUCCESS hasReply=true messageId=${messageId}`);
@@ -224,7 +247,7 @@ export async function POST(req: NextRequest) {
     const inTakeover = await isConversationInTakeover(workspaceId, externalChatId);
     if (inTakeover) {
       console.log(`[WA_WEBHOOK_TRACE] stage=AGENT_LOOKUP status=SHORT_CIRCUIT reason="human takeover active" messageId=${messageId}`);
-      await logConversation(workspaceId, externalChatId, senderId, messageText, '[Human Operator Active]');
+      await logConversation(workspaceId, externalChatId, senderId, senderName, senderPhone, messageText, '[Human Operator Active]');
       await completeLease(workspaceId, messageId);
       leaseAcquired = false;
       console.log(`[WA_WEBHOOK_TRACE] stage=HTTP_RESPONSE status=SUCCESS hasReply=false messageId=${messageId}`);
@@ -384,7 +407,7 @@ export async function POST(req: NextRequest) {
     console.log(`[WA_WEBHOOK_TRACE] stage=AI_PROVIDER_RESPONSE status=PASS replyLength=${reply.length} messageId=${messageId}`);
     
     // 8. Log the dialogue and complete the lease
-    await logConversation(workspaceId, externalChatId, senderId, messageText, reply);
+    await logConversation(workspaceId, externalChatId, senderId, senderName, senderPhone, messageText, reply);
     await completeLease(workspaceId, messageId);
     leaseAcquired = false;
 
