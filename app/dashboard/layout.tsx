@@ -131,12 +131,12 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser, authLoading, router]);
 
-  // Auto-redirect to billing if plan/trial is expired
+  // Auto-redirect to billing if plan/trial is expired (only from root dashboard page)
   useEffect(() => {
     if (!subLoading && isExpired) {
       if (typeof window !== 'undefined') {
         const pathname = window.location.pathname;
-        if (pathname !== '/dashboard/billing' && pathname !== '/dashboard/settings/billing') {
+        if (pathname === '/dashboard') {
           router.replace('/dashboard/billing');
         }
       }

@@ -29,11 +29,7 @@ export default function LandingPage() {
   const router = useRouter();
   const { currentUser, loading } = useAuth();
 
-  useEffect(() => {
-    if (!loading && currentUser) {
-      router.replace('/dashboard');
-    }
-  }, [currentUser, loading, router]);
+
 
   useEffect(() => {
     const content = document.getElementById('landing-content');

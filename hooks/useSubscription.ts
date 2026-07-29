@@ -124,6 +124,7 @@ export function useSubscription(): UseSubscriptionReturn {
       setLoading(false);
       return;
     }
+    setLoading(true);
     const subRef = doc(db, 'workspaces', workspaceId, 'billing', 'subscription');
     const unsub = onSnapshot(
       subRef,
