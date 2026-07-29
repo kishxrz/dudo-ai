@@ -72,7 +72,7 @@ const AI_STATUS_MAP: Record<AiStatus, AiStatusConfig> = {
   paused:       { label: 'Paused',              dot: 'bg-amber-500',   pulse: false, ring: 'border-amber-300 text-amber-700 bg-amber-50/40'   },
   training:     { label: 'Training / Syncing',  dot: 'bg-blue-500',    pulse: true,  ring: 'border-blue-300 text-blue-700 bg-blue-50/40'    },
   offline:      { label: 'Offline',             dot: 'bg-red-500',     pulse: false, ring: 'border-red-300 text-red-700 bg-red-50/40'     },
-  unconfigured: { label: 'Not Configured',      dot: 'bg-red-500',     pulse: false, ring: 'border-red-200 text-red-600 bg-red-50/30'    },
+  unconfigured: { label: 'Not Configured',      dot: 'bg-zinc-400',    pulse: false, ring: 'border-zinc-200 text-zinc-500 bg-zinc-50/30'    },
 };
 
 function DashboardBody({ children }: { children: React.ReactNode }) {
@@ -270,13 +270,13 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   // Derive AI status from state
   useEffect(() => {
-    if (!hasApiKey) { setAiStatus('unconfigured'); return; }
-    const devStatus = typeof window !== 'undefined' ? localStorage.getItem('__dudo_dev_status') : null;
-    if (devStatus === 'live') { setAiStatus('online'); return; }
-    if (devStatus === 'paused') { setAiStatus('paused'); return; }
-    if (devStatus === 'training') { setAiStatus('training'); return; }
-    setAiStatus(hasApiKey ? 'online' : 'unconfigured');
-  }, [hasApiKey]);
+    const isLive = (waConnected || tgConnected) && hasApiKey;
+    if (isLive) {
+      setAiStatus('online');
+    } else {
+      setAiStatus('unconfigured');
+    }
+  }, [waConnected, tgConnected, hasApiKey]);
 
   // Close popover on outside click
   useEffect(() => {
@@ -536,7 +536,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
                         label: 'AI Status',
                         value: statusCfg.label,
                         dotCls: statusCfg.dot,
-                        textCls: aiStatus === 'online' ? 'text-emerald-600' : aiStatus === 'paused' ? 'text-amber-600' : 'text-red-500',
+                        textCls: aiStatus === 'online' ? 'text-emerald-600' : aiStatus === 'paused' ? 'text-amber-600' : aiStatus === 'unconfigured' ? 'text-zinc-500' : 'text-red-500',
                         pulse: statusCfg.pulse,
                       },
                       {
