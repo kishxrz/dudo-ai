@@ -516,9 +516,9 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
             {/* Hamburger */}
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="md:hidden p-1.5 -ml-1.5 mr-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors focus:outline-none"
+              className="md:hidden w-11 h-11 rounded-lg flex items-center justify-center text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors focus:outline-none -ml-3 mr-1 cursor-pointer border-none bg-transparent"
             >
-              <Menu size={18} />
+              <Menu size={20} />
             </button>
 
             {/* Assistant name */}

@@ -4,9 +4,10 @@ import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Bot, Newspaper, BookOpen, FileText, RefreshCw, Check, ArrowLeft } from 'lucide-react';
+import { Bot, Newspaper, BookOpen, FileText, RefreshCw, Check, ArrowLeft, Menu } from 'lucide-react';
 import { useToast, ToastProvider } from '@/contexts/ToastContext';
 import Logo from '@/components/ui/logo';
+import MobileNavDrawer from '@/components/landing/MobileNavDrawer';
 
 export default function ResourcesLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,6 +23,7 @@ function ResourcesLayoutContent({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [isOpenMobileNav, setIsOpenMobileNav] = useState(false);
 
   const tabs = [
     { label: 'All Resources', href: '/resources', icon: Bot },
@@ -49,6 +51,18 @@ function ResourcesLayoutContent({ children }: { children: React.ReactNode }) {
       {/* ── Top Navbar ────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#EED9B4]/40 shadow-xs select-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[68px] flex items-center justify-between gap-6">
+
+          {/* Left Menu Hamburger (Mobile Only) */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              type="button"
+              onClick={() => setIsOpenMobileNav(true)}
+              aria-label="Open menu"
+              className="p-2 -ml-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors focus:outline-none cursor-pointer border-none bg-transparent"
+            >
+              <Menu size={20} />
+            </button>
+          </div>
 
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-2.5 no-underline group shrink-0">
@@ -169,6 +183,7 @@ function ResourcesLayoutContent({ children }: { children: React.ReactNode }) {
           <p className="text-[9px] text-zinc-500">No credit card required. Unsubscribe in one click anytime.</p>
         </div>
       </footer>
+      <MobileNavDrawer isOpen={isOpenMobileNav} onClose={() => setIsOpenMobileNav(false)} />
     </div>
   );
 }

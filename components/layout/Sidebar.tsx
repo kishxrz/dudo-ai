@@ -271,7 +271,7 @@ export default function Sidebar({
                 <Link key={item.href} href={item.href} onClick={handleLinkClick} className="no-underline">
                   <div
                     className={cn(
-                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
+                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl min-h-[44px] md:min-h-[auto] py-2 md:py-1',
                       'gap-2.5 px-3 justify-start',
                       expanded
                         ? 'md:gap-2.5 md:px-3 md:justify-start'
@@ -328,7 +328,7 @@ export default function Sidebar({
                 <Link key={item.href} href={item.href} onClick={handleClick} className="no-underline">
                   <div
                     className={cn(
-                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl py-1',
+                      'flex items-center w-full transition-all duration-150 select-none cursor-pointer rounded-r-xl min-h-[44px] md:min-h-[auto] py-2 md:py-1',
                       'gap-2.5 px-3 justify-start',
                       expanded
                         ? 'md:gap-2.5 md:px-3 md:justify-start'

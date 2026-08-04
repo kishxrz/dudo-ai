@@ -463,61 +463,64 @@ export default function AppointmentsPage() {
       <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
 
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-zinc-100">
+        <div className="flex flex-col md:flex-row md:items-center gap-4 px-4 py-4 border-b border-zinc-100">
           {/* Search */}
-          <div className="relative flex-1 min-w-0 max-w-full sm:max-w-[260px]">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+          <div className="relative w-full md:w-[260px] shrink-0">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
             <input
               type="text"
               placeholder="Search by name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-8 pl-8 pr-8 rounded-lg border border-zinc-200 focus:outline-none focus:border-[#22577A]/50 focus:ring-1 focus:ring-[#22577A]/20 text-xs font-medium text-zinc-800 placeholder:text-zinc-400 bg-zinc-50 transition-all"
+              className="w-full h-11 md:h-8 pl-10 pr-9 rounded-xl md:rounded-lg border border-zinc-200 focus:outline-none focus:border-[#22577A]/50 focus:ring-1 focus:ring-[#22577A]/20 text-xs font-semibold md:font-medium text-zinc-800 placeholder:text-zinc-400 bg-zinc-50/50 transition-all shadow-xs"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer p-0"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer p-0"
               >
-                <X size={12} />
+                <X size={14} />
               </button>
             )}
           </div>
 
-          {/* Status segmented */}
-          <div className="flex items-center bg-zinc-100 rounded-lg p-0.5 gap-0.5">
-            {(['all', 'today', 'upcoming', 'past'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setStatusFilter(f)}
-                className={cn(
-                  'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer border-none capitalize',
-                  statusFilter === f
-                    ? 'bg-white text-[#22577A] shadow-sm font-bold'
-                    : 'text-zinc-500 bg-transparent hover:text-zinc-700'
-                )}
-              >
-                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
+          {/* Filters Container */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
+            {/* Status segmented */}
+            <div className="flex items-center bg-zinc-100 rounded-xl md:rounded-lg p-1 md:p-0.5 gap-1 md:gap-0.5 w-full sm:w-auto">
+              {(['all', 'today', 'upcoming', 'past'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setStatusFilter(f)}
+                  className={cn(
+                    'flex-1 sm:flex-initial px-3 h-10 md:h-7 rounded-lg md:rounded-md text-xs md:text-[11px] font-bold md:font-semibold transition-all cursor-pointer border-none capitalize text-center justify-center items-center flex min-w-[56px]',
+                    statusFilter === f
+                      ? 'bg-white text-[#22577A] shadow-xs font-black md:font-bold'
+                      : 'text-zinc-500 bg-transparent hover:text-zinc-700'
+                  )}
+                >
+                  {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+            </div>
 
-          {/* Channel segmented */}
-          <div className="flex items-center bg-zinc-100 rounded-lg p-0.5 gap-0.5">
-            {(['all', 'whatsapp', 'telegram'] as const).map((ch) => (
-              <button
-                key={ch}
-                onClick={() => setChannelFilter(ch)}
-                className={cn(
-                  'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer border-none',
-                  channelFilter === ch
-                    ? 'bg-white text-[#22577A] shadow-sm font-bold'
-                    : 'text-zinc-500 bg-transparent hover:text-zinc-700'
-                )}
-              >
-                {ch === 'all' ? 'All Channels' : ch === 'whatsapp' ? 'WhatsApp' : 'Telegram'}
-              </button>
-            ))}
+            {/* Channel segmented */}
+            <div className="flex items-center bg-zinc-100 rounded-xl md:rounded-lg p-1 md:p-0.5 gap-1 md:gap-0.5 w-full sm:w-auto">
+              {(['all', 'whatsapp', 'telegram'] as const).map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => setChannelFilter(ch)}
+                  className={cn(
+                    'flex-1 sm:flex-initial px-3 h-10 md:h-7 rounded-lg md:rounded-md text-xs md:text-[11px] font-bold md:font-semibold transition-all cursor-pointer border-none text-center justify-center items-center flex min-w-[70px]',
+                    channelFilter === ch
+                      ? 'bg-white text-[#22577A] shadow-xs font-black md:font-bold'
+                      : 'text-zinc-500 bg-transparent hover:text-zinc-700'
+                  )}
+                >
+                  {ch === 'all' ? 'All Channels' : ch === 'whatsapp' ? 'WhatsApp' : 'Telegram'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -541,8 +544,9 @@ export default function AppointmentsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-xs">
+          <div className="overflow-hidden">
+            {/* Desktop Table View */}
+            <table className="hidden sm:table w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="bg-zinc-50 border-b border-zinc-100">
                   {['Customer', 'Date', 'Time', 'Channel', 'Status', ''].map((col) => (
@@ -594,6 +598,48 @@ export default function AppointmentsPage() {
                 })}
               </tbody>
             </table>
+
+            {/* Mobile Cards View */}
+            <div className="divide-y divide-zinc-100 sm:hidden">
+              {filtered.map((appt) => {
+                const status = deriveStatus(appt);
+                return (
+                  <div key={appt.id} className="p-4 flex flex-col gap-3 hover:bg-zinc-50/50 transition-colors">
+                    {/* Row 1: Customer avatar/name & Action menu */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0', getAvatarColor(appt.customerName))}>
+                          {getInitials(appt.customerName)}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-zinc-900 text-sm leading-snug">{appt.customerName}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <ChannelBadge channel={appt.channel} />
+                            <StatusBadge status={status} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <ActionMenu onViewDetails={() => setDetailAppt(appt)} />
+                      </div>
+                    </div>
+
+                    {/* Row 2: Date & Time */}
+                    <div className="flex items-center gap-4 bg-zinc-50/60 p-2.5 rounded-xl border border-zinc-100/80 text-[11px] text-zinc-500 font-semibold">
+                      <div className="flex items-center gap-1.5">
+                        <CalendarDays size={13} className="text-zinc-400" />
+                        <span>{formatDate(appt.date, appt.timestamp)}</span>
+                      </div>
+                      <div className="w-1.5 h-1.5 bg-zinc-300 rounded-full shrink-0" />
+                      <div className="flex items-center gap-1.5">
+                        <Clock size={13} className="text-zinc-400" />
+                        <span>{formatTime(appt.time, appt.timestamp)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -324,7 +324,8 @@ export default function LearningPage() {
                   />
                 ) : (
                   <div className="bg-white border border-zinc-200/60 rounded-xl overflow-hidden shadow-xs">
-                    <div className="overflow-x-auto">
+                    {/* Desktop Table View */}
+                    <div className="hidden sm:block overflow-x-auto">
                       <table className="w-full border-collapse text-left">
                         <thead>
                           <tr className="bg-zinc-50 border-b border-zinc-100 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
@@ -350,6 +351,31 @@ export default function LearningPage() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile Cards View */}
+                    <div className="divide-y divide-zinc-100 sm:hidden">
+                      {customers.map((c) => (
+                        <div key={c.id} className="p-4 flex flex-col gap-2.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-zinc-900 text-sm leading-snug">{c.name}</span>
+                              <div className="flex flex-col text-[11px] text-zinc-400 mt-0.5">
+                                {c.email && c.email !== '—' && <span>{c.email}</span>}
+                                {c.phone && c.phone !== '—' && <span>{c.phone}</span>}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-semibold text-zinc-400 shrink-0">
+                              {new Date(c.lastActive).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {c.preferences && (
+                            <div className="bg-zinc-50/70 p-2.5 rounded-xl border border-zinc-100/80 text-[11px] text-zinc-600 leading-normal font-semibold">
+                              {c.preferences}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
