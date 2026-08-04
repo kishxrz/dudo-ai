@@ -20,17 +20,36 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const article = ContentRepository.getArticleBySlug(slug);
   if (!article) return {};
 
+  const fullUrl = `https://dudo.site/resources/blog/${slug}`;
+
   return {
-    title: `${article.title} | Dudo Resources`,
+    title: `${article.title} | Dudo Blog`,
     description: article.seoDescription || article.description,
     keywords: article.seoKeywords || article.tags,
+    alternates: {
+      canonical: fullUrl,
+    },
     openGraph: {
       title: article.title,
       description: article.description,
       type: 'article',
-      url: `/resources/blog/${slug}`,
+      url: fullUrl,
       publishedTime: article.publishDate,
-      tags: article.tags
+      tags: article.tags,
+      images: [
+        {
+          url: article.coverImage || 'https://dudo.site/icon.png',
+          width: 800,
+          height: 450,
+          alt: article.title,
+        }
+      ]
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: article.title,
+      description: article.description,
+      images: [article.coverImage || 'https://dudo.site/icon.png'],
     }
   };
 }
@@ -70,21 +89,22 @@ export default async function BlogPostPage({ params }: PageProps) {
   // Schema structured JSON-LD data
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'NewsArticle',
+    '@type': 'TechArticle',
     'headline': article.title,
     'description': article.description,
     'datePublished': article.publishDate,
+    'image': article.coverImage || 'https://dudo.site/icon.png',
     'author': {
       '@type': 'Person',
       'name': author?.name || 'Dudo Team',
-      'url': `/resources/authors/${article.authorId}`
+      'url': `https://dudo.site/resources/authors/${article.authorId}`
     },
     'publisher': {
       '@type': 'Organization',
-      'name': 'Dudo AI',
+      'name': 'Dudo',
       'logo': {
         '@type': 'ImageObject',
-        'url': 'https://dudo.ai/logo.png'
+        'url': 'https://dudo.site/icon.png'
       }
     }
   };
@@ -97,19 +117,19 @@ export default async function BlogPostPage({ params }: PageProps) {
         '@type': 'ListItem',
         'position': 1,
         'name': 'Resources',
-        'item': 'https://dudo.ai/resources'
+        'item': 'https://dudo.site/resources'
       },
       {
         '@type': 'ListItem',
         'position': 2,
         'name': 'Blog',
-        'item': 'https://dudo.ai/resources/blog'
+        'item': 'https://dudo.site/resources/blog'
       },
       {
         '@type': 'ListItem',
         'position': 3,
         'name': article.title,
-        'item': `https://dudo.ai/resources/blog/${article.slug}`
+        'item': `https://dudo.site/resources/blog/${article.slug}`
       }
     ]
   };

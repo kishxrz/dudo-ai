@@ -2,13 +2,16 @@ import { MetadataRoute } from 'next';
 import { ContentRepository } from '@/lib/resources/ContentRepository';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://dudo.ai';
+  const baseUrl = 'https://dudo.site';
 
   // Static URLs
   const staticUrls = [
     '',
     '/login',
     '/signup',
+    '/contact',
+    '/privacy',
+    '/terms',
     '/resources',
     '/resources/blog',
     '/resources/templates',

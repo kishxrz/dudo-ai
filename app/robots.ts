@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/api/', '/dashboard/']
     },
-    sitemap: 'https://dudo.ai/sitemap.xml'
+    sitemap: 'https://dudo.site/sitemap.xml'
   };
 }

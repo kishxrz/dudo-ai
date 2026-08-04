@@ -7,8 +7,47 @@ import ReadingProgressBar from '@/components/resources/ReadingProgressBar';
 import SocialShare from '@/components/resources/SocialShare';
 import TOC from '@/components/resources/TOC';
 import { ArrowLeft, BookOpen, Calendar, Clock, ChevronRight } from 'lucide-react';
-
 import AuthorAvatar from '@/components/resources/AuthorAvatar';
+import { Metadata } from 'next';
+import JsonLd from '@/components/seo/JsonLd';
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const guide = ContentRepository.getGuideBySlug(slug);
+  if (!guide) return {};
+
+  const fullUrl = `https://dudo.site/resources/guides/${slug}`;
+
+  return {
+    title: `${guide.title} | Dudo Guide`,
+    description: guide.description,
+    keywords: ['Guides', 'AI employee guide', 'Dudo setup', guide.industry],
+    alternates: {
+      canonical: fullUrl,
+    },
+    openGraph: {
+      title: guide.title,
+      description: guide.description,
+      type: 'article',
+      url: fullUrl,
+      publishedTime: guide.publishDate,
+      images: [
+        {
+          url: guide.coverImage || 'https://dudo.site/icon.png',
+          width: 800,
+          height: 450,
+          alt: guide.title,
+        }
+      ]
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: guide.title,
+      description: guide.description,
+      images: [guide.coverImage || 'https://dudo.site/icon.png'],
+    }
+  };
+}
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -44,9 +83,61 @@ export default async function IndustryGuidePage({ params }: PageProps) {
     processedMdx = processedMdx.replace(rx, `$1 id="${h.id}" ${h.text}`);
   });
 
+  // Schema structured JSON-LD data
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    'headline': guide.title,
+    'description': guide.description,
+    'datePublished': guide.publishDate,
+    'image': guide.coverImage || 'https://dudo.site/icon.png',
+    'author': {
+      '@type': 'Person',
+      'name': author?.name || 'Dudo Team',
+      'url': `https://dudo.site/resources/authors/${guide.authorId}`
+    },
+    'publisher': {
+      '@type': 'Organization',
+      'name': 'Dudo',
+      'logo': {
+        '@type': 'ImageObject',
+        'url': 'https://dudo.site/icon.png'
+      }
+    }
+  };
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    'itemListElement': [
+      {
+        '@type': 'ListItem',
+        'position': 1,
+        'name': 'Resources',
+        'item': 'https://dudo.site/resources'
+      },
+      {
+        '@type': 'ListItem',
+        'position': 2,
+        'name': 'Guides',
+        'item': 'https://dudo.site/resources/guides'
+      },
+      {
+        '@type': 'ListItem',
+        'position': 3,
+        'name': guide.title,
+        'item': `https://dudo.site/resources/guides/${guide.slug}`
+      }
+    ]
+  };
+
   return (
     <div className="space-y-8 select-text relative">
       <ReadingProgressBar />
+
+      {/* JSON-LD Script Injections */}
+      <JsonLd schema={jsonLd} />
+      <JsonLd schema={breadcrumbJsonLd} />
 
       {/* Breadcrumb navigation */}
       <nav className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-400 select-none">

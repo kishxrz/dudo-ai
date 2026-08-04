@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import JsonLd from "@/components/seo/JsonLd";
+import { getOrganizationSchema, getWebSiteSchema, getSoftwareApplicationSchema } from "@/lib/seo/jsonld";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dudo - AI Business Agent",
-  description: "Build, deploy, and manage AI agents for your business. Connect WhatsApp, Telegram, and more.",
+  title: {
+    default: "Dudo - AI Employee for WhatsApp & Telegram",
+    template: "%s | Dudo",
+  },
+  description: "Launch your AI employee in 60 seconds. Dudo is the AI employee that answers every customer in your voice - 24/7, in Tamil, Hindi or English.",
   metadataBase: new URL("https://dudo.site"),
   icons: {
     icon: [
@@ -28,8 +33,8 @@ export const metadata: Metadata = {
     apple: [{ url: "/icon.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "Dudo - AI Business Agent",
-    description: "Build, deploy, and manage AI agents for your business. Connect WhatsApp, Telegram, and more.",
+    title: "Dudo - AI Employee for WhatsApp & Telegram",
+    description: "Launch your AI employee in 60 seconds. Dudo is the AI employee that answers every customer in your voice - 24/7, in Tamil, Hindi or English.",
     url: "https://dudo.site",
     siteName: "Dudo",
     images: [{ url: "/icon.png", width: 512, height: 512, alt: "Dudo Logo" }],
@@ -37,8 +42,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: "Dudo - AI Business Agent",
-    description: "Build, deploy, and manage AI agents for your business.",
+    title: "Dudo - AI Employee for WhatsApp & Telegram",
+    description: "Launch your AI employee in 60 seconds. Dudo is the AI employee that answers every customer in your voice - 24/7.",
     images: ["/icon.png"],
   },
 };
@@ -52,13 +57,25 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   await connection();
+  
+  const globalSchemas = [
+    getOrganizationSchema(),
+    getWebSiteSchema(),
+    getSoftwareApplicationSchema()
+  ];
+
   return (
     <html
       lang="en"
       data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased scroll-smooth overflow-x-hidden`}
     >
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
       <body className="min-h-full flex flex-col overflow-x-hidden">
+        <JsonLd schema={globalSchemas} />
         <AuthProvider>
           {children}
         </AuthProvider>
