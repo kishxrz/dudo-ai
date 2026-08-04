@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import SaveButton from '@/components/ui/SaveButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -215,6 +216,8 @@ export default function ProfilePage() {
   // ── Profile form ──────────────────────────────────────────────────────────
   const [fullName, setFullName] = useState(displayName);
   const [phone, setPhone] = useState('');
+  const [dbFullName, setDbFullName] = useState('');
+  const [dbPhone, setDbPhone] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
@@ -241,7 +244,9 @@ export default function ProfilePage() {
       }
 
       setFullName(name);
+      setDbFullName(name);
       setPhone(phoneNum);
+      setDbPhone(phoneNum);
     }
     loadProfile();
   }, [workspaceId, currentUser]);
@@ -254,10 +259,8 @@ export default function ProfilePage() {
   };
 
   // ── Save profile ──────────────────────────────────────────────────────────
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveProfile = async () => {
     if (!workspaceId) return;
-    setProfileLoading(true);
     try {
       if (db) {
         await setDoc(
@@ -274,11 +277,10 @@ export default function ProfilePage() {
         localStorage.setItem('__dudo_user_phone', phone.trim());
         window.dispatchEvent(new Event('dudo-profile-changed'));
       }
-      showToast('success', 'Profile saved successfully.');
-    } catch {
-      showToast('error', 'Failed to save profile. Please try again.');
-    } finally {
-      setProfileLoading(false);
+      setDbFullName(fullName.trim());
+      setDbPhone(phone.trim());
+    } catch (e) {
+      throw e;
     }
   };
 
@@ -290,30 +292,27 @@ export default function ProfilePage() {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleChangePassword = async () => {
     if (!currentPw || !newPw || !confirmPw) {
       showToast('error', 'All password fields are required.');
-      return;
+      throw new Error('All fields are required.');
     }
     if (newPw !== confirmPw) {
       showToast('error', 'New passwords do not match.');
-      return;
+      throw new Error('Passwords do not match.');
     }
     if (newPw.length < 6) {
       showToast('error', 'New password must be at least 6 characters.');
-      return;
+      throw new Error('Password too short.');
     }
     if (!currentUser?.email || !auth) {
       showToast('error', 'Cannot update password in this environment.');
-      return;
+      throw new Error('Invalid context.');
     }
-    setPwLoading(true);
     try {
       const credential = EmailAuthProvider.credential(currentUser.email, currentPw);
       await reauthenticateWithCredential(currentUser, credential);
       await updatePassword(currentUser, newPw);
-      showToast('success', 'Password updated successfully.');
       setCurrentPw('');
       setNewPw('');
       setConfirmPw('');
@@ -327,8 +326,7 @@ export default function ProfilePage() {
       } else {
         showToast('error', 'Failed to update password. Please try again.');
       }
-    } finally {
-      setPwLoading(false);
+      throw err;
     }
   };
 
@@ -637,14 +635,14 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex justify-end mt-5">
-            <Button
-              type="submit"
-              disabled={profileLoading}
-              className="h-8 px-5 bg-[#22577A] hover:bg-[#1A4461] text-white font-semibold rounded-lg text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01] disabled:opacity-60 flex items-center gap-2"
-            >
-              {profileLoading && <Loader2 size={13} className="animate-spin" />}
-              Save Changes
-            </Button>
+            <SaveButton
+              onClick={handleSaveProfile}
+              isDirty={fullName.trim() !== dbFullName.trim() || phone.trim() !== dbPhone.trim()}
+              label="Save Changes"
+              successToastTitle="Profile details updated"
+              successToastDescription="Your changes have been saved."
+              className="h-8 px-5 rounded-lg text-[12px]"
+            />
           </div>
         </form>
       </Card>
@@ -736,14 +734,14 @@ export default function ProfilePage() {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={pwLoading}
-                    className="h-8 px-4 bg-[#22577A] hover:bg-[#1A4461] text-white font-semibold rounded-lg text-[12px] border-none cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {pwLoading && <Loader2 size={13} className="animate-spin" />}
-                    Update Password
-                  </Button>
+                  <SaveButton
+                    onClick={handleChangePassword}
+                    isDirty={currentPw.trim() !== '' && newPw.trim() !== '' && confirmPw.trim() !== ''}
+                    label="Update Password"
+                    successToastTitle="Password changed"
+                    successToastDescription="Your password has been updated successfully."
+                    className="h-8 px-4 rounded-lg text-[12px]"
+                  />
                 </div>
               </form>
             )}

@@ -3,6 +3,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import SaveButton from './SaveButton';
 
 interface ConfirmDialogProps {
   title: string;
@@ -10,7 +11,7 @@ interface ConfirmDialogProps {
   confirmLabel: string;
   cancelLabel?: string;
   confirmClassName?: string;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -35,15 +36,18 @@ export default function ConfirmDialog({
           >
             {cancelLabel}
           </Button>
-          <Button
+          <SaveButton
             onClick={onConfirm}
+            isDirty={true}
+            label={confirmLabel}
+            successLabel="Done"
+            successToastTitle="Success"
+            successToastDescription="Your action was completed successfully."
             className={cn(
-              'h-8 px-4 rounded-lg text-[12px] font-bold cursor-pointer border-none text-white transition-all hover:scale-[1.02]',
+              'h-8 px-4 rounded-lg text-[12px] font-bold border-none text-white transition-all',
               confirmClassName || 'bg-[#22577A] hover:bg-[#1A4461]'
             )}
-          >
-            {confirmLabel}
-          </Button>
+          />
         </div>
       </div>
     </div>

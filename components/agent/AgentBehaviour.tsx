@@ -16,22 +16,22 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 const assistantId = 'assistant-1';
 
 const personalities = [
-  { value: 'friendly',     label: 'Friendly',     desc: 'Warm, approachable, conversational' },
-  { value: 'professional', label: 'Professional',  desc: 'Formal, precise, business-focused' },
-  { value: 'formal',       label: 'Formal',        desc: 'Strict, structured, no small talk' },
-  { value: 'casual',       label: 'Casual',        desc: 'Relaxed, informal, personable' },
-  { value: 'custom',       label: 'Custom',        desc: 'Define in system prompt' },
+  { value: 'friendly', label: 'Friendly', desc: 'Warm, approachable, conversational' },
+  { value: 'professional', label: 'Professional', desc: 'Formal, precise, business-focused' },
+  { value: 'formal', label: 'Formal', desc: 'Strict, structured, no small talk' },
+  { value: 'casual', label: 'Casual', desc: 'Relaxed, informal, personable' },
+  { value: 'custom', label: 'Custom', desc: 'Define in system prompt' },
 ];
 
 const languages = [
-  { value: 'auto',   label: 'Auto-detect' },
-  { value: 'en',     label: 'English' },
-  { value: 'hi',     label: 'Hindi' },
-  { value: 'ta',     label: 'Tamil' },
-  { value: 'te',     label: 'Telugu' },
-  { value: 'bn',     label: 'Bengali' },
-  { value: 'gu',     label: 'Gujarati' },
-  { value: 'mr',     label: 'Marathi' },
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'en', label: 'English' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ta', label: 'Tamil' },
+  { value: 'te', label: 'Telugu' },
+  { value: 'bn', label: 'Bengali' },
+  { value: 'gu', label: 'Gujarati' },
+  { value: 'mr', label: 'Marathi' },
 ];
 
 function FormField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -66,12 +66,12 @@ export default function AgentBehaviour() {
 
   // Computed Save state
   const saved = systemPrompt.trim() === dbSystemPrompt.trim() &&
-                personality === dbPersonality &&
-                temperature === dbTemperature &&
-                language === dbLanguage &&
-                memoryEnabled === dbMemoryEnabled &&
-                welcomeMessage.trim() === dbWelcomeMessage.trim() &&
-                fallbackMessage.trim() === dbFallbackMessage.trim();
+    personality === dbPersonality &&
+    temperature === dbTemperature &&
+    language === dbLanguage &&
+    memoryEnabled === dbMemoryEnabled &&
+    welcomeMessage.trim() === dbWelcomeMessage.trim() &&
+    fallbackMessage.trim() === dbFallbackMessage.trim();
 
   useEffect(() => {
     async function loadData() {
@@ -114,7 +114,7 @@ export default function AgentBehaviour() {
             savedMemory = parsed.memoryEnabled !== undefined ? parsed.memoryEnabled : savedMemory;
             savedWelcome = parsed.welcomeMessage || savedWelcome;
             savedFallback = parsed.fallbackMessage || savedFallback;
-          } catch(e){}
+          } catch (e) { }
         }
       }
 

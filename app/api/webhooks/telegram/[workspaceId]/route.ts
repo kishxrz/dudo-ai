@@ -366,7 +366,11 @@ export async function POST(
       conversationId,
       message.from?.id,
       message.from?.username,
-      userText
+      userText,
+      {
+        chatId: chatId,
+        displayName: senderName
+      }
     );
     console.log(`[Telegram Webhook] [AFTER] Process Admin Command completed. isCommand: ${commandResult.isCommand}`);
     lastSuccessfulFunction = 'Process Admin Command';

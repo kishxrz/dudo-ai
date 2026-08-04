@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import SaveButton from '@/components/ui/SaveButton';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
@@ -167,6 +168,7 @@ export default function SettingsPage() {
         await setDoc(docRef, payload, { merge: true });
       } catch (e) {
         console.error('Failed to save settings:', e);
+        throw e;
       }
     }
 
@@ -205,12 +207,14 @@ export default function SettingsPage() {
         description="Manage your account and business profile"
         breadcrumbs={[{ label: 'Settings' }]}
         actions={
-          <Button 
-            onClick={handleSave} 
-            className="h-8.5 px-4 bg-[#22577A] hover:bg-[#1C4662] text-white font-bold rounded-xl shadow-md shadow-[#22577A]/10 text-xs cursor-pointer flex items-center gap-1.5 border-none transition-all hover:scale-[1.01]"
-          >
-            <Save size={13} /> {saved ? 'Saved!' : 'Save Changes'}
-          </Button>
+          <SaveButton
+            onClick={handleSave}
+            isDirty={!saved}
+            label="Save Changes"
+            successToastTitle="Workspace settings updated"
+            successToastDescription="Your profile changes have been saved."
+            className="h-8.5 rounded-xl text-xs"
+          />
         }
       />
 

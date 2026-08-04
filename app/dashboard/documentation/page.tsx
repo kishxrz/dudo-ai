@@ -677,7 +677,7 @@ export default function DocumentationPage() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[#F7F8FA] font-sans select-none overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 bg-[#F7F8FA] font-sans select-none overflow-hidden rounded-2xl border border-zinc-200/80 shadow-sm">
 
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-zinc-200/60 px-6 py-4">

@@ -27,6 +27,7 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, getDoc
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import SaveButton from '@/components/ui/SaveButton';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
@@ -310,6 +311,7 @@ export default function KnowledgePage() {
       setDbBizWebsite(bizWebsite.trim());
     } catch (e: any) {
       setErrorMsg(e.message || 'Failed to save business profile.');
+      throw e;
     } finally {
       setBizSaving(false);
     }
@@ -771,6 +773,7 @@ ${text}`;
 
     } catch (e: any) {
       setErrorMsg(e.message || 'Failed to save text knowledge.');
+      throw e;
     }
   };
 
@@ -817,6 +820,7 @@ ${text}`;
 
     } catch (e: any) {
       setErrorMsg(e.message || 'Failed to save FAQ knowledge.');
+      throw e;
     }
   };
 
@@ -846,46 +850,43 @@ ${text}`;
       setFormUrl('');
       setAddingType(null);
 
-      fetch('/api/fetch-url', {
+      const res = await fetch('/api/fetch-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl })
-      })
-      .then(res => {
-        if (!res.ok) throw new Error(res.statusText);
-        return res.json();
-      })
-      .then(async (data) => {
-        if (data.text) {
-          await setDoc(docRef, {
-            status: 'Processing',
-            source: data.text,
-            updatedAt: new Date()
-          }, { merge: true });
-
-          let token = '';
-          if (currentUser) {
-            token = await currentUser.getIdToken();
-          }
-          fetch('/api/agent/knowledge/ingest', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ workspaceId, itemId })
-          }).catch(err => console.error(err));
-        } else {
-          await setDoc(docRef, { status: 'Failed', updatedAt: new Date() }, { merge: true });
-        }
-      })
-      .catch(async (fetchErr) => {
-        console.error('Failed to fetch URL:', fetchErr);
-        await setDoc(docRef, { status: 'Failed', updatedAt: new Date() }, { merge: true });
       });
+      if (!res.ok) {
+        await setDoc(docRef, { status: 'Failed', updatedAt: new Date() }, { merge: true });
+        throw new Error(res.statusText);
+      }
+      
+      const data = await res.json();
+      if (data.text) {
+        await setDoc(docRef, {
+          status: 'Processing',
+          source: data.text,
+          updatedAt: new Date()
+        }, { merge: true });
 
+        let token = '';
+        if (currentUser) {
+          token = await currentUser.getIdToken();
+        }
+        await fetch('/api/agent/knowledge/ingest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ workspaceId, itemId })
+        });
+      } else {
+        await setDoc(docRef, { status: 'Failed', updatedAt: new Date() }, { merge: true });
+        throw new Error('Failed to extract text from URL');
+      }
     } catch (e: any) {
-      setErrorMsg(e.message || 'Failed to save URL knowledge.');
+      setErrorMsg(e.message || 'Failed to save Link knowledge.');
+      throw e;
     }
   };
 
@@ -1123,13 +1124,14 @@ ${text}`;
                 <RotateCcw size={12} /> Rollback
               </Button>
             )}
-            <Button
+            <SaveButton
               onClick={handleSaveBizProfile}
-              disabled={bizSaving}
-              className="h-8 text-xs font-semibold px-4 bg-[#22577A] hover:bg-[#1A4461] text-white rounded-xl border-none cursor-pointer flex items-center justify-center shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none"
-            >
-              {bizSaving ? 'Saving...' : bizSaved ? '✓ Saved!' : 'Save Profile'}
-            </Button>
+              isDirty={!bizSaved}
+              label="Save Profile"
+              successToastTitle="Business profile updated"
+              successToastDescription="The business profile was saved successfully."
+              className="h-8 text-xs font-semibold px-4 rounded-xl flex-1 sm:flex-none"
+            />
           </div>
         </div>
 
@@ -1277,7 +1279,14 @@ ${text}`;
             </div>
             <div className="flex justify-end gap-2 pt-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-300 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
-              <Button size="sm" onClick={handleAddText} disabled={!formTitle.trim() || !formContent.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save Knowledge</Button>
+              <SaveButton
+                onClick={handleAddText}
+                isDirty={!!formTitle.trim() && !!formContent.trim()}
+                label="Save Knowledge"
+                successToastTitle="Knowledge base updated"
+                successToastDescription="Text resource added successfully."
+                className="h-8 text-xs font-semibold rounded-xl flex-1 sm:flex-none"
+              />
             </div>
           </div>
         </div>
@@ -1308,7 +1317,14 @@ ${text}`;
             </div>
             <div className="flex justify-end gap-2 pt-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-300 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
-              <Button size="sm" onClick={handleAddFaq} disabled={!formTitle.trim() || !formFaqAnswer.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save FAQ</Button>
+              <SaveButton
+                onClick={handleAddFaq}
+                isDirty={!!formTitle.trim() && !!formFaqAnswer.trim()}
+                label="Save FAQ"
+                successToastTitle="FAQ added"
+                successToastDescription="Question and answer pair saved."
+                className="h-8 text-xs font-semibold rounded-xl flex-1 sm:flex-none"
+              />
             </div>
           </div>
         </div>
@@ -1338,7 +1354,14 @@ ${text}`;
             </div>
             <div className="flex justify-end gap-2 pt-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={() => setAddingType(null)} className="h-8 text-xs font-semibold border-zinc-300 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-50 bg-white rounded-xl flex-1 sm:flex-none justify-center">Cancel</Button>
-              <Button size="sm" onClick={handleAddUrl} disabled={!formTitle.trim() || !formUrl.trim()} className="h-8 text-xs font-semibold bg-[#22577A] hover:bg-[#1A4461] text-white border-none cursor-pointer rounded-xl shadow-sm transition-all hover:scale-[1.01] flex-1 sm:flex-none justify-center">Save Link</Button>
+              <SaveButton
+                onClick={handleAddUrl}
+                isDirty={!!formTitle.trim() && !!formUrl.trim()}
+                label="Save Link"
+                successToastTitle="Link resource saved"
+                successToastDescription="Website URL added to knowledge base."
+                className="h-8 text-xs font-semibold rounded-xl flex-1 sm:flex-none"
+              />
             </div>
           </div>
         </div>

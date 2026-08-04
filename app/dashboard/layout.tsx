@@ -429,18 +429,21 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
         onMobileClose={() => setMobileSidebarOpen(false)}
       />
       
-      <div className={cn(
-        "flex-1 flex flex-col h-screen overflow-hidden relative bg-[#FFF8F0] transition-all duration-200 ease-in-out",
-        "ml-0 md:ml-[60px] lg:ml-[60px]",
-        sidebarExpanded && "md:ml-60 lg:ml-60"
-      )}>
+      <div 
+        style={{ transitionDuration: '250ms' }}
+        className={cn(
+          "flex-1 flex flex-col h-screen overflow-hidden relative bg-[#FFF8F0] transition-all ease-in-out origin-left",
+          "ml-0 md:ml-[60px] lg:ml-[60px]",
+          sidebarExpanded && "md:ml-60 lg:ml-60 scale-[0.99] translate-x-[6px] blur-[2px]"
+        )}
+      >
         
         <div className="relative z-0 flex-1 flex flex-col h-screen overflow-hidden bg-[#FFF8F0]">
-          {/* Black backdrop overlay when sidebar is expanded on tablet */}
+          {/* Subtle backdrop dim and blur overlay when sidebar is expanded */}
           <div 
             className={cn(
-              "absolute inset-0 bg-black transition-opacity duration-200 pointer-events-none z-40 hidden md:block",
-              sidebarExpanded ? "opacity-25" : "opacity-0"
+              "absolute inset-0 transition-all duration-300 pointer-events-none z-30 hidden md:block",
+              sidebarExpanded ? "bg-black/[0.04] backdrop-blur-[1.5px] opacity-100" : "bg-transparent backdrop-blur-none opacity-0"
             )}
           />
           {/* Mobile drawer overlay */}

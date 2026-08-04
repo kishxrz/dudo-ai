@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import { useAuth } from '@/contexts/AuthContext';
 import { generate2000Skills } from '@/lib/skills-generator';
 import { mockAssistant } from '@/services/mockData';
 import VoiceButton from '@/components/voice/VoiceButton';
@@ -86,6 +87,7 @@ const PROVIDER_LOGOS: Partial<Record<ApiProvider, React.ReactNode>> = {
 
 export default function AgentTesting() {
   const { workspaceId } = useWorkspace();
+  const { currentUser } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -139,7 +141,12 @@ export default function AgentTesting() {
   const fetchWorkspaceSkills = async () => {
     if (!workspaceId) return;
     try {
-      const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`);
+      const token = currentUser ? await currentUser.getIdToken() : '';
+      const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.skills) {

@@ -147,6 +147,49 @@ export default function LearningPage() {
     }
   };
 
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetAll = async () => {
+    if (!window.confirm("Are you sure you want to clear all learned skills, customer profiles, and business facts? This will reset them back to empty states.")) {
+      return;
+    }
+    setResetting(true);
+    try {
+      if (workspaceId) {
+        // 1. Clear skills
+        const skillsRef = collection(db, 'workspaces', workspaceId, 'learning_skills');
+        const skillsSnap = await getDocs(skillsRef);
+        for (const docSnap of skillsSnap.docs) {
+          await deleteDoc(doc(db, 'workspaces', workspaceId, 'learning_skills', docSnap.id));
+        }
+
+        // 2. Clear customers
+        const customersRef = collection(db, 'workspaces', workspaceId, 'customer_profiles');
+        const customersSnap = await getDocs(customersRef);
+        for (const docSnap of customersSnap.docs) {
+          await deleteDoc(doc(db, 'workspaces', workspaceId, 'customer_profiles', docSnap.id));
+        }
+
+        // 3. Clear facts
+        const factsRef = collection(db, 'workspaces', workspaceId, 'learning_facts');
+        const factsSnap = await getDocs(factsRef);
+        for (const docSnap of factsSnap.docs) {
+          await deleteDoc(doc(db, 'workspaces', workspaceId, 'learning_facts', docSnap.id));
+        }
+      }
+      
+      localStorage.removeItem('__dudo_dev_learning_facts');
+      
+      setSkills([]);
+      setCustomers([]);
+      setFacts([]);
+    } catch (e) {
+      console.error('Failed to reset learning data:', e);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-5 px-6 box-border">
       {/* 1. Page Header */}
@@ -165,15 +208,24 @@ export default function LearningPage() {
           </div>
         </div>
         
-        <Button
-          onClick={() => {
-            if (typeof window !== 'undefined') window.location.reload();
-          }}
-          className="h-8.5 px-3.5 bg-white border border-[#22577A] hover:bg-[#22577A]/5 text-[#22577A] font-semibold rounded-xl shadow-xs text-xs cursor-pointer flex items-center gap-1.5 transition-all shrink-0 hover:scale-[1.01] active:scale-99"
-        >
-          <RotateCw size={13} className="text-[#22577A]" />
-          Reflect now
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={handleResetAll}
+            disabled={resetting}
+            className="h-8.5 px-3.5 bg-white border border-red-300 hover:bg-red-50/50 text-red-600 hover:text-red-700 hover:border-red-400 font-bold rounded-xl shadow-xs text-xs cursor-pointer flex items-center gap-1.5 transition-all shrink-0 active:scale-99 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {resetting ? 'Resetting...' : 'Reset data'}
+          </Button>
+          <Button
+            onClick={() => {
+              if (typeof window !== 'undefined') window.location.reload();
+            }}
+            className="h-8.5 px-3.5 bg-white border border-[#22577A] hover:bg-[#22577A]/5 text-[#22577A] font-semibold rounded-xl shadow-xs text-xs cursor-pointer flex items-center gap-1.5 transition-all shrink-0 hover:scale-[1.01] active:scale-99"
+          >
+            <RotateCw size={13} className="text-[#22577A]" />
+            Reflect now
+          </Button>
+        </div>
       </div>
 
       {/* 2. Tabs Selector */}

@@ -150,3 +150,47 @@ html, body, #__next, main {
   display: none; /* Chrome/Safari/Opera */
 }
 
+/* Testimonials Marquee styles */
+@keyframes scroll-right {
+  0% {
+    transform: translate3d(-50%, 0, 0);
+  }
+  100% {
+    transform: translate3d(0%, 0, 0);
+  }
+}
+@keyframes scroll-left {
+  0% {
+    transform: translate3d(0%, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+.marquee-track-right {
+  display: flex;
+  width: max-content;
+  gap: 1.5rem;
+  animation: scroll-right 45s linear infinite;
+}
+.marquee-track-left {
+  display: flex;
+  width: max-content;
+  gap: 1.5rem;
+  animation: scroll-left 45s linear infinite;
+}
+.marquee-container:hover .marquee-track-right,
+.marquee-container:hover .marquee-track-left {
+  animation-play-state: paused;
+}
+
+/* Button shake animation for save errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+

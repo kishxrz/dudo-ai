@@ -22,13 +22,15 @@ export const metadata: Metadata = {
   },
 };
 
+import { connection } from "next/server";
 import { AuthProvider } from "@/contexts/AuthContext";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
   return (
     <html
       lang="en"

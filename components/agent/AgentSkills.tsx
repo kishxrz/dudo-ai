@@ -27,6 +27,7 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import metadataListRaw from '@/data/skills/metadata.json';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Skill {
   id: string;
@@ -145,6 +146,7 @@ const DEFAULT_CATALOG = metadataList.slice(0, 200);
 
 export default function AgentSkills() {
   const { workspaceId } = useWorkspace();
+  const { currentUser } = useAuth();
   const toast = useToast();
   const [skills, setSkills] = useState<Skill[]>(() => {
     // Interleave by category from default 200 built-in skills so "All" section shows mixed skills
@@ -204,7 +206,12 @@ export default function AgentSkills() {
   const fetchSkills = async () => {
     if (!workspaceId) return;
     try {
-      const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`);
+      const token = currentUser ? await currentUser.getIdToken() : '';
+      const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.skills) {
@@ -251,9 +258,13 @@ export default function AgentSkills() {
     setTransitioning(prev => ({ ...prev, [id]: true }));
 
     try {
+      const token = currentUser ? await currentUser.getIdToken() : '';
       const res = await fetch('/api/agent/skills', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           action,
           workspaceId,

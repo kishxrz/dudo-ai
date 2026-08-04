@@ -88,7 +88,12 @@ export default function DashboardPage() {
       // Load active skills from Agent Skills API
       if (workspaceId) {
         try {
-          const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`);
+          const token = currentUser ? await currentUser.getIdToken() : '';
+          const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
           if (res.ok) {
             const data = await res.json();
             if (data.skills) {
@@ -229,6 +234,8 @@ export default function DashboardPage() {
         knowledgeCount,
         channelConnected: channelName,
       });
+
+      setLoading(false); // Set loading to false early so sidebar renders immediately
 
       // 5. Load conversations and calculate metrics
       if (db && workspaceId) {

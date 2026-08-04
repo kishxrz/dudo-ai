@@ -52,20 +52,33 @@ export function proxy(request: NextRequest) {
   // 2. Rate Limiting Throttling
   let limit = 100; // default requests per minute
   const windowMs = 60000; // 1 minute window
+  let limiterType = 'general';
 
   if (pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/api/auth/')) {
     limit = 10; // Strict limit for auth endpoints
+    limiterType = 'auth';
   } else if (pathname.startsWith('/api/playground/chat')) {
     limit = 30; // Limit for AI Chat playground
+    limiterType = 'chat';
   } else if (pathname.startsWith('/api/voice/')) {
     limit = 30; // Limit for voice APIs (TTS/STT)
+    limiterType = 'voice';
   } else if (pathname.startsWith('/api/webhooks/')) {
     limit = 120; // Webhook rate allowance
+    limiterType = 'webhooks';
   } else if (pathname.startsWith('/api/')) {
     limit = 60; // Standard API limit
+    limiterType = 'api';
   }
 
-  const isLimited = RateLimiter.isRateLimited(ip, limit, windowMs);
+  // Exclude localhost from aggressive limits in development
+  const isDev = process.env.NODE_ENV === 'development';
+  const isLocalhost = ip === '127.0.0.1' || ip === '::1';
+  if (isLocalhost && isDev) {
+    limit = 10000;
+  }
+
+  const isLimited = RateLimiter.isRateLimited(ip, limit, windowMs, limiterType);
   if (isLimited) {
     console.warn(`[Security Rate Limiter] Blocked IP: ${ip} accessing pathname: ${pathname}`);
     
@@ -120,15 +133,14 @@ export function proxy(request: NextRequest) {
   // 5. Dynamic CSP Nonce Generation for HTML Pages
   // Note: Using standard crypto module functions in Edge runtime
   const nonce = Buffer.from(globalThis.crypto.randomUUID()).toString('base64');
-  const isDev = process.env.NODE_ENV === 'development';
   const scriptCsp = `script-src 'self' 'nonce-${nonce}' ${isDev ? "'unsafe-eval'" : ""} 'strict-dynamic' https:;`;
   
   // Restricted CSP hosts to eliminate wildcards and secure Google/Firebase resources
   const cspHeader = `
     default-src 'self';
     ${scriptCsp}
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https://lh3.googleusercontent.com https://firebasestorage.googleapis.com https://dodo-ai-agent.firebasestorage.app;
+    style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com;
+    img-src 'self' blob: data: https://lh3.googleusercontent.com https://firebasestorage.googleapis.com https://dodo-ai-agent.firebasestorage.app https://images.unsplash.com;
     font-src 'self' data: https://fonts.gstatic.com;
     connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://speech.googleapis.com https://dodo-ai-agent.firebaseapp.com wss://dodo-ai-agent.firebaseio.com wss://dodo-ai-agent-default-rtdb.firebaseio.com https://api.openai.com https://api.deepgram.com https://api.assemblyai.com https://api.groq.com https://api.anthropic.com https://generativelanguage.googleapis.com https://vitals.vercel-insights.com;
     frame-src 'self' https://accounts.google.com https://dodo-ai-agent.firebaseapp.com;

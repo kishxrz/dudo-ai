@@ -13,6 +13,7 @@ import { doc, deleteDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useAuth } from '@/contexts/AuthContext';
+import SaveButton from '@/components/ui/SaveButton';
 
 import { ProviderModelRegistry } from '@/lib/ai/providers/ProviderModelRegistry';
 
@@ -29,6 +30,7 @@ interface ProviderState {
   isValidated: boolean;
   validationStatus: ValidationStatus;
   validationError: string | null;
+  originalModel?: string;
 }
 
 // ─── Static Provider Metadata (logo, names) ───
@@ -36,7 +38,7 @@ interface ProviderState {
 const PROVIDER_METADATA: Record<ApiProvider, {
   name: string;
   placeholderKey: string;
-  logo: React.ReactNode;
+  logo: React.ReactNode | ((color?: string) => React.ReactNode);
 }> = {
   openai: {
     name: 'OpenAI',
@@ -107,9 +109,9 @@ const PROVIDER_METADATA: Record<ApiProvider, {
   elevenlabs: {
     name: 'ElevenLabs',
     placeholderKey: 'Paste your ElevenLabs API key',
-    logo: (
-      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#22577A" strokeWidth="2" strokeLinecap="round">
-        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
+    logo: (color?: string) => (
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill={color || "#1A1A1A"} fillRule="evenodd">
+        <path d="M5 0h5v24H5V0zM14 0h5v24h-5V0z" />
       </svg>
     ),
   },
@@ -117,26 +119,29 @@ const PROVIDER_METADATA: Record<ApiProvider, {
     name: 'Deepgram',
     placeholderKey: 'Paste your Deepgram API key',
     logo: (
-      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#F05A28" strokeWidth="2" strokeLinecap="round">
-        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="#13EF95">
+        <path d="M11.203 24H1.517a.364.364 0 0 1-.258-.62l6.239-6.275a.37.37 0 0 1 .259-.108h3.52c2.723 0 5.025-2.127 5.107-4.845a5.004 5.004 0 0 0-4.999-5.148H7.613v4.646c0 .2-.164.364-.365.364H.968a.365.365 0 0 1-.363-.364V.364C.605.164.768 0 .969 0h10.416c6.684 0 12.111 5.485 12.01 12.187C23.293 18.77 17.794 24 11.202 24z" />
       </svg>
     ),
   },
   assemblyai: {
     name: 'AssemblyAI',
     placeholderKey: 'Paste your AssemblyAI API key',
-    logo: (
-      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#4285F4" strokeWidth="2" strokeLinecap="round">
-        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
+    logo: (color?: string) => (
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill={color || "#243B53"} fillRule="evenodd">
+        <path d="M10.595 1.5a3.695 3.695 0 00-3.444 2.355L0 22.26h5.432l5.629-14.486h.002a.96.96 0 011.782 0h.75V4.835h-1.393L13.498 1.5h-2.902z" />
+        <path d="M7.151 3.855a3.695 3.695 0 013.26-2.35l-.002-.005H13.405c1.524 0 2.893.936 3.444 2.355L24 22.26h-5.525L11.54 4.413a2.528 2.528 0 00-4.609.006l.22-.564z" />
       </svg>
     ),
   },
   azure: {
     name: 'Azure Speech',
     placeholderKey: 'Paste your Azure Speech API key',
-    logo: (
-      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill="none" stroke="#0078D4" strokeWidth="2" strokeLinecap="round">
-        <path d="M12 2v20M17 5v14M22 9v6M7 5v14M2 9v6" />
+    logo: (color?: string) => (
+      <svg viewBox="0 0 24 24" className="w-5.5 h-5.5" fill={color || "#0078D4"} fillRule="evenodd">
+        <path d="M18.397 15.296H7.4a.51.51 0 00-.347.882l7.066 6.595c.206.192.477.298.758.298h6.226l-2.706-7.775z" fillOpacity=".75" />
+        <path d="M8.295.857c-.477 0-.9.304-1.053.756L.495 21.605a1.11 1.11 0 001.052 1.466h5.43c.477 0 .9-.304 1.053-.755l1.341-3.975-2.318-2.163a.51.51 0 01.347-.882h3L15.271.857H8.295z" fillOpacity=".5" />
+        <path d="M17.193 1.613a1.11 1.11 0 00-1.052-.756h-7.81.035c.477 0 .9.304 1.052.756l6.748 19.992a1.11 1.11 0 01-1.052 1.466h-.12 7.895a1.11 1.11 0 001.052-1.466L17.193 1.613z" />
       </svg>
     ),
   },
@@ -227,9 +232,11 @@ export default function AgentApiKeys() {
           if (snap.exists()) {
             const data = snap.data();
             const hasKey = !!data.apiKey;
+            const defaultModelId = ProviderModelRegistry.getDefaultModel(key).modelId;
             updated[key] = {
               ...updated[key],
-              model: data.model || ProviderModelRegistry.getDefaultModel(key).modelId,
+              model: data.model || defaultModelId,
+              originalModel: data.model || defaultModelId,
               apiKeyInput: '',             // never populate with real key
               isValidated: hasKey,
               validationStatus: hasKey ? 'valid' : 'not_configured',
@@ -280,9 +287,16 @@ export default function AgentApiKeys() {
         if (data.valid || data.modelUpdated) {
           setProviders(prev => ({
             ...prev,
-            [activeProvider]: { ...prev[activeProvider], validationStatus: 'valid', validationError: null },
+            [activeProvider]: {
+              ...prev[activeProvider],
+              validationStatus: 'valid',
+              validationError: null,
+              originalModel: prev[activeProvider].model,
+            },
           }));
           window.dispatchEvent(new Event('dudo-config-changed'));
+        } else {
+          throw new Error(data.error || 'Failed to update model.');
         }
       } catch (e) {
         console.error(e);
@@ -290,6 +304,7 @@ export default function AgentApiKeys() {
           ...prev,
           [activeProvider]: { ...prev[activeProvider], validationStatus: 'valid', validationError: null },
         }));
+        throw e;
       }
       return;
     }
@@ -329,7 +344,7 @@ export default function AgentApiKeys() {
             validationError: data.error || 'Server error during validation.',
           },
         }));
-        return;
+        throw new Error(data.error || 'Server error during validation.');
       }
 
       if (data.valid) {
@@ -340,7 +355,14 @@ export default function AgentApiKeys() {
             Object.keys(prev).map(k => [
               k,
               k === activeProvider
-                ? { ...prev[k as ApiProvider], apiKeyInput: '', isValidated: true, validationStatus: 'valid' as ValidationStatus, validationError: null }
+                ? {
+                    ...prev[k as ApiProvider],
+                    apiKeyInput: '',
+                    isValidated: true,
+                    validationStatus: 'valid' as ValidationStatus,
+                    validationError: null,
+                    originalModel: prev[k as ApiProvider].model,
+                  }
                 : prev[k as ApiProvider],
             ])
           ),
@@ -355,6 +377,7 @@ export default function AgentApiKeys() {
             validationError: data.error || 'The API key was rejected by the provider.',
           },
         }));
+        throw new Error(data.error || 'The API key was rejected by the provider.');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Network error.';
@@ -362,6 +385,7 @@ export default function AgentApiKeys() {
         ...prev,
         [activeProvider]: { ...prev[activeProvider], validationStatus: 'error', validationError: msg },
       }));
+      throw err;
     }
   };
 
@@ -441,7 +465,7 @@ export default function AgentApiKeys() {
                   'w-7.5 h-7.5 rounded-lg flex items-center justify-center border shrink-0',
                   isSelected ? 'bg-white/10 border-white/10' : 'bg-zinc-50 border-zinc-200'
                 )}>
-                  {metaData.logo}
+                  {typeof metaData.logo === 'function' ? metaData.logo(isSelected ? '#FFFFFF' : undefined) : metaData.logo}
                 </div>
                 <div>
                   <h4 className="text-xs font-bold capitalize leading-none">{metaData.name}</h4>
@@ -463,7 +487,7 @@ export default function AgentApiKeys() {
           {/* Header */}
           <div className="flex items-center gap-3 pb-3 border-b border-zinc-100">
             <div className="w-8.5 h-8.5 rounded-lg bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0 text-zinc-800">
-              {metadata.logo}
+              {typeof metadata.logo === 'function' ? metadata.logo() : metadata.logo}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -583,20 +607,15 @@ export default function AgentApiKeys() {
             <div />
           )}
 
-          <Button
+          <SaveButton
             onClick={handleValidateAndSave}
-            disabled={isValidating || (!activeConf.apiKeyInput.trim() && !activeConf.isValidated)}
-            className={cn(
-              'h-7.5 text-[10px] font-bold px-4 rounded-md cursor-pointer border-none transition-all',
-              activeConf.validationStatus === 'valid'
-                ? 'bg-green-700 hover:bg-green-800 text-white'
-                : 'bg-zinc-950 hover:bg-zinc-800 text-white',
-              (isValidating || (!activeConf.apiKeyInput.trim() && !activeConf.isValidated)) && 'opacity-50 cursor-not-allowed'
-            )}
-          >
-            {isValidating && <Loader2 size={11} className="mr-1.5 animate-spin" />}
-            {saveButtonLabel()}
-          </Button>
+            isDirty={activeConf.apiKeyInput.trim() !== '' || activeConf.model !== activeConf.originalModel}
+            label={saveButtonLabel()}
+            successLabel="Validated & Saved"
+            successToastTitle={`${metadata.name} configured`}
+            successToastDescription="API key and model preferences saved."
+            className="h-7.5 text-[10px] font-bold px-4 rounded-md min-w-[130px]"
+          />
         </div>
       </div>
     </div>

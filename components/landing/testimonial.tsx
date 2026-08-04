@@ -1,6 +1,6 @@
 "use client";
 
-import { Star } from 'lucide-react';
+import { Star, Check } from 'lucide-react';
 import { testimonials } from '@/data/testimonials';
 
 export default function Testimonial() {
@@ -14,42 +14,6 @@ export default function Testimonial() {
   return (
     <section className="py-24 sm:py-32 bg-white border-t border-[#EED9B4]/30 relative overflow-hidden select-none">
       
-      {/* Inline styles for high-performance GPU-accelerated scrolling */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes scroll-right {
-          0% {
-            transform: translate3d(-50%, 0, 0);
-          }
-          100% {
-            transform: translate3d(0%, 0, 0);
-          }
-        }
-        @keyframes scroll-left {
-          0% {
-            transform: translate3d(0%, 0, 0);
-          }
-          100% {
-            transform: translate3d(-50%, 0, 0);
-          }
-        }
-        .marquee-track-right {
-          display: flex;
-          width: max-content;
-          gap: 1.5rem;
-          animation: scroll-right 45s linear infinite;
-        }
-        .marquee-track-left {
-          display: flex;
-          width: max-content;
-          gap: 1.5rem;
-          animation: scroll-left 45s linear infinite;
-        }
-        .marquee-container:hover .marquee-track-right,
-        .marquee-container:hover .marquee-track-left {
-          animation-play-state: paused;
-        }
-      ` }} />
-
       {/* Decorative backdrop blobs */}
       <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 rounded-full bg-[#FFF8F0] blur-3xl pointer-events-none" />
 
@@ -172,14 +136,26 @@ export default function Testimonial() {
           <span className="flex items-center gap-1.5 text-amber-500 font-black">
             ★★★★★ <span className="text-zinc-500 font-bold ml-1">Rated by Early Customers</span>
           </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 hidden sm:inline" />
-          <span>Replies in under 10 seconds</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 hidden sm:inline" />
-          <span>Works 24/7</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 hidden sm:inline" />
-          <span>Secure</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 hidden sm:inline" />
-          <span>No Credit Card Required</span>
+          
+          <span className="flex items-center gap-1.5">
+            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+            Replies in under 10 seconds
+          </span>
+          
+          <span className="flex items-center gap-1.5">
+            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+            Works 24/7
+          </span>
+          
+          <span className="flex items-center gap-1.5">
+            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+            Secure
+          </span>
+          
+          <span className="flex items-center gap-1.5">
+            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+            No Credit Card Required
+          </span>
         </div>
 
       </div>

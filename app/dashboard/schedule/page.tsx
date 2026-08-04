@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import SaveButton from '@/components/ui/SaveButton';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
@@ -246,12 +247,15 @@ export default function SchedulesPage() {
             >
               Cancel
             </button>
-            <Button
+            <SaveButton
               onClick={handleAddJob}
-              className="h-10 text-sm px-4 rounded-xl bg-[#22577A] hover:bg-[#1A4461] text-white font-medium border-none cursor-pointer transition-all hover:scale-[1.01]"
-            >
-              Create Job
-            </Button>
+              isDirty={!!jobName.trim() && !!jobRule.trim()}
+              label="Create Job"
+              successLabel="Created"
+              successToastTitle="Schedule created"
+              successToastDescription="A new scheduled job has been added."
+              className="h-10 text-sm px-4 rounded-xl"
+            />
           </div>
         </div>
       </Modal>

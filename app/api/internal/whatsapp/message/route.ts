@@ -232,7 +232,11 @@ export async function POST(req: NextRequest) {
       externalChatId,
       senderId,
       undefined,
-      messageText
+      messageText,
+      {
+        chatId: externalChatId,
+        displayName: senderName
+      }
     );
     if (commandResult.isCommand) {
       console.log(`[WA_WEBHOOK_TRACE] stage=AGENT_LOOKUP status=SHORT_CIRCUIT reason="admin command processed" messageId=${messageId}`);

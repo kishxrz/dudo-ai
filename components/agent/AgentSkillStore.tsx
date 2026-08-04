@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import metadataListRaw from '@/data/skills/metadata.json';
 
 interface CommunitySkill {
@@ -164,6 +165,7 @@ const CATEGORIES = [
 
 export default function AgentSkillStore() {
   const { workspaceId } = useWorkspace();
+  const { currentUser } = useAuth();
   const toast = useToast();
   const [skills, setSkills] = useState<CommunitySkill[]>([]);
   const [prompt, setPrompt] = useState('');
@@ -196,7 +198,12 @@ export default function AgentSkillStore() {
   const fetchStore = async () => {
     if (!workspaceId) return;
     try {
-      const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`);
+      const token = currentUser ? await currentUser.getIdToken() : '';
+      const res = await fetch(`/api/agent/skills?workspaceId=${workspaceId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!res.ok) return;
       const data = await res.json();
       if (!data.skills) return;
@@ -282,9 +289,13 @@ export default function AgentSkillStore() {
     setTransitioning(prev => ({ ...prev, [id]: isInstalling ? 'installing' : 'uninstalling' }));
 
     try {
+      const token = currentUser ? await currentUser.getIdToken() : '';
       const res = await fetch('/api/agent/skills', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           action,
           workspaceId,
@@ -319,9 +330,13 @@ export default function AgentSkillStore() {
     setCreating(true);
     setSaveError('');
     try {
+      const token = currentUser ? await currentUser.getIdToken() : '';
       const res = await fetch('/api/agent/skills', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           action: 'createCustom',
           workspaceId,
@@ -354,9 +369,13 @@ export default function AgentSkillStore() {
     setSaveError('');
 
     try {
+      const token = currentUser ? await currentUser.getIdToken() : '';
       const res = await fetch('/api/agent/skills', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           action: 'saveCustom',
           workspaceId,

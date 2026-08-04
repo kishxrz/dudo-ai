@@ -9,8 +9,9 @@ import AgentChannels from '@/components/agent/AgentChannels';
 import AgentApiKeys from '@/components/agent/AgentApiKeys';
 import AgentPersonality from '@/components/agent/AgentPersonality';
 import AgentTesting from '@/components/agent/AgentTesting';
+import AgentEmails from '@/components/agent/AgentEmails';
 import { useState, useEffect } from 'react';
-import { Bot, Puzzle, Store, MessageSquare, Key, Brain, Play } from 'lucide-react';
+import { Bot, Puzzle, Store, MessageSquare, Key, Brain, Play, Mail } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { mockAssistant } from '@/services/mockData';
@@ -27,6 +28,7 @@ const TABS = [
   { id: 'channels', label: 'Channels', icon: MessageSquare },
   { id: 'api-keys', label: 'API Keys', icon: Key },
   { id: 'personality', label: 'Personality', icon: Brain },
+  { id: 'emails', label: 'Emails', icon: Mail },
   { id: 'testing', label: 'Testing', icon: Play },
 ];
 
@@ -168,6 +170,7 @@ function AgentPageInner() {
         {activeTab === 'channels' && <AgentChannels />}
         {activeTab === 'api-keys' && <AgentApiKeys />}
         {activeTab === 'personality' && <AgentPersonality />}
+        {activeTab === 'emails' && <AgentEmails />}
         {activeTab === 'testing' && <AgentTesting />}
       </div>
     </PageLayout>

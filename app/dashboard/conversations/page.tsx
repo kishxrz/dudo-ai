@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import SaveButton from '@/components/ui/SaveButton';
 import {
   MessageSquare,
   Search,
@@ -217,19 +218,24 @@ export default function ConversationsPage() {
 
   // ── Notes syncing states and handlers ──────────────────────────────────
   const [noteText, setNoteText] = useState('');
+  const [dbNoteText, setDbNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     if (!db || !workspaceId || !selectedChatId) {
       setNoteText('');
+      setDbNoteText('');
       return;
     }
     const docRef = doc(db, 'workspaces', workspaceId, 'conversation_notes', selectedChatId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setNoteText(docSnap.data().notes || '');
+        const data = docSnap.data();
+        setNoteText(data.notes || '');
+        setDbNoteText(data.notes || '');
       } else {
         setNoteText('');
+        setDbNoteText('');
       }
     }, (err) => {
       console.error("Error loading note:", err);
@@ -246,8 +252,10 @@ export default function ConversationsPage() {
         notes: noteText,
         updatedAt: new Date()
       }, { merge: true });
+      setDbNoteText(noteText);
     } catch (e) {
       console.error("Error saving note:", e);
+      throw e;
     } finally {
       setSavingNote(false);
     }
@@ -734,7 +742,7 @@ export default function ConversationsPage() {
 
             {detailsOpen && (
               <div
-                className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-12 space-y-4"
+                className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-4 space-y-4"
                 style={{ scrollbarWidth: 'thin', scrollbarColor: '#e4e4e7 transparent' }}
               >
                 {/* Customer Avatar + Name */}
@@ -816,19 +824,17 @@ export default function ConversationsPage() {
                     onChange={(e) => setNoteText(e.target.value)}
                     className="w-full px-2.5 py-2 rounded-lg border border-zinc-200 text-[11px] text-zinc-700 placeholder:text-zinc-400 resize-none focus:outline-none focus:border-[#22577A]/40 focus:ring-1 focus:ring-[#22577A]/10 transition-all bg-zinc-50 font-medium"
                   />
-                  <button
+                  <SaveButton
                     onClick={handleSaveNote}
-                    disabled={savingNote}
-                    className="w-full h-8 bg-[#22577A] hover:bg-[#1C4662] text-white text-[11px] font-bold rounded-lg border-none cursor-pointer flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
-                  >
-                    {savingNote ? (
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      'Save Note'
-                    )}
-                  </button>
+                    isDirty={noteText.trim() !== dbNoteText.trim()}
+                    label="Save Note"
+                    successLabel="Saved Note"
+                    successToastTitle="Note updated"
+                    successToastDescription="The conversation notes have been saved."
+                    className="w-full h-8 text-[11px] rounded-lg"
+                  />
                 </div>
-                <div className="h-6 shrink-0" />
+                <div className="h-2 shrink-0" />
               </div>
             )}
           </div>

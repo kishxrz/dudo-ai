@@ -18,8 +18,12 @@ import {
   Wallet,
   ArrowUpRight,
   Clock,
+  ArrowUpRight as ArrowUpRightIcon,
+  ChevronDown,
+  ChevronUp,
   RefreshCw,
 } from 'lucide-react';
+import SaveButton from '@/components/ui/SaveButton';
 import { Button } from '@/components/ui/button';
 import { PageLayout } from '@/components/ui/PageLayout';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -385,13 +389,14 @@ export default function BillingPage() {
       const data = await res.json();
       if (data.error) {
         toast.error(data.error);
-        return;
+        throw new Error(data.error);
       }
       toast.success('Subscription cancelled successfully.');
     } catch (err) {
       console.error('Failed to cancel:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to cancel subscription';
       toast.error(errMsg);
+      throw err;
     } finally {
       setCancellingSub(false);
       setShowCancelConfirm(false);
@@ -414,13 +419,14 @@ export default function BillingPage() {
       const data = await res.json();
       if (data.error) {
         toast.error(data.error);
-        return;
+        throw new Error(data.error);
       }
       toast.success('Subscription resumed successfully.');
     } catch (err) {
       console.error('Failed to resume:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to resume subscription';
       toast.error(errMsg);
+      throw err;
     } finally {
       setResumingSub(false);
     }
@@ -642,13 +648,15 @@ export default function BillingPage() {
             {/* Programmatic Cancel / Resume buttons */}
             {subscription && subscription.planId !== 'trial' && subscription.status === 'active' && (
               subscription.cancelAtPeriodEnd ? (
-                <Button
+                <SaveButton
                   onClick={handleResumeSubscription}
-                  disabled={resumingSub}
-                  className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm text-[12px] border-none cursor-pointer transition-all hover:scale-[1.01] w-full sm:w-auto"
-                >
-                  {resumingSub ? 'Resuming...' : 'Resume Subscription'}
-                </Button>
+                  isDirty={true}
+                  label="Resume Subscription"
+                  successLabel="Resumed"
+                  successToastTitle="Subscription Resumed"
+                  successToastDescription="Auto-renewal has been successfully enabled."
+                  className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm text-[12px] w-full sm:w-auto"
+                />
               ) : (
                 <Button
                   onClick={() => setShowCancelConfirm(true)}

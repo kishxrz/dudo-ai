@@ -36,9 +36,9 @@ export class RateLimiter {
    * @param limit Maximum allowed requests in the window
    * @param windowMs Window duration in milliseconds (default 1 minute)
    */
-  static isRateLimited(identifier: string, limit: number, windowMs: number = 60000): boolean {
+  static isRateLimited(identifier: string, limit: number, windowMs: number = 60000, namespace: string = 'default'): boolean {
     const now = Date.now();
-    const key = `${identifier}:${windowMs}`;
+    const key = `${identifier}:${namespace}:${windowMs}`;
     
     let record = rateCache.get(key);
     if (!record) {
