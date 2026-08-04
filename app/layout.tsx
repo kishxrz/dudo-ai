@@ -15,10 +15,31 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Dudo - AI Business Agent",
   description: "Build, deploy, and manage AI agents for your business. Connect WhatsApp, Telegram, and more.",
+  metadataBase: new URL("https://dudo.site"),
   icons: {
-    icon: "/icon.png?v=4",
-    shortcut: "/icon.png?v=4",
-    apple: "/icon.png?v=4",
+    icon: [
+      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png", sizes: "16x16", type: "image/png" },
+    ],
+    shortcut: [{ url: "/favicon.ico", type: "image/x-icon" }],
+    apple: [{ url: "/icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  openGraph: {
+    title: "Dudo - AI Business Agent",
+    description: "Build, deploy, and manage AI agents for your business. Connect WhatsApp, Telegram, and more.",
+    url: "https://dudo.site",
+    siteName: "Dudo",
+    images: [{ url: "/icon.png", width: 512, height: 512, alt: "Dudo Logo" }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Dudo - AI Business Agent",
+    description: "Build, deploy, and manage AI agents for your business.",
+    images: ["/icon.png"],
   },
 };
 
