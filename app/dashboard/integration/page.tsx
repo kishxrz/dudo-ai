@@ -2,18 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plug, Check } from 'lucide-react';
+import { Plug, Check, CheckCircle2, X, AlertCircle, Info, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import Link from 'next/link';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/contexts/ToastContext';
+import Logo from '@/components/ui/logo';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { IntegrationCard } from '@/components/ui/IntegrationCard';
 import { FormSection } from '@/components/ui/FormSection';
 
 // High-fidelity SVG Logos for Google Workspace products
@@ -89,11 +91,14 @@ const GoogleDocsLogo = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function IntegrationsPage() {
   const { workspaceId } = useWorkspace();
+  const toast = useToast();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState('');
   const [connectedScopes, setConnectedScopes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [connectingScope, setConnectingScope] = useState<string | null>(null);
+  const [disconnectingScope, setDisconnectingScope] = useState<string | null>(null);
 
   const [toolName, setToolName] = useState('');
   const [toolActionDesc, setToolActionDesc] = useState('');
@@ -158,6 +163,15 @@ export default function IntegrationsPage() {
   useEffect(() => {
     async function checkStatus() {
       if (!workspaceId) return;
+
+      // Restore loading state if OAuth redirect is in flight
+      if (typeof window !== 'undefined') {
+        const storedScope = localStorage.getItem('dudo_connecting_google_scope');
+        if (storedScope) {
+          setConnectingScope(storedScope);
+        }
+      }
+
       try {
         const { canUseFeature } = await import('@/lib/billing-entitlements');
         const allowed = await canUseFeature(workspaceId, 'booking');
@@ -173,6 +187,13 @@ export default function IntegrationsPage() {
           setGoogleConnected(data.connected);
           setGoogleEmail(data.email || '');
           setConnectedScopes(data.scopes || []);
+          
+          // Clear active loading state if successfully loaded
+          const storedScope = localStorage.getItem('dudo_connecting_google_scope');
+          if (storedScope && data.scopes?.includes(storedScope)) {
+            localStorage.removeItem('dudo_connecting_google_scope');
+            setConnectingScope(null);
+          }
         }
       } catch (e) {
         console.error('Failed to load Google status:', e);
@@ -183,23 +204,44 @@ export default function IntegrationsPage() {
     checkStatus();
   }, [workspaceId]);
 
-  // Check for success parameter in redirect URL
+  // Handle URL redirect query parameters
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const searchParams = new URLSearchParams(window.location.search);
-      if (searchParams.get('success') === 'true') {
-        setShowSuccessToast(true);
-        // Clear query parameter from URL
+      const successVal = searchParams.get('success');
+      const errorVal = searchParams.get('error');
+
+      if (successVal === 'true') {
+        setShowSuccessBanner(true);
+        toast.success('Google successfully connected.', 'Your AI employee can now access this service.');
+        localStorage.removeItem('dudo_connecting_google_scope');
+        setConnectingScope(null);
+
+        // Clear query parameters
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
-        setTimeout(() => setShowSuccessToast(false), 5000);
+      } else if (errorVal) {
+        toast.error('Connection failed. Please try again.', errorVal === 'upgrade_required' ? 'Entitlement plan upgrade required' : 'Google Auth redirect aborted');
+        localStorage.removeItem('dudo_connecting_google_scope');
+        setConnectingScope(null);
+
+        // Clear query parameters
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
       }
     }
-  }, []);
+  }, [toast]);
 
   const handleConnect = async (scope: string) => {
     if (!workspaceId) return;
-    window.location.href = `/api/integrations/google/auth?workspaceId=${workspaceId}&scope=${scope}`;
+    setConnectingScope(scope);
+    localStorage.setItem('dudo_connecting_google_scope', scope);
+    toast.info('Opening Google Authorization...', 'Redirecting to secure login...');
+    
+    // Smooth transition delay to enjoy the loading state before redirect
+    setTimeout(() => {
+      window.location.href = `/api/integrations/google/auth?workspaceId=${workspaceId}&scope=${scope}`;
+    }, 850);
   };
 
   const handleDisconnect = async (scope: string) => {
@@ -221,11 +263,13 @@ export default function IntegrationsPage() {
           }
           return updated;
         });
+        toast.success('Google integration removed.', 'Access credentials revoked successfully.');
       } else {
-        console.error(`Failed to disconnect ${scope}`);
+        toast.error('Connection failed. Please try again.', 'Could not disconnect from Google.');
       }
     } catch (e) {
       console.error(`Failed to disconnect ${scope}:`, e);
+      toast.error('Connection failed. Please try again.', 'Network error while revoking access');
     }
   };
 
@@ -309,43 +353,107 @@ export default function IntegrationsPage() {
     );
   }
 
+  const renderStatusBadge = (status: 'not_connected' | 'connecting' | 'connected') => {
+    const badges = {
+      not_connected: {
+        bg: 'bg-zinc-50 text-zinc-500 border-zinc-200/80',
+        dot: 'border-zinc-300 bg-white',
+        text: 'Not Connected',
+      },
+      connecting: {
+        bg: 'bg-blue-50/70 text-blue-600 border-blue-150 animate-pulse',
+        dot: 'bg-blue-500 border-none',
+        text: 'Connecting...',
+      },
+      connected: {
+        bg: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+        dot: 'bg-emerald-500 border-none',
+        text: 'Connected',
+      },
+    };
+
+    const config = badges[status];
+
+    return (
+      <div className={cn("text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 select-none shrink-0 transition-all duration-300", config.bg)}>
+        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0 border", config.dot)} />
+        <span>{config.text}</span>
+      </div>
+    );
+  };
+
   return (
     <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-5 px-6 pb-16 box-border">
-      {/* 1. Custom Header matching Scheduled Jobs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/50 pb-5 text-left">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#22577A]/10 flex items-center justify-center shrink-0 text-[#22577A] mt-1">
-            <Plug size={20} />
+      {/* Premium Hero Header Card */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 mb-2">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-[#22577A]/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
+        
+        <div className="space-y-4 max-w-2xl relative z-10 text-left">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black text-blue-400 tracking-widest uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 select-none">
+              <span className="w-1 h-1 rounded-full bg-blue-400 animate-ping" />
+              🔒 Secure OAuth 2.0
+            </span>
           </div>
           <div>
-            <h1 className="text-[24px] font-bold text-zinc-950 tracking-tight leading-none mb-2">
-              Connectors
+            <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight leading-none mb-2">
+              Google Workspace Integrations
             </h1>
-            <p className="text-sm text-zinc-600 max-w-2xl leading-relaxed">
-              Plug your apps in and the AI agent can use them - send Gmail, create Calendar events, log to Sheets, and more.
+            <p className="text-xs md:text-sm text-zinc-400 leading-relaxed max-w-xl">
+              Securely connect Gmail, Calendar, Drive, Docs and Sheets so your AI employee can work for you.
             </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] font-bold text-zinc-300">
+            {['Gmail', 'Calendar', 'Drive', 'Docs', 'Sheets'].map((item) => (
+              <span key={item} className="flex items-center gap-1 bg-zinc-800/40 border border-zinc-700/50 px-2 py-0.5 rounded-md select-none">
+                <Check size={11} className="text-emerald-400" /> {item}
+              </span>
+            ))}
           </div>
         </div>
       </div>
 
-      {showSuccessToast && (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs font-bold text-green-700 flex items-center gap-2 animate-fade-in mb-1">
-          <Check size={14} className="text-green-600" />
-          Successfully connected to Google services! Your agent can now use these tools.
-        </div>
-      )}
+      {/* Dismissible Success Banner */}
+      <AnimatePresence>
+        {showSuccessBanner && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -10 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+            className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-950 p-4 rounded-2xl flex items-start justify-between gap-3 text-left relative z-10 mb-2 overflow-hidden shadow-sm"
+          >
+            <div className="flex gap-2.5">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-extrabold text-emerald-950">Google connected successfully</h4>
+                <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
+                  Your AI employee can now access this service.
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowSuccessBanner(false)}
+              className="text-emerald-500 hover:text-emerald-800 transition-colors p-0.5 rounded-lg hover:bg-emerald-500/10 border-none cursor-pointer"
+            >
+              <X size={15} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Quick Connect Subheading */}
       <div className="space-y-2 text-left">
         <SectionHeader 
           title="Quick Connect" 
           actions={
-            <span className="text-[9px] font-black text-[#22577A] tracking-wider uppercase bg-[#FFF3E5] border border-[#EED9B4] px-2.5 py-0.5 rounded-full">
+            <span className="text-[9px] font-black text-[#22577A] tracking-wider uppercase bg-[#FFF3E5] border border-[#EED9B4] px-2.5 py-0.5 rounded-full select-none">
               Recommended
             </span>
           }
         />
-        <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+        <p className="text-xs text-zinc-650 font-medium leading-relaxed">
           Sign in once, your AI agent can use your Google apps. Tokens stay encrypted; revoke any time.
         </p>
       </div>
@@ -354,20 +462,181 @@ export default function IntegrationsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {connectors.map((connector) => {
           const isConnected = connectedScopes.includes(connector.key);
+          const isConnectingThis = connectingScope === connector.key;
+          const isAnyConnecting = connectingScope !== null;
+          
           return (
-            <IntegrationCard
+            <motion.div
               key={connector.key}
-              title={connector.name}
-              description={connector.desc}
-              icon={connector.icon}
-              connected={isConnected}
-              statusLabel={isConnected ? 'Connected' : 'Not Connected'}
-              onAction={() => isConnected ? handleDisconnect(connector.key) : handleConnect(connector.key)}
-              actionText={isConnected ? 'Disconnect' : 'Connect'}
-            />
+              whileHover={{ y: -4, scale: 1.015, boxShadow: '0 12px 24px -10px rgba(0,0,0,0.06)' }}
+              whileTap={{ scale: 0.995 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              className={cn(
+                "bg-white border border-zinc-200/80 rounded-2xl p-5 flex flex-col justify-between h-full select-none transition-opacity duration-300 relative overflow-hidden text-left",
+                isConnectingThis ? "opacity-95" : isAnyConnecting ? "opacity-60 pointer-events-none" : ""
+              )}
+            >
+              <div className="space-y-4">
+                {/* Header: Icon & Status Badges */}
+                <div className="flex justify-between items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-50 border border-zinc-150 flex items-center justify-center shrink-0">
+                    <connector.icon className="w-6 h-6 transition-transform group-hover:scale-105" />
+                  </div>
+                  
+                  {/* Status badge */}
+                  {renderStatusBadge(
+                    isConnectingThis ? 'connecting' : isConnected ? 'connected' : 'not_connected'
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="space-y-1.5 text-left">
+                  <h3 className="text-sm font-extrabold text-zinc-950 tracking-tight">
+                    {connector.name}
+                  </h3>
+                  <p className="text-[11px] text-zinc-500 font-semibold leading-relaxed">
+                    {connector.desc}
+                  </p>
+                </div>
+              </div>
+
+              {/* Connection Info Detail (Spring animate height) */}
+              <AnimatePresence>
+                {isConnected && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                    className="mt-4 pt-3.5 border-t border-zinc-100 flex flex-col gap-2 text-[11px] text-zinc-500 font-semibold text-left overflow-hidden"
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-400">Connected as</span>
+                      <span className="text-zinc-700 font-bold truncate max-w-[140px]">{googleEmail || 'Authorized Account'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-400">Last synced</span>
+                      <span className="text-zinc-700 font-bold">Just now</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Actions Section */}
+              <div className="mt-5 space-y-2">
+                {isConnected ? (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => handleConnect(connector.key)}
+                      className="flex-1 h-9 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-700 font-extrabold border border-zinc-200 text-xs cursor-pointer"
+                    >
+                      Manage
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => setDisconnectingScope(connector.key)}
+                      className="h-9 px-3 rounded-xl bg-white hover:bg-red-50 text-red-650 hover:text-red-700 font-extrabold border border-zinc-200 hover:border-red-200 text-xs cursor-pointer"
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <Button
+                      type="button"
+                      disabled={isAnyConnecting}
+                      onClick={() => handleConnect(connector.key)}
+                      className={cn(
+                        "w-full h-9 rounded-xl font-extrabold text-xs cursor-pointer border-none transition-all flex items-center justify-center gap-2",
+                        isConnectingThis
+                          ? "bg-zinc-100 text-zinc-400"
+                          : "bg-[#22577A] hover:bg-[#1A4461] text-white shadow-md shadow-[#22577A]/10 hover:scale-[1.01]"
+                      )}
+                    >
+                      {isConnectingThis ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, ease: "linear", duration: 1 }}
+                            className="shrink-0"
+                          >
+                            <Logo className="w-[15px] h-[15px]" />
+                          </motion.div>
+                          <span>Connecting...</span>
+                        </>
+                      ) : (
+                        <span>Connect</span>
+                      )}
+                    </Button>
+
+                    <AnimatePresence>
+                      {isConnectingThis && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          className="text-[10px] text-zinc-400 font-bold leading-normal text-center space-y-0.5"
+                        >
+                          <div>Opening Google securely...</div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            </motion.div>
           );
         })}
       </div>
+
+      {/* Disconnect Confirmation Modal Dialog */}
+      <AnimatePresence>
+        {disconnectingScope && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDisconnectingScope(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', duration: 0.3 }}
+              className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-2xl max-w-sm w-full relative z-10 flex flex-col gap-4 text-left"
+            >
+              <h3 className="text-lg font-bold text-zinc-950">
+                Disconnect {connectors.find(c => c.key === disconnectingScope)?.name || 'Google Integration'}?
+              </h3>
+              <p className="text-xs text-zinc-500 leading-relaxed font-semibold">
+                Your AI employee will lose access to this Google service until you reconnect it.
+              </p>
+              <div className="flex justify-end gap-2.5 pt-2">
+                <Button
+                  onClick={() => setDisconnectingScope(null)}
+                  className="h-9 px-4.5 rounded-xl border border-zinc-200 bg-white text-zinc-700 font-extrabold hover:bg-zinc-50 text-xs shadow-sm cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    const scope = disconnectingScope;
+                    setDisconnectingScope(null);
+                    toast.info('Disconnecting...', 'Removing Google integration access...');
+                    await handleDisconnect(scope);
+                  }}
+                  className="h-9 px-4.5 rounded-xl bg-red-650 hover:bg-red-700 text-white font-extrabold border-none text-xs shadow-md shadow-red-650/10 cursor-pointer"
+                >
+                  Disconnect
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Roadmap Form Section */}
       <div className="space-y-3 max-w-2xl text-left mt-4">
