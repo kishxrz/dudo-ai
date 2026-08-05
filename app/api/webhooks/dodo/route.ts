@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { NextResponse } from 'next/server';
-import { getAdminDb, FieldValue } from '@/lib/firebase-admin';
+import { getAdminDb, FieldValue, getAuth } from '@/lib/firebase-admin';
 import crypto from 'crypto';
 import { normalizePlanId, PLAN_META, PLAN_LIMITS } from '@/lib/subscription/config';
 
@@ -188,6 +188,14 @@ export async function POST(req: Request) {
       // Set completely (no merge) to prevent partial subscription updates
       await subRef.set(syncPayload);
       console.info(`Synced subscription state for workspace ${workspaceId}: plan=${plan}, status=${status}`);
+
+      if (eventType === 'subscription.renewed') {
+        const amount = meta.price || 999;
+        const currency = meta.currency || '₹';
+        await triggerSubscriptionRenewed(workspaceId, amount, currentPeriodEnd, currency);
+      } else if (eventType === 'subscription.cancelled') {
+        await triggerSubscriptionCancelled(workspaceId, currentPeriodEnd);
+      }
     } else if (eventType === 'payment.succeeded') {
       // Handle invoice / billing history records
       const amount = typeof eventData.amount === 'number' ? eventData.amount / 100 : (eventData.metadata?.planId === '6months' ? 2499 : 999);
@@ -221,6 +229,7 @@ export async function POST(req: Request) {
       }
 
       console.info(`Recorded successful payment history for workspace ${workspaceId}: amount=${amount}`);
+      await triggerBillingSuccess(workspaceId, amount);
     } else if (eventType === 'payment.failed') {
       // Handle payment failure updates without partial updates
       if (existingSub) {
@@ -248,6 +257,8 @@ export async function POST(req: Request) {
       });
 
       console.warn(`Payment failed event processed for workspace ${workspaceId}`);
+      const failedAmount = eventData.metadata?.planId === '6months' ? 2499 : 999;
+      await triggerBillingFailed(workspaceId, failedAmount);
     } else if (eventType === 'refund.created') {
       // Record refund in history
       const amount = typeof eventData.amount === 'number' ? -(eventData.amount / 100) : -999;
@@ -269,6 +280,139 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Webhook endpoint global error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  }
+}
+
+async function triggerBillingSuccess(workspaceId: string, amount: number, currency = '₹') {
+  const adminDb = getAdminDb();
+  if (!adminDb) return;
+  try {
+    const queueCol = adminDb.collection('email_queue');
+    const trialReminders = ['trial-5days', 'trial-3days', 'trial-24h', 'trial-4h', 'trial-expired'];
+    for (const t of trialReminders) {
+      const snap = await queueCol
+        .where('userId', '==', workspaceId)
+        .where('templateType', '==', t)
+        .where('status', '==', 'pending')
+        .get();
+      for (const d of snap.docs) {
+        await d.ref.update({
+          status: 'cancelled',
+          cancelledAt: new Date()
+        });
+      }
+    }
+    
+    const user = await getAuth().getUser(workspaceId);
+    if (user && user.email) {
+      const userName = user.displayName || user.email.split('@')[0] || 'User';
+      const activeDedupKey = `${workspaceId}_upgrade_${Date.now()}`;
+      
+      await queueCol.add({
+        userId: workspaceId,
+        to: user.email,
+        name: userName,
+        templateType: 'billing-success',
+        extraData: { amount, currency },
+        status: 'pending',
+        attempts: 0,
+        maxAttempts: 3,
+        scheduledAt: new Date(),
+        createdAt: new Date(),
+        dedupKey: activeDedupKey,
+        subject: '',
+      });
+      console.log(`[Billing Webhook] Queued billing-success email for workspace ${workspaceId}`);
+    }
+  } catch (e) {
+    console.error('Failed to trigger billing success email:', e);
+  }
+}
+
+async function triggerBillingFailed(workspaceId: string, amount: number, currency = '₹') {
+  const adminDb = getAdminDb();
+  if (!adminDb) return;
+  try {
+    const user = await getAuth().getUser(workspaceId);
+    if (user && user.email) {
+      const userName = user.displayName || user.email.split('@')[0] || 'User';
+      const activeDedupKey = `${workspaceId}_failed_${Date.now()}`;
+      await adminDb.collection('email_queue').add({
+        userId: workspaceId,
+        to: user.email,
+        name: userName,
+        templateType: 'billing-failed',
+        extraData: { amount, currency },
+        status: 'pending',
+        attempts: 0,
+        maxAttempts: 3,
+        scheduledAt: new Date(),
+        createdAt: new Date(),
+        dedupKey: activeDedupKey,
+        subject: '',
+      });
+      console.log(`[Billing Webhook] Queued billing-failed email for workspace ${workspaceId}`);
+    }
+  } catch (e) {
+    console.error('Failed to trigger billing failed email:', e);
+  }
+}
+
+async function triggerSubscriptionRenewed(workspaceId: string, amount: number, renewalDate: Date, currency = '₹') {
+  const adminDb = getAdminDb();
+  if (!adminDb) return;
+  try {
+    const user = await getAuth().getUser(workspaceId);
+    if (user && user.email) {
+      const userName = user.displayName || user.email.split('@')[0] || 'User';
+      const activeDedupKey = `${workspaceId}_renewed_${Date.now()}`;
+      await adminDb.collection('email_queue').add({
+        userId: workspaceId,
+        to: user.email,
+        name: userName,
+        templateType: 'subscription-renewal',
+        extraData: { amount, renewalDate: renewalDate.toLocaleDateString(), currency },
+        status: 'pending',
+        attempts: 0,
+        maxAttempts: 3,
+        scheduledAt: new Date(),
+        createdAt: new Date(),
+        dedupKey: activeDedupKey,
+        subject: '',
+      });
+      console.log(`[Billing Webhook] Queued subscription-renewal email for workspace ${workspaceId}`);
+    }
+  } catch (e) {
+    console.error('Failed to trigger subscription renewed email:', e);
+  }
+}
+
+async function triggerSubscriptionCancelled(workspaceId: string, expiryDate: Date) {
+  const adminDb = getAdminDb();
+  if (!adminDb) return;
+  try {
+    const user = await getAuth().getUser(workspaceId);
+    if (user && user.email) {
+      const userName = user.displayName || user.email.split('@')[0] || 'User';
+      const activeDedupKey = `${workspaceId}_cancelled_${Date.now()}`;
+      await adminDb.collection('email_queue').add({
+        userId: workspaceId,
+        to: user.email,
+        name: userName,
+        templateType: 'account-cancelled',
+        extraData: { expiryDate: expiryDate.toLocaleDateString() },
+        status: 'pending',
+        attempts: 0,
+        maxAttempts: 3,
+        scheduledAt: new Date(),
+        createdAt: new Date(),
+        dedupKey: activeDedupKey,
+        subject: '',
+      });
+      console.log(`[Billing Webhook] Queued account-cancelled email for workspace ${workspaceId}`);
+    }
+  } catch (e) {
+    console.error('Failed to trigger subscription cancelled email:', e);
   }
 }
 

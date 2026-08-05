@@ -49,13 +49,15 @@ if (pref1 === 'weeklyEducation' && pref2 === 'featureReleases' && pref3 === 'new
   process.exit(1);
 }
 
-// ─── Test 4: Render Verification for All 22 Template Types ─────────────
+// ─── Test 4: Render Verification for All 28 Template Types ─────────────
 const TEMPLATE_TYPES = [
   'auth-verify', 'google-welcome', 'password-reset',
   'onboarding-welcome', 'onboarding-day1', 'onboarding-day2', 'onboarding-day3', 'onboarding-day5', 'onboarding-day7',
   'trial-started', 'trial-5days', 'trial-3days', 'trial-24h', 'trial-4h', 'trial-expired',
   'pricing-abandon', 'founder-pricing', 'abandoned-setup',
-  'weekly-education', 'feature-launch', 'monthly-changelog', 'newsletter-thurs'
+  'weekly-education', 'feature-launch', 'monthly-changelog', 'newsletter-thurs',
+  'billing-success', 'billing-failed', 'subscription-renewal', 'account-cancelled',
+  'security-new-device', 'security-password-changed'
 ];
 
 let successfulRenders = 0;

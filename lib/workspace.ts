@@ -15,8 +15,8 @@ export function getWorkspaceId(uid: string): string {
  * Also provisions the 30-minute free trial subscription via the server API.
  * Safe to call multiple times (idempotent).
  */
-export async function ensureWorkspace(uid: string, displayName?: string | null, businessName?: string | null) {
-  if (!db) return;
+export async function ensureWorkspace(uid: string, displayName?: string | null, businessName?: string | null): Promise<boolean> {
+  if (!db) return false;
 
   const wsRef = doc(db, 'workspaces', uid);
   const wsSnap = await getDoc(wsRef);
@@ -69,5 +69,7 @@ export async function ensureWorkspace(uid: string, displayName?: string | null, 
       // Non-fatal: SubscriptionService also auto-inits on first subscription check
       console.warn('[ensureWorkspace] Trial init API call failed (non-fatal):', e);
     }
+    return true;
   }
+  return false;
 }

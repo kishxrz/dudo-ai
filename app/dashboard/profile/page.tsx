@@ -313,6 +313,13 @@ export default function ProfilePage() {
       const credential = EmailAuthProvider.credential(currentUser.email, currentPw);
       await reauthenticateWithCredential(currentUser, credential);
       await updatePassword(currentUser, newPw);
+      try {
+        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
+        await triggerLifecycleEvent(currentUser.uid, 'security_password_changed', {
+          email: currentUser.email || '',
+          name: currentUser.displayName || 'User',
+        });
+      } catch (e) {}
       setCurrentPw('');
       setNewPw('');
       setConfirmPw('');

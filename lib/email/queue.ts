@@ -325,6 +325,49 @@ export async function triggerLifecycleEvent(
   } else if (eventName === 'onboarding_complete') {
     // Pause onboarding emails
     await cancelPendingEmails(userId, ['onboarding-day1', 'onboarding-day2', 'onboarding-day3', 'onboarding-day5', 'onboarding-day7']);
+  } else if (eventName === 'payment_failed') {
+    await queueEmail({
+      userId,
+      email,
+      name,
+      templateType: 'billing-failed',
+      extraData,
+      dedupKey: `${userId}_failed_${Date.now()}`
+    });
+  } else if (eventName === 'subscription_renewal_reminder') {
+    await queueEmail({
+      userId,
+      email,
+      name,
+      templateType: 'subscription-renewal',
+      extraData
+    });
+  } else if (eventName === 'account_cancelled') {
+    await queueEmail({
+      userId,
+      email,
+      name,
+      templateType: 'account-cancelled',
+      extraData
+    });
+  } else if (eventName === 'security_new_device') {
+    await queueEmail({
+      userId,
+      email,
+      name,
+      templateType: 'security-new-device',
+      extraData,
+      dedupKey: `${userId}_new_device_${Date.now()}`
+    });
+  } else if (eventName === 'security_password_changed') {
+    await queueEmail({
+      userId,
+      email,
+      name,
+      templateType: 'security-password-changed',
+      extraData,
+      dedupKey: `${userId}_password_changed_${Date.now()}`
+    });
   }
 }
 

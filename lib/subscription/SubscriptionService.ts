@@ -7,7 +7,7 @@
  */
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, FieldValue } from '@/lib/firebase-admin';
+import { getAdminDb, FieldValue, getAuth } from '@/lib/firebase-admin';
 import {
   PlanId,
   SubscriptionStatus,
@@ -135,6 +135,114 @@ export async function initTrialSubscription(workspaceId: string): Promise<void> 
     campaignsSentThisMonth: 0,
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  // Trigger trial started email + scheduling trial ending reminders
+  try {
+    const authAdmin = getAuth();
+    const user = await authAdmin.getUser(workspaceId);
+    if (user && user.email) {
+      const userName = user.displayName || user.email.split('@')[0] || 'User';
+      const activeDedupKey = `${workspaceId}_trial-started`;
+
+      // Check if already queued
+      const dupSnap = await adminDb.collection('email_queue').where('dedupKey', '==', activeDedupKey).get();
+      if (dupSnap.empty) {
+        // 1. Send trial started email immediately
+        await adminDb.collection('email_queue').add({
+          userId: workspaceId,
+          to: user.email,
+          name: userName,
+          templateType: 'trial-started',
+          extraData: {},
+          status: 'pending',
+          attempts: 0,
+          maxAttempts: 3,
+          scheduledAt: new Date(),
+          createdAt: new Date(),
+          dedupKey: activeDedupKey,
+          subject: '',
+        });
+
+        // 2. Queue 5 days remaining (9 days later)
+        const d5 = new Date();
+        d5.setDate(d5.getDate() + 9);
+        d5.setHours(9, 0, 0, 0);
+        await adminDb.collection('email_queue').add({
+          userId: workspaceId,
+          to: user.email,
+          name: userName,
+          templateType: 'trial-5days',
+          extraData: {},
+          status: 'pending',
+          attempts: 0,
+          maxAttempts: 3,
+          scheduledAt: d5,
+          createdAt: new Date(),
+          dedupKey: `${workspaceId}_trial-5days`,
+          subject: '',
+        });
+
+        // 3. Queue 3 days remaining (11 days later)
+        const d3 = new Date();
+        d3.setDate(d3.getDate() + 11);
+        d3.setHours(9, 0, 0, 0);
+        await adminDb.collection('email_queue').add({
+          userId: workspaceId,
+          to: user.email,
+          name: userName,
+          templateType: 'trial-3days',
+          extraData: {},
+          status: 'pending',
+          attempts: 0,
+          maxAttempts: 3,
+          scheduledAt: d3,
+          createdAt: new Date(),
+          dedupKey: `${workspaceId}_trial-3days`,
+          subject: '',
+        });
+
+        // 4. Queue 24h remaining (13 days later)
+        const d24 = new Date();
+        d24.setDate(d24.getDate() + 13);
+        d24.setHours(9, 0, 0, 0);
+        await adminDb.collection('email_queue').add({
+          userId: workspaceId,
+          to: user.email,
+          name: userName,
+          templateType: 'trial-24h',
+          extraData: {},
+          status: 'pending',
+          attempts: 0,
+          maxAttempts: 3,
+          scheduledAt: d24,
+          createdAt: new Date(),
+          dedupKey: `${workspaceId}_trial-24h`,
+          subject: '',
+        });
+
+        // 5. Queue 4h remaining (13 days + 20 hours later)
+        const d4 = new Date();
+        d4.setDate(d4.getDate() + 13);
+        d4.setHours(d4.getHours() + 20);
+        await adminDb.collection('email_queue').add({
+          userId: workspaceId,
+          to: user.email,
+          name: userName,
+          templateType: 'trial-4h',
+          extraData: {},
+          status: 'pending',
+          attempts: 0,
+          maxAttempts: 3,
+          scheduledAt: d4,
+          createdAt: new Date(),
+          dedupKey: `${workspaceId}_trial-4h`,
+          subject: '',
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[SubscriptionService] Failed to trigger trial started emails:', e);
+  }
 }
 
 // ─── Get Subscription ─────────────────────────────────────────────────────────

@@ -245,6 +245,89 @@ export function generateHtmlEmail(
       `;
       break;
 
+    // ─── Billing & Subscriptions ─────────────────────────────────────────────
+    case 'billing-success':
+      subject = 'Payment Successful - Dudo Premium Plan';
+      bodyContent = `
+        ${SuccessBox('Payment Received', 'Thank you for your payment. Your subscription is active.')}
+        <p style="font-size: 13px; line-height: 1.5; color: #E4E4E7; font-weight: 500;">
+          Hi ${name},<br/><br/>
+          Your payment of ${extraData.currency || '₹'}${extraData.amount || '999'} was successfully processed.<br/>
+          Thank you for choosing Dudo. Your AI employee is online and actively monitoring your channels.
+        </p>
+        ${CTAButton('Go to Billing Portal', billingLink)}
+      `;
+      break;
+
+    case 'billing-failed':
+      subject = 'Action Required: Your payment for Dudo failed';
+      bodyContent = `
+        ${WarningBox('Payment Failed', 'We were unable to process your subscription payment.')}
+        <p style="font-size: 13px; line-height: 1.5; color: #E4E4E7; font-weight: 500;">
+          Hi ${name},<br/><br/>
+          We attempted to renew your Dudo plan, but your payment method was declined.<br/>
+          To prevent your AI employee from going offline, please update your billing details.
+        </p>
+        ${CTAButton('Update Payment Method', billingLink)}
+      `;
+      break;
+
+    case 'subscription-renewal':
+      subject = 'Your Dudo subscription is renewing soon';
+      bodyContent = `
+        <h3 style="margin-top: 0; font-size: 16px; font-weight: 800;">Subscription Renewal Notice</h3>
+        <p style="font-size: 13px; line-height: 1.5; color: #E4E4E7; font-weight: 500;">
+          Hi ${name},<br/><br/>
+          This is a friendly reminder that your subscription is scheduled to automatically renew on ${extraData.renewalDate || 'next billing date'}.<br/>
+          Amount: ${extraData.currency || '₹'}${extraData.amount || '999'}.
+        </p>
+        ${CTAButton('Manage Subscription', billingLink)}
+      `;
+      break;
+
+    case 'account-cancelled':
+      subject = 'Dudo Subscription Cancelled';
+      bodyContent = `
+        ${WarningBox('Subscription Cancelled', 'Your subscription auto-renewal has been cancelled.')}
+        <p style="font-size: 13px; line-height: 1.5; color: #E4E4E7; font-weight: 500;">
+          Hi ${name},<br/><br/>
+          Your Dudo premium plan auto-renewal has been successfully cancelled. You will continue to have access to all premium features until your current period expires on ${extraData.expiryDate || 'expiry date'}.<br/>
+          Once expired, your AI employee will pause. You can reactivate anytime.
+        </p>
+        ${CTAButton('Re-activate Renewal', billingLink)}
+      `;
+      break;
+
+    // ─── Security Alerts ─────────────────────────────────────────────────────
+    case 'security-new-device':
+      subject = 'Security Alert: Login from new device detected';
+      bodyContent = `
+        ${WarningBox('New Login Detected', 'A new login was detected on your Dudo account.')}
+        <p style="font-size: 13px; line-height: 1.5; color: #E4E4E7; font-weight: 500;">
+          Hi ${name},<br/><br/>
+          We detected a login from a new device or browser:<br/>
+          - **IP Address**: ${extraData.ip || 'Unknown'}<br/>
+          - **Device/OS**: ${extraData.device || 'Unknown OS'}<br/>
+          - **Time**: ${extraData.time || new Date().toLocaleString()}<br/><br/>
+          If this was you, no action is needed. If you did not log in recently, please reset your password immediately.
+        </p>
+        ${CTAButton('Secure My Account', `${host}/login`)}
+      `;
+      break;
+
+    case 'security-password-changed':
+      subject = 'Security Alert: Password changed successfully';
+      bodyContent = `
+        ${SuccessBox('Password Updated', 'Your Dudo account password was successfully updated.')}
+        <p style="font-size: 13px; line-height: 1.5; color: #E4E4E7; font-weight: 500;">
+          Hi ${name},<br/><br/>
+          This is a confirmation that your Dudo account password has been updated. <br/><br/>
+          If you made this change, no action is required. If you did not make this change, please contact support immediately to lock your account.
+        </p>
+        ${CTAButton('Contact Support', `${host}/contact`)}
+      `;
+      break;
+
     // ─── Pricing & Abandonment ───────────────────────────────────────────────
     case 'pricing-abandon':
       subject = 'Maximize operational efficiency with Dudo';

@@ -52,13 +52,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!auth) throw new Error('Firebase Auth is not initialized');
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await ensureWorkspace(user.uid, user.displayName);
+    try {
+      const { triggerLifecycleEvent } = await import('@/lib/email/queue');
+      await triggerLifecycleEvent(user.uid, 'security_new_device', {
+        email: user.email || email,
+        name: user.displayName || 'User',
+        extraData: {
+          ip: 'Client Environment',
+          device: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown Device',
+          time: new Date().toLocaleString()
+        }
+      });
+    } catch (e) {
+      console.warn('[signIn] Failed to trigger security email:', e);
+    }
   };
 
   const signUp = async (email: string, password: string, name: string, businessName?: string) => {
     if (!auth) throw new Error('Firebase Auth is not initialized');
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName: name });
-    await ensureWorkspace(user.uid, name, businessName);
+    const isNew = await ensureWorkspace(user.uid, name, businessName);
+    if (isNew) {
+      try {
+        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
+        await triggerLifecycleEvent(user.uid, 'signup', {
+          email: user.email || email,
+          name: name,
+        });
+      } catch (e) {
+        console.warn('[signUp] Failed to trigger welcome email:', e);
+      }
+    }
   };
 
   const signOut = async () => {
@@ -84,7 +109,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const { user } = await signInWithPopup(auth, provider);
-    await ensureWorkspace(user.uid, user.displayName);
+    const isNew = await ensureWorkspace(user.uid, user.displayName);
+    if (isNew && user.email) {
+      try {
+        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
+        await triggerLifecycleEvent(user.uid, 'google_login_first', {
+          email: user.email,
+          name: user.displayName || 'User',
+        });
+      } catch (e) {
+        console.warn('[signInWithGoogle] Failed to trigger Google welcome email:', e);
+      }
+    } else if (user.email) {
+      try {
+        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
+        await triggerLifecycleEvent(user.uid, 'security_new_device', {
+          email: user.email,
+          name: user.displayName || 'User',
+          extraData: {
+            ip: 'Google Authentication',
+            device: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown Device',
+            time: new Date().toLocaleString()
+          }
+        });
+      } catch (e) {
+        console.warn('[signInWithGoogle] Failed to trigger login security email:', e);
+      }
+    }
   };
 
   const resetPassword = async (email: string) => {
