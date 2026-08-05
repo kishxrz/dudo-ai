@@ -239,14 +239,6 @@ export default function IntegrationsPage() {
 
   const connectors = [
     {
-      key: 'identity' as const,
-      name: 'Google Account',
-      icon: GoogleLogo,
-      desc: connectedScopes.includes('identity') && googleEmail
-        ? `Connected as: ${googleEmail}`
-        : 'Connect your Google account identity securely',
-    },
-    {
       key: 'gmail' as const,
       name: 'Gmail',
       icon: GmailLogo,
