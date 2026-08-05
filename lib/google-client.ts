@@ -18,36 +18,39 @@ export async function getGoogleClient(workspaceId: string, requiredScope?: strin
   let scopes: string[] = [];
   let status = '';
 
+  let docName = 'googleIdentity';
+  if (requiredScope === 'gmail') docName = 'gmailIntegration';
+  else if (requiredScope === 'calendar') docName = 'calendarIntegration';
+  else if (requiredScope === 'drive') docName = 'driveIntegration';
+  else if (requiredScope === 'docs') docName = 'docsIntegration';
+  else if (requiredScope === 'sheets') docName = 'sheetsIntegration';
+
   if (adminDb) {
-    const docRef = adminDb.doc(`workspaces/${workspaceId}/integrations/google`);
+    const docRef = adminDb.doc(`workspaces/${workspaceId}/integrations/${docName}`);
     const snap = await docRef.get();
-    if (!snap.exists) throw new Error('Google integration not connected');
+    if (!snap.exists) throw new Error(`Google ${requiredScope || 'identity'} integration not connected`);
     const data = snap.data();
     accessToken = data?.accessToken || '';
     refreshToken = data?.refreshToken || '';
-    expiryDate = data?.expiryDate || null;
+    expiryDate = data?.expiresAt || data?.expiryDate || null;
     email = data?.email || '';
-    scopes = data?.scopes || [];
-    status = data?.status || '';
+    scopes = data?.grantedScopes || data?.scopes || [];
+    status = data?.connected ? 'connected' : (data?.status || '');
   } else if (db) {
-    const docRef = doc(db, 'workspaces', workspaceId, 'integrations', 'google');
+    const docRef = doc(db, 'workspaces', workspaceId, 'integrations', docName);
     const snap = await getDoc(docRef);
-    if (!snap.exists()) throw new Error('Google integration not connected');
+    if (!snap.exists()) throw new Error(`Google ${requiredScope || 'identity'} integration not connected`);
     const data = snap.data();
     accessToken = data?.accessToken || '';
     refreshToken = data?.refreshToken || '';
-    expiryDate = data?.expiryDate || null;
+    expiryDate = data?.expiresAt || data?.expiryDate || null;
     email = data?.email || '';
-    scopes = data?.scopes || [];
-    status = data?.status || '';
+    scopes = data?.grantedScopes || data?.scopes || [];
+    status = data?.connected ? 'connected' : (data?.status || '');
   }
 
   if (status !== 'connected' || !accessToken || !refreshToken) {
-    throw new Error('Google integration not connected');
-  }
-
-  if (requiredScope && !scopes.includes(requiredScope)) {
-    throw new Error(`Google ${requiredScope} integration is not connected`);
+    throw new Error(`Google ${requiredScope || 'identity'} integration not connected`);
   }
 
   const oauth2Client = new google.auth.OAuth2(
@@ -65,24 +68,24 @@ export async function getGoogleClient(workspaceId: string, requiredScope?: strin
   // Check if token is expired or close to expiring (within 2 minutes)
   const now = Date.now();
   if (!expiryDate || now >= expiryDate - 120000) {
-    console.log('[Google Client] Token expired or expiring soon, refreshing...');
+    console.log(`[Google Client] Token for ${docName} expired or expiring soon, refreshing...`);
     try {
       const { credentials } = await oauth2Client.refreshAccessToken();
       const newAccessToken = credentials.access_token;
       const newExpiryDate = credentials.expiry_date || (Date.now() + 3500 * 1000);
 
       if (newAccessToken) {
-        console.log('[Google Client] Token refreshed successfully, saving to Firestore...');
+        console.log(`[Google Client] Token refreshed successfully for ${docName}, saving to Firestore...`);
+        const updatePayload = {
+          accessToken: newAccessToken,
+          expiresAt: newExpiryDate,
+          expiryDate: newExpiryDate,
+          lastSync: new Date()
+        };
         if (adminDb) {
-          await adminDb.doc(`workspaces/${workspaceId}/integrations/google`).update({
-            accessToken: newAccessToken,
-            expiryDate: newExpiryDate
-          });
+          await adminDb.doc(`workspaces/${workspaceId}/integrations/${docName}`).update(updatePayload);
         } else if (db) {
-          await updateDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'), {
-            accessToken: newAccessToken,
-            expiryDate: newExpiryDate
-          });
+          await updateDoc(doc(db, 'workspaces', workspaceId, 'integrations', docName), updatePayload);
         }
         oauth2Client.setCredentials({
           access_token: newAccessToken,
@@ -91,7 +94,7 @@ export async function getGoogleClient(workspaceId: string, requiredScope?: strin
         });
       }
     } catch (refreshErr) {
-      console.error('[Google Client] Failed to refresh access token:', refreshErr);
+      console.error(`[Google Client] Failed to refresh access token for ${docName}:`, refreshErr);
       throw new Error('Google connection expired. Please reconnect.');
     }
   }

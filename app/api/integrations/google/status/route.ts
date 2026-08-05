@@ -19,29 +19,52 @@ export async function GET(req: NextRequest) {
     if (denied) return denied;
 
     const adminDb = getAdminDb();
-    let data: any = null;
+    const docNameMap: Record<string, string> = {
+      identity: 'googleIdentity',
+      gmail: 'gmailIntegration',
+      calendar: 'calendarIntegration',
+      drive: 'driveIntegration',
+      docs: 'docsIntegration',
+      sheets: 'sheetsIntegration'
+    };
 
-    if (adminDb) {
-      const snap = await adminDb.doc(`workspaces/${workspaceId}/integrations/google`).get();
-      if (snap.exists) {
-        data = snap.data();
+    const keys = ['identity', 'gmail', 'calendar', 'drive', 'docs', 'sheets'];
+    const results = await Promise.all(
+      keys.map(async (key) => {
+        const docName = docNameMap[key];
+        if (adminDb) {
+          const snap = await adminDb.doc(`workspaces/${workspaceId}/integrations/${docName}`).get();
+          return snap.exists ? snap.data() : null;
+        } else if (db) {
+          const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', docName));
+          return snap.exists() ? snap.data() : null;
+        }
+        return null;
+      })
+    );
+
+    const activeScopes: string[] = [];
+    let googleEmail = '';
+    let isIdentityConnected = false;
+
+    keys.forEach((key, idx) => {
+      const data = results[idx];
+      if (data && data.connected) {
+        activeScopes.push(key);
+        if (key === 'identity') {
+          isIdentityConnected = true;
+        }
+        if (data.email && !googleEmail) {
+          googleEmail = data.email;
+        }
       }
-    } else if (db) {
-      const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'));
-      if (snap.exists()) {
-        data = snap.data();
-      }
-    }
+    });
 
-    if (data && data.status === 'connected') {
-      return NextResponse.json({
-        connected: true,
-        email: data.email || '',
-        scopes: data.scopes || [],
-      });
-    }
-
-    return NextResponse.json({ connected: false });
+    return NextResponse.json({
+      connected: isIdentityConnected,
+      email: googleEmail,
+      scopes: activeScopes,
+    });
   } catch (err: any) {
     console.error('Error in Google status route:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });

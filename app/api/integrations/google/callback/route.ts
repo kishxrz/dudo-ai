@@ -42,55 +42,91 @@ export async function GET(req: NextRequest) {
     // Save tokens and integration state to Firestore
     const adminDb = getAdminDb();
     
-    // Retrieve existing scopes if any
-    let existingScopes: string[] = [];
-    if (adminDb) {
-      const snap = await adminDb.doc(`workspaces/${workspaceId}/integrations/google`).get();
-      if (snap.exists) {
-        const d = snap.data();
-        if (d?.status === 'connected') {
-          existingScopes = d?.scopes || [];
-        }
-      }
-    } else if (db) {
-      const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'));
-      if (snap.exists()) {
-        const d = snap.data();
-        if (d?.status === 'connected') {
-          existingScopes = d?.scopes || [];
-        }
-      }
-    }
-
-    const newScopes = initialScope ? [initialScope] : ['gmail', 'calendar', 'sheets', 'drive', 'docs'];
-    const mergedScopes = Array.from(new Set([...existingScopes, ...newScopes]));
-
-    const payload = {
-      accessToken: tokens.access_token || '',
-      refreshToken: tokens.refresh_token || '',
-      expiryDate: tokens.expiry_date || null,
-      email,
-      connectedAt: adminDb ? new Date() : serverTimestamp(),
-      scopes: mergedScopes,
-      status: 'connected',
+    // Map scope to specific integration document name
+    const docNameMap: Record<string, string> = {
+      identity: 'googleIdentity',
+      gmail: 'gmailIntegration',
+      calendar: 'calendarIntegration',
+      drive: 'driveIntegration',
+      docs: 'docsIntegration',
+      sheets: 'sheetsIntegration'
     };
 
+    const docName = docNameMap[initialScope || 'identity'] || 'googleIdentity';
+
+    const payload = {
+      connected: true,
+      grantedScopes: tokens.scope ? tokens.scope.split(' ') : [initialScope || 'identity'],
+      accessToken: tokens.access_token || '',
+      refreshToken: tokens.refresh_token || '',
+      expiresAt: tokens.expiry_date || null,
+      lastSync: adminDb ? new Date() : serverTimestamp(),
+      email,
+    };
+
+    // Save to the specific integration document
     if (adminDb) {
-      // Admin SDK write
-      await adminDb.doc(`workspaces/${workspaceId}/integrations/google`).set(payload, { merge: true });
-      await adminDb.collection(`workspaces/${workspaceId}/integrations/google/logs`).add({
+      await adminDb.doc(`workspaces/${workspaceId}/integrations/${docName}`).set(payload, { merge: true });
+      await adminDb.collection(`workspaces/${workspaceId}/integrations/${docName}/logs`).add({
         action: 'connect',
         email,
         timestamp: new Date(),
       });
     } else if (db) {
-      // Client SDK write
-      await setDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'), payload, { merge: true });
-      await addDoc(collection(db, 'workspaces', workspaceId, 'integrations', 'google', 'logs'), {
+      await setDoc(doc(db, 'workspaces', workspaceId, 'integrations', docName), payload, { merge: true });
+      await addDoc(collection(db, 'workspaces', workspaceId, 'integrations', docName, 'logs'), {
         action: 'connect',
         email,
         timestamp: serverTimestamp(),
       });
+    }
+
+    // Backwards compatibility: Retrieve all currently connected integrations to sync scopes
+    const allScopes = ['gmail', 'calendar', 'sheets', 'drive', 'docs'];
+    const activeScopes: string[] = [];
+
+    // Add identity if connected
+    if (initialScope === 'identity') {
+      activeScopes.push('identity');
+    }
+
+    for (const sc of allScopes) {
+      if (sc === initialScope) {
+        activeScopes.push(sc);
+        continue;
+      }
+      const checkDocName = docNameMap[sc];
+      let isConnected = false;
+      if (adminDb) {
+        const snap = await adminDb.doc(`workspaces/${workspaceId}/integrations/${checkDocName}`).get();
+        if (snap.exists && snap.data()?.connected) {
+          isConnected = true;
+        }
+      } else if (db) {
+        const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', checkDocName));
+        if (snap.exists() && snap.data()?.connected) {
+          isConnected = true;
+        }
+      }
+      if (isConnected) {
+        activeScopes.push(sc);
+      }
+    }
+
+    const legacyPayload = {
+      accessToken: tokens.access_token || '',
+      refreshToken: tokens.refresh_token || '',
+      expiryDate: tokens.expiry_date || null,
+      email,
+      connectedAt: adminDb ? new Date() : serverTimestamp(),
+      scopes: activeScopes,
+      status: 'connected',
+    };
+
+    if (adminDb) {
+      await adminDb.doc(`workspaces/${workspaceId}/integrations/google`).set(legacyPayload, { merge: true });
+    } else if (db) {
+      await setDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'), legacyPayload, { merge: true });
     }
 
     // Redirect to integration page with success status

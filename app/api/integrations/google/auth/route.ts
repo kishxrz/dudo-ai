@@ -25,22 +25,33 @@ export async function GET(req: NextRequest) {
       process.env.GOOGLE_REDIRECT_URI
     );
 
-    const scopes = [
+    const scopeParam = scope || 'identity';
+    let requestedScopes: string[] = [
+      'openid',
       'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/documents',
+      'https://www.googleapis.com/auth/userinfo.profile'
     ];
 
-    const state = scope ? `${workspaceId}:${scope}` : workspaceId;
+    if (scopeParam === 'gmail') {
+      requestedScopes.push('https://www.googleapis.com/auth/gmail.modify');
+    } else if (scopeParam === 'calendar') {
+      requestedScopes.push('https://www.googleapis.com/auth/calendar');
+    } else if (scopeParam === 'sheets') {
+      requestedScopes.push('https://www.googleapis.com/auth/spreadsheets');
+    } else if (scopeParam === 'drive') {
+      requestedScopes.push('https://www.googleapis.com/auth/drive');
+    } else if (scopeParam === 'docs') {
+      requestedScopes.push('https://www.googleapis.com/auth/documents');
+    }
+
+    const state = `${workspaceId}:${scopeParam}`;
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
-      scope: scopes,
+      scope: requestedScopes,
       state: state,
+      include_granted_scopes: true,
     });
 
     return NextResponse.redirect(authUrl);
