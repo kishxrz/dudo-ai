@@ -314,10 +314,18 @@ export default function ProfilePage() {
       await reauthenticateWithCredential(currentUser, credential);
       await updatePassword(currentUser, newPw);
       try {
-        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
-        await triggerLifecycleEvent(currentUser.uid, 'security_password_changed', {
-          email: currentUser.email || '',
-          name: currentUser.displayName || 'User',
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        await fetch(`${baseUrl}/api/email/trigger`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.uid,
+            eventName: 'security_password_changed',
+            payload: {
+              email: currentUser.email || '',
+              name: currentUser.displayName || 'User',
+            }
+          })
         });
       } catch (e) {}
       setCurrentPw('');

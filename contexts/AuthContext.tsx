@@ -53,8 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await ensureWorkspace(user.uid, user.displayName);
     try {
-      const { triggerLifecycleEvent } = await import('@/lib/email/queue');
-      await triggerLifecycleEvent(user.uid, 'security_new_device', {
+      await triggerLifecycleEventClient(user.uid, 'security_new_device', {
         email: user.email || email,
         name: user.displayName || 'User',
         extraData: {
@@ -75,8 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isNew = await ensureWorkspace(user.uid, name, businessName);
     if (isNew) {
       try {
-        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
-        await triggerLifecycleEvent(user.uid, 'signup', {
+        await triggerLifecycleEventClient(user.uid, 'signup', {
           email: user.email || email,
           name: name,
         });
@@ -112,8 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isNew = await ensureWorkspace(user.uid, user.displayName);
     if (isNew && user.email) {
       try {
-        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
-        await triggerLifecycleEvent(user.uid, 'google_login_first', {
+        await triggerLifecycleEventClient(user.uid, 'google_login_first', {
           email: user.email,
           name: user.displayName || 'User',
         });
@@ -122,8 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } else if (user.email) {
       try {
-        const { triggerLifecycleEvent } = await import('@/lib/email/queue');
-        await triggerLifecycleEvent(user.uid, 'security_new_device', {
+        await triggerLifecycleEventClient(user.uid, 'security_new_device', {
           email: user.email,
           name: user.displayName || 'User',
           extraData: {
@@ -151,6 +147,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+async function triggerLifecycleEventClient(
+  userId: string, 
+  eventName: string, 
+  payload: { email: string; name: string; extraData?: any }
+) {
+  try {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    await fetch(`${baseUrl}/api/email/trigger`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        eventName,
+        payload,
+      }),
+    });
+  } catch (e) {
+    console.warn('[triggerLifecycleEventClient] Failed to trigger email event:', e);
+  }
 }
 
 export function useAuth() {
