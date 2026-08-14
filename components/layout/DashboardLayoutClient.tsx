@@ -129,14 +129,24 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       const rawDisplay = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
       const firstName = rawDisplay.split(/[\s._-]/)[0];
       const capitalised = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-      let name = `${capitalised}'s AI Assistant`;
+      const userPersonalisedDefault = `${capitalised}'s AI Assistant`;
+
+      // Generic/placeholder names that should be replaced with the user's personalised name
+      const GENERIC_NAMES = [
+        'My AI Assistant', 'My Assistant', 'Assistant',
+        'Dudo AI', 'Dudo', 'dudo ai', 'dudo',
+        'Your AI Assistant'
+      ];
+
+      let name = userPersonalisedDefault;
       
       if (db && workspaceId) {
         try {
           const docRef = doc(db, 'workspaces', workspaceId, 'assistants', 'assistant-1');
           const snap = await getDoc(docRef);
           if (snap.exists()) {
-            name = snap.data().name || name;
+            const saved = snap.data().name || '';
+            name = GENERIC_NAMES.includes(saved.trim()) ? userPersonalisedDefault : (saved || userPersonalisedDefault);
           }
         } catch (e) {}
       }
@@ -146,7 +156,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
         if (localAss) {
           try {
             const parsed = JSON.parse(localAss);
-            name = parsed.name || name;
+            const saved = parsed.name || '';
+            name = GENERIC_NAMES.includes(saved.trim()) ? userPersonalisedDefault : (saved || name);
           } catch(e){}
         }
       }

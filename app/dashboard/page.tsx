@@ -340,7 +340,10 @@ export default function DashboardPage() {
     assistantDetails.name && 
     assistantDetails.name !== 'My AI Assistant' &&
     assistantDetails.name !== 'My Assistant' &&
-    assistantDetails.name !== 'Assistant'
+    assistantDetails.name !== 'Assistant' &&
+    assistantDetails.name !== 'Dudo AI' &&
+    assistantDetails.name !== 'Dudo' &&
+    assistantDetails.name !== 'Your AI Assistant'
       ? assistantDetails.name
       : userPersonalisedName
   );

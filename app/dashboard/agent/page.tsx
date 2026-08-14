@@ -75,6 +75,13 @@ function AgentPageInner() {
     const capitalised = firstName.charAt(0).toUpperCase() + firstName.slice(1);
     const userDefaultName = `${capitalised}'s AI Assistant`;
 
+    // Generic/placeholder names to override with the user's personalised name
+    const GENERIC_NAMES = [
+      'My AI Assistant', 'My Assistant', 'Assistant',
+      'Dudo AI', 'Dudo', 'dudo ai', 'dudo',
+      'Your AI Assistant'
+    ];
+
     let currentName = userDefaultName;
     let currentStatus = mockAssistant.status;
 
@@ -84,7 +91,8 @@ function AgentPageInner() {
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data();
-          currentName = data.name || currentName;
+          const saved = data.name || '';
+          currentName = GENERIC_NAMES.includes(saved.trim()) ? userDefaultName : (saved || userDefaultName);
           currentStatus = data.status || currentStatus;
         }
       } catch (e) {
@@ -100,7 +108,8 @@ function AgentPageInner() {
       if (localAss) {
         try {
           const parsed = JSON.parse(localAss);
-          currentName = parsed.name || currentName;
+          const saved = parsed.name || '';
+          currentName = GENERIC_NAMES.includes(saved.trim()) ? userDefaultName : (saved || currentName);
         } catch (e) {}
       }
     }

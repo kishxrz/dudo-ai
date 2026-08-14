@@ -904,13 +904,13 @@ export default function BillingPage() {
                       onClick={() => handleUpgrade(plan.id)}
                       disabled={upgradingId !== null || plan.id === 'trial'}
                       className={cn(
-                        'w-full h-8 rounded-lg text-[12px] font-semibold border cursor-pointer transition-all hover:scale-[1.01] mt-1',
-                        plan.id === '6months'
-                          ? 'bg-[#22577A] hover:bg-[#1A4461] text-white border-none'
-                          : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                        'w-full h-8 rounded-lg text-[12px] font-semibold border-none cursor-pointer transition-all hover:scale-[1.01] mt-1',
+                        plan.id === 'trial'
+                          ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed'
+                          : 'bg-[#22577A] hover:bg-[#1A4461] text-white'
                       )}
                     >
-                      {upgradingId === plan.id ? 'Upgrading...' : plan.id === 'trial' ? 'Start Trial' : plan.id === '6months' ? 'Upgrade' : 'Select Plan'}
+                      {upgradingId === plan.id ? 'Upgrading...' : plan.id === 'trial' ? 'Start Trial' : 'Upgrade'}
                     </Button>
                   );
                 })()}

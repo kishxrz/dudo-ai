@@ -943,7 +943,7 @@ export default function AgentPersonality() {
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Your Assistant Name"
+            placeholder="e.g. John"
             className="h-8.5 text-xs border-zinc-200 focus-visible:ring-zinc-900 bg-white text-zinc-800 placeholder:text-zinc-400"
           />
         </div>
