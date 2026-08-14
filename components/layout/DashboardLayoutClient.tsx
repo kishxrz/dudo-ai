@@ -16,6 +16,7 @@ import { LockedPage } from '@/components/subscription/FeatureGate';
 import { motion, AnimatePresence } from 'framer-motion';
 import Logo from '@/components/ui/logo';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import DudoSupportAssistant from '@/components/support/DudoSupportAssistant';
 
 // ─── AI Status types ──────────────────────────────────────────────────────────
 type AiStatus = 'online' | 'paused' | 'training' | 'offline' | 'unconfigured';
@@ -552,6 +553,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </div>
+      {/* ── Floating Dudo AI Support Assistant ────────────────────────────── */}
+      <DudoSupportAssistant />
     </div>
   );
 }
