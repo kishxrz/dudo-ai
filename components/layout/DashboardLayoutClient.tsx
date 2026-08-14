@@ -127,7 +127,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     async function loadAssistant() {
       // Build a personalised default from the logged-in user's name or email
       const rawDisplay = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
-      const firstName = rawDisplay.split(/[\s._-]/)[0];
+      const firstName = rawDisplay.split(/[-\s._]/)[0];
       const capitalised = firstName.charAt(0).toUpperCase() + firstName.slice(1);
       const userPersonalisedDefault = `${capitalised}'s AI Assistant`;
 

@@ -71,7 +71,7 @@ function AgentPageInner() {
 
     // Build a user-personalised default name from their display name or email
     const rawDisplayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
-    const firstName = rawDisplayName.split(/[\s._-]/)[0];
+    const firstName = rawDisplayName.split(/[-\s._]/)[0];
     const capitalised = firstName.charAt(0).toUpperCase() + firstName.slice(1);
     const userDefaultName = `${capitalised}'s AI Assistant`;
 

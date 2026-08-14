@@ -320,7 +320,7 @@ export default function DashboardPage() {
   }
 
   const userDisplayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
-  const userFirstName = userDisplayName.split(/[\s._-]/)[0];
+  const userFirstName = userDisplayName.split(/[-\s._]/)[0];
   const capitalisedFirst = userFirstName.charAt(0).toUpperCase() + userFirstName.slice(1);
   const userPersonalisedName = `${capitalisedFirst}'s AI Assistant`;
 
