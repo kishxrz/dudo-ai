@@ -73,6 +73,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   }, [subLoading, subscription]);
 
   const pathname = usePathname();
+  const isBillingPage = pathname === '/dashboard/billing';
+  const showExpiryOverlay = !subLoading && isExpired && !isBillingPage;
 
   const getRequiredFeature = (path: string): string | null => {
     if (path.startsWith('/dashboard/knowledge')) return 'knowledge';
@@ -515,11 +517,14 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* ── Main View Panel Container ───────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto min-h-0 bg-[#FFF8F0] relative">
+        <div className={cn(
+          "flex-1 min-h-0 bg-[#FFF8F0] relative",
+          showExpiryOverlay ? "overflow-hidden" : "overflow-y-auto"
+        )}>
           {/* Subscription Expiry Overlay (Feature gate) */}
-          {!subLoading && isExpired && (
-            <div className="absolute inset-0 bg-[#FFF8F0]/80 backdrop-blur-xs z-30 flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-300">
-              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mb-4 text-amber-500">
+          {showExpiryOverlay && (
+            <div className="absolute inset-0 bg-[#FFF8F0]/85 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-300">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mb-4 text-amber-500 shadow-sm">
                 <AlertTriangle size={24} className="stroke-[2.5]" />
               </div>
               <h2 className="text-lg font-black text-zinc-800 tracking-tight leading-none mb-2">
@@ -538,11 +543,13 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Render layout view child sub-pages (with access checks) */}
-          {!isFeatureAllowed ? (
-            <LockedPage feature={requiredFeature || ''} />
-          ) : (
-            children
-          )}
+          <div className={cn(showExpiryOverlay && "pointer-events-none select-none h-full overflow-hidden")}>
+            {!isFeatureAllowed ? (
+              <LockedPage feature={requiredFeature || ''} />
+            ) : (
+              children
+            )}
+          </div>
         </div>
       </div>
     </div>
