@@ -443,8 +443,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
           {/* Right action button */}
           <div className="shrink-0 flex justify-end">
-            <AnimatePresence mode="wait">
-              {currentSlide.action && (
+            {currentSlide.action && (
+              <AnimatePresence mode="wait">
                 <motion.div
                   key={currentSlide.type + '-btn'}
                   initial={{ opacity: 0, scale: 0.9 }}
