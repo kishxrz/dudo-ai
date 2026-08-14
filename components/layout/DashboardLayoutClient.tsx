@@ -125,7 +125,11 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function loadAssistant() {
-      let name = "My AI Assistant";
+      // Build a personalised default from the logged-in user's name or email
+      const rawDisplay = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
+      const firstName = rawDisplay.split(/[\s._-]/)[0];
+      const capitalised = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+      let name = `${capitalised}'s AI Assistant`;
       
       if (db && workspaceId) {
         try {
@@ -320,10 +324,18 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   const showWelcomeUpgradeBtn = subLoading || !subscription || subscription.plan === 'trial' || isExpired;
   const welcomeUpgradeBtnText = subscription?.plan === 'trial' ? 'Upgrade ₹999' : 'Upgrade';
 
-  const slides = [
+  const slides: Array<{
+    type: string;
+    content: string;
+    bg: string;
+    textColor: string;
+    action: { text: string; onClick: () => void } | null;
+  }> = [
     {
       type: 'welcome',
-      content: `Welcome back, ${firstName}! Plan: ${planLabel}${timeLabel} — Let's build something amazing today!`,
+      content: `👋 Welcome back, ${firstName}! Plan: ${planLabel}${timeLabel} — Let's build something amazing today!`,
+      bg: 'bg-amber-500',
+      textColor: 'text-white',
       action: showWelcomeUpgradeBtn ? {
         text: welcomeUpgradeBtnText,
         onClick: () => router.push('/dashboard/billing')
@@ -337,6 +349,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     slides.push({
       type: 'offer',
       content: `Special Upgrade Offer: Save 58% — Upgrade to the 6-Month Pack for just ₹2499!`,
+      bg: 'bg-[#22577A]',
+      textColor: 'text-white',
       action: {
         text: 'Upgrade Now',
         onClick: () => router.push('/dashboard/billing')
@@ -347,7 +361,9 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   // Proud India slide
   slides.push({
     type: 'proud',
-    content: `Homegrown & Proud: Built in India for ambitious businesses worldwide.`,
+    content: `🇮🇳 Homegrown & Proud: Built in India for ambitious businesses worldwide.`,
+    bg: 'bg-[#22577A]',
+    textColor: 'text-white',
     action: null
   });
 
@@ -379,7 +395,11 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       >
         
         {/* ── Slideshow Top Alert Bar ──────────────────────────────────── */}
-        <div className="bg-[#22577A] text-white py-2.5 px-4 sm:px-6 flex items-center justify-between text-xs font-semibold select-none flex-shrink-0 z-20">
+        <div className={cn(
+          "py-2.5 px-4 sm:px-6 flex items-center justify-between text-xs font-semibold select-none flex-shrink-0 z-20 transition-colors duration-500",
+          currentSlide.bg,
+          currentSlide.textColor
+        )}>
           <div className="flex-1 flex justify-center text-center max-w-full min-w-0 pr-8">
             <span className="truncate">
               {currentSlide.content}
@@ -399,7 +419,12 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
                 >
                   <Button
                     onClick={currentSlide.action.onClick}
-                    className="h-6 text-[10px] bg-[#22577A] hover:bg-[#1A4461] text-white px-2.5 sm:px-3 font-bold rounded-lg border-none shadow-sm cursor-pointer flex items-center justify-center transition-all hover:scale-105 active:scale-95 leading-none shrink-0"
+                    className={cn(
+                      "h-6 text-[10px] px-2.5 sm:px-3 font-bold rounded-lg border-none shadow-sm cursor-pointer flex items-center justify-center transition-all hover:scale-105 active:scale-95 leading-none shrink-0",
+                      currentSlide.type === 'welcome'
+                        ? 'bg-white text-amber-600 hover:bg-amber-50'
+                        : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
+                    )}
                   >
                     {currentSlide.action.text}
                   </Button>

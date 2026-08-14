@@ -843,26 +843,77 @@ export default function BillingPage() {
                 </ul>
 
                 {/* Action button */}
-                {!isCurrent && (
-                  <Button
-                    onClick={() => handleUpgrade(plan.id)}
-                    disabled={upgradingId !== null || plan.id === 'trial'}
-                    className={cn(
-                      'w-full h-8 rounded-lg text-[12px] font-semibold border cursor-pointer transition-all hover:scale-[1.01] mt-1',
-                      plan.id === '6months'
-                        ? 'bg-[#22577A] hover:bg-[#1A4461] text-white border-none'
-                        : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
-                    )}
-                  >
-                    {upgradingId === plan.id ? 'Upgrading...' : plan.id === 'trial' ? 'Start Trial' : plan.id === '6months' ? 'Upgrade' : 'Select Plan'}
-                  </Button>
-                )}
+                {(() => {
+                  const isExpiredOrCancelled =
+                    isCurrent &&
+                    plan.id !== 'trial' &&
+                    (
+                      subscription?.status === 'expired' ||
+                      subscription?.status === 'cancelled' ||
+                      (subscription?.cancelAtPeriodEnd === true && subscription?.status !== 'active')
+                    );
 
-                {isCurrent && (
-                  <div className="h-8 flex items-center justify-center">
-                    <span className="text-[11px] text-[#22577A] font-semibold">✓ Your current plan</span>
-                  </div>
-                )}
+                  if (isExpiredOrCancelled) {
+                    // Plan is over – show Renew button
+                    return (
+                      <Button
+                        onClick={() => handleUpgrade(plan.id)}
+                        disabled={upgradingId !== null}
+                        className={cn(
+                          'w-full h-8 rounded-lg text-[12px] font-semibold border-none cursor-pointer transition-all hover:scale-[1.01] mt-1',
+                          plan.id === '6months'
+                            ? 'bg-[#22577A] hover:bg-[#1A4461] text-white'
+                            : 'bg-amber-500 hover:bg-amber-600 text-white'
+                        )}
+                      >
+                        {upgradingId === plan.id ? 'Redirecting...' : 'Renew Plan'}
+                      </Button>
+                    );
+                  }
+
+                  if (isCurrent && plan.id === 'monthly') {
+                    // Monthly is current & active – show current label + upgrade nudge
+                    return (
+                      <div className="flex flex-col gap-2 mt-1">
+                        <div className="h-7 flex items-center justify-center">
+                          <span className="text-[11px] text-[#22577A] font-semibold">✓ Your current plan</span>
+                        </div>
+                        <Button
+                          onClick={() => handleUpgrade('6months')}
+                          disabled={upgradingId !== null}
+                          className="w-full h-8 rounded-lg text-[12px] font-semibold border-none cursor-pointer transition-all hover:scale-[1.01] bg-[#22577A] hover:bg-[#1A4461] text-white"
+                        >
+                          {upgradingId === '6months' ? 'Upgrading...' : 'Upgrade to 6-Month Pack'}
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  if (isCurrent) {
+                    // 6-month or trial current plan
+                    return (
+                      <div className="h-8 flex items-center justify-center">
+                        <span className="text-[11px] text-[#22577A] font-semibold">✓ Your current plan</span>
+                      </div>
+                    );
+                  }
+
+                  // Not the current plan
+                  return (
+                    <Button
+                      onClick={() => handleUpgrade(plan.id)}
+                      disabled={upgradingId !== null || plan.id === 'trial'}
+                      className={cn(
+                        'w-full h-8 rounded-lg text-[12px] font-semibold border cursor-pointer transition-all hover:scale-[1.01] mt-1',
+                        plan.id === '6months'
+                          ? 'bg-[#22577A] hover:bg-[#1A4461] text-white border-none'
+                          : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                      )}
+                    >
+                      {upgradingId === plan.id ? 'Upgrading...' : plan.id === 'trial' ? 'Start Trial' : plan.id === '6months' ? 'Upgrade' : 'Select Plan'}
+                    </Button>
+                  );
+                })()}
               </div>
             );
           })}

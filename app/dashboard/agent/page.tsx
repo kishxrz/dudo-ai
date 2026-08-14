@@ -15,6 +15,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { mockAssistant } from '@/services/mockData';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
@@ -36,6 +37,7 @@ function AgentPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { workspaceId } = useWorkspace();
+  const { currentUser } = useAuth();
 
   // Backward compatibility tab redirect mapping
   const getMappedTab = (tab: string | null) => {
@@ -66,7 +68,14 @@ function AgentPageInner() {
 
   const loadHeaderDetails = async () => {
     if (!workspaceId) return;
-    let currentName = "Kishore's AI Assistant";
+
+    // Build a user-personalised default name from their display name or email
+    const rawDisplayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
+    const firstName = rawDisplayName.split(/[\s._-]/)[0];
+    const capitalised = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+    const userDefaultName = `${capitalised}'s AI Assistant`;
+
+    let currentName = userDefaultName;
     let currentStatus = mockAssistant.status;
 
     if (db) {

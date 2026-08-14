@@ -44,7 +44,7 @@ export default function DashboardPage() {
   });
 
   const [assistantDetails, setAssistantDetails] = useState({
-    name: "My AI Assistant",
+    name: "",
     status: mockAssistant.status,
     provider: 'Not configured',
     model: 'Not configured',
@@ -78,7 +78,7 @@ export default function DashboardPage() {
       let isProvider = false;
       let isPublished = false;
 
-      let name = "My AI Assistant";
+      let name = "";
       let status = mockAssistant.status;
       let providerName = 'Not configured';
       let modelName = 'Not configured';
@@ -319,7 +319,10 @@ export default function DashboardPage() {
     );
   }
 
-  const userDisplayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User';
+  const userDisplayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
+  const userFirstName = userDisplayName.split(/[\s._-]/)[0];
+  const capitalisedFirst = userFirstName.charAt(0).toUpperCase() + userFirstName.slice(1);
+  const userPersonalisedName = `${capitalisedFirst}'s AI Assistant`;
 
   const formatAssistantName = (name: string): string => {
     if (!name) return '';
@@ -335,12 +338,11 @@ export default function DashboardPage() {
 
   const finalName = formatAssistantName(
     assistantDetails.name && 
-    assistantDetails.name !== 'My Assistant' && 
-    assistantDetails.name !== 'My AI Assistant' && 
-    assistantDetails.name !== 'Assistant' && 
-    assistantDetails.name !== "csk's AI Assistant"
+    assistantDetails.name !== 'My AI Assistant' &&
+    assistantDetails.name !== 'My Assistant' &&
+    assistantDetails.name !== 'Assistant'
       ? assistantDetails.name
-      : `${userDisplayName}'s AI Assistant`
+      : userPersonalisedName
   );
 
   return (
