@@ -326,16 +326,17 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   const slides: Array<{
     type: string;
-    content: string;
-    bg: string;
-    textColor: string;
+    content: React.ReactNode;
     action: { text: string; onClick: () => void } | null;
   }> = [
     {
       type: 'welcome',
-      content: `👋 Welcome back, ${firstName}! Plan: ${planLabel}${timeLabel} — Let's build something amazing today!`,
-      bg: 'bg-amber-500',
-      textColor: 'text-white',
+      content: (
+        <span className="flex items-center gap-1.5 justify-center">
+          <span>👋</span>
+          <span>Welcome back, <strong>{firstName}</strong>! Plan: {planLabel}{timeLabel} — Let&apos;s build something amazing today!</span>
+        </span>
+      ),
       action: showWelcomeUpgradeBtn ? {
         text: welcomeUpgradeBtnText,
         onClick: () => router.push('/dashboard/billing')
@@ -348,9 +349,9 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
   if (hasMonthlyOrTrial) {
     slides.push({
       type: 'offer',
-      content: `Special Upgrade Offer: Save 58% — Upgrade to the 6-Month Pack for just ₹2499!`,
-      bg: 'bg-[#22577A]',
-      textColor: 'text-white',
+      content: (
+        <span>✨ Special Upgrade Offer: Save 58% — Upgrade to the 6-Month Pack for just ₹2499!</span>
+      ),
       action: {
         text: 'Upgrade Now',
         onClick: () => router.push('/dashboard/billing')
@@ -358,12 +359,29 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     });
   }
 
-  // Proud India slide
+  // Proud India slide — inline SVG flag (same as landing page)
+  const IndiaFlag = (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" className="w-5 h-3.5 shrink-0 rounded-[2px] shadow-xs border border-zinc-200/40 inline-block align-middle mr-1.5">
+      <rect width="900" height="200" fill="#FF9933" />
+      <rect y="200" width="900" height="200" fill="#FFFFFF" />
+      <rect y="400" width="900" height="200" fill="#138808" />
+      <g transform="translate(450, 300)">
+        <circle r="92" fill="none" stroke="#000080" strokeWidth="10" />
+        <circle r="16" fill="#000080" />
+        {Array.from({ length: 24 }).map((_, i) => (
+          <line key={i} y1="-92" y2="0" stroke="#000080" strokeWidth="6" transform={`rotate(${(i * 360) / 24})`} />
+        ))}
+      </g>
+    </svg>
+  );
   slides.push({
     type: 'proud',
-    content: `🇮🇳 Homegrown & Proud: Built in India for ambitious businesses worldwide.`,
-    bg: 'bg-[#22577A]',
-    textColor: 'text-white',
+    content: (
+      <span className="flex items-center gap-1.5 justify-center">
+        {IndiaFlag}
+        <span>Homegrown &amp; Proud: Built in India for ambitious businesses worldwide.</span>
+      </span>
+    ),
     action: null
   });
 
@@ -395,36 +413,37 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
       >
         
         {/* ── Slideshow Top Alert Bar ──────────────────────────────────── */}
-        <div className={cn(
-          "py-2.5 px-4 sm:px-6 flex items-center justify-between text-xs font-semibold select-none flex-shrink-0 z-20 transition-colors duration-500",
-          currentSlide.bg,
-          currentSlide.textColor
-        )}>
-          <div className="flex-1 flex justify-center text-center max-w-full min-w-0 pr-8">
-            <span className="truncate">
-              {currentSlide.content}
-            </span>
+        <div className="h-10 bg-[#FFF8F0] border-b border-[#EED9B4]/60 px-4 sm:px-6 flex items-center justify-between text-xs font-semibold select-none flex-shrink-0 z-20">
+          {/* Centred animated text */}
+          <div className="flex-1 flex justify-center text-center max-w-full min-w-0 pr-2 overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={currentSlide.type}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.35, ease: 'easeInOut' }}
+                className="text-[#22577A] font-semibold text-[11px] truncate flex items-center gap-1 justify-center"
+              >
+                {currentSlide.content}
+              </motion.span>
+            </AnimatePresence>
           </div>
 
           {/* Right action button */}
-          <div className="shrink-0 w-auto sm:w-[90px] flex justify-end">
-            {currentSlide.action && (
-              <AnimatePresence mode="wait">
+          <div className="shrink-0 flex justify-end">
+            <AnimatePresence mode="wait">
+              {currentSlide.action && (
                 <motion.div
-                  key={currentSlide.type}
+                  key={currentSlide.type + '-btn'}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.25 }}
                 >
                   <Button
                     onClick={currentSlide.action.onClick}
-                    className={cn(
-                      "h-6 text-[10px] px-2.5 sm:px-3 font-bold rounded-lg border-none shadow-sm cursor-pointer flex items-center justify-center transition-all hover:scale-105 active:scale-95 leading-none shrink-0",
-                      currentSlide.type === 'welcome'
-                        ? 'bg-white text-amber-600 hover:bg-amber-50'
-                        : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
-                    )}
+                    className="h-6 text-[10px] px-2.5 sm:px-3 font-bold rounded-lg border border-[#22577A]/30 bg-[#22577A] text-white hover:bg-[#1A4461] shadow-sm cursor-pointer flex items-center justify-center transition-all hover:scale-105 active:scale-95 leading-none shrink-0"
                   >
                     {currentSlide.action.text}
                   </Button>
