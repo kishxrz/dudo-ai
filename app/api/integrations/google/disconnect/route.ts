@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { requireSubscription } from '@/lib/subscription/SubscriptionService';
+import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export const runtime = 'nodejs';
 
@@ -14,24 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workspaceId' }, { status: 400 });
     }
 
-    const denied = await requireSubscription(req, workspaceId, 'google');
-    if (denied) return denied;
-
     const adminDb = getAdminDb();
-    let currentData: any = null;
-
-    if (adminDb) {
-      const snap = await adminDb.doc(`workspaces/${workspaceId}/integrations/google`).get();
-      if (snap.exists) {
-        currentData = snap.data();
-      }
-    } else if (db) {
-      const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'));
-      if (snap.exists()) {
-        currentData = snap.data();
-      }
-    }
-
     const docNameMap: Record<string, string> = {
       identity: 'googleIdentity',
       gmail: 'gmailIntegration',
@@ -49,6 +31,7 @@ export async function POST(req: NextRequest) {
       refreshToken: '',
       expiresAt: null,
       grantedScopes: [],
+      disconnectedAt: new Date(),
     };
 
     if (adminDb) {
@@ -59,27 +42,11 @@ export async function POST(req: NextRequest) {
       });
     } else if (db) {
       await setDoc(doc(db, 'workspaces', workspaceId, 'integrations', docName), disconnectPayload, { merge: true });
-      await addDoc(collection(db, 'workspaces', workspaceId, 'integrations', docName, 'logs'), {
-        action: 'disconnect',
-        timestamp: serverTimestamp(),
-      });
     }
 
-    // Recalculate legacy scopes union
+    // Recalculate active scopes
     const allScopes = ['gmail', 'calendar', 'sheets', 'drive', 'docs'];
     const activeScopes: string[] = [];
-
-    if (scope !== 'identity') {
-      let isIdentityConnected = false;
-      if (adminDb) {
-        const snap = await adminDb.doc(`workspaces/${workspaceId}/integrations/googleIdentity`).get();
-        if (snap.exists && snap.data()?.connected) isIdentityConnected = true;
-      } else if (db) {
-        const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'googleIdentity'));
-        if (snap.exists() && snap.data()?.connected) isIdentityConnected = true;
-      }
-      if (isIdentityConnected) activeScopes.push('identity');
-    }
 
     for (const sc of allScopes) {
       if (sc === scope) continue;

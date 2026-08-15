@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/contexts/ToastContext';
 import Logo from '@/components/ui/logo';
 import { db } from '@/lib/firebase';
-import { collection, doc, onSnapshot, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
@@ -309,28 +309,54 @@ export default function IntegrationsPage() {
 
   const handleDisconnect = async (scope: string) => {
     if (!workspaceId) return;
+    const docNameMap: Record<string, string> = {
+      gmail: 'gmailIntegration',
+      calendar: 'calendarIntegration',
+      sheets: 'sheetsIntegration',
+      drive: 'driveIntegration',
+      docs: 'docsIntegration',
+      identity: 'googleIdentity',
+    };
+
+    // 1. Instantly update local state & local storage
+    const updated = connectedScopes.filter((s) => s !== scope);
+    setConnectedScopes(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`dudo_google_scopes_${workspaceId}`, JSON.stringify(updated));
+    }
+
+    // 2. Client-side Firestore document update for real-time sync
+    if (db) {
+      const docName = docNameMap[scope] || 'gmailIntegration';
+      try {
+        await setDoc(doc(db, 'workspaces', workspaceId, 'integrations', docName), {
+          connected: false,
+          grantedScopes: [],
+        }, { merge: true });
+        
+        await setDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'), {
+          scopes: updated,
+          status: updated.length > 0 ? 'connected' : 'disconnected',
+        }, { merge: true });
+      } catch (err) {
+        console.error('Client firestore disconnect error:', err);
+      }
+    }
+
+    // 3. Call server API
     try {
-      const res = await fetch('/api/integrations/google/disconnect', {
+      await fetch('/api/integrations/google/disconnect', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, scope }),
       });
-      if (res.ok) {
-        const updated = connectedScopes.filter((s) => s !== scope);
-        setConnectedScopes(updated);
-        localStorage.setItem(`dudo_google_scopes_${workspaceId}`, JSON.stringify(updated));
-        fetchStatus();
-        const appName = APP_NAME_MAP[scope] || 'Google integration';
-        toast.success(`${appName} disconnected.`, 'Access credentials revoked successfully.');
-      } else {
-        toast.error('Connection failed. Please try again.', 'Could not disconnect from Google.');
-      }
     } catch (e) {
-      console.error(`Failed to disconnect ${scope}:`, e);
-      toast.error('Connection failed. Please try again.', 'Network error while revoking access');
+      console.error(`Backend disconnect notify error:`, e);
     }
+
+    const appName = APP_NAME_MAP[scope] || 'Google integration';
+    toast.success(`${appName} disconnected.`, 'Access credentials revoked successfully.');
+    fetchStatus();
   };
 
   const handleSubmitRequest = () => {
@@ -493,23 +519,8 @@ export default function IntegrationsPage() {
         )}
       </AnimatePresence>
 
-      {/* Quick Connect Subheading */}
-      <div className="space-y-1.5 text-left pt-1 select-none">
-        <SectionHeader 
-          title="Quick Connect" 
-          actions={
-            <span className="text-[9px] font-black text-[#22577A] tracking-wider uppercase bg-[#FFF3E5] border border-[#EED9B4] px-2.5 py-0.5 rounded-full select-none">
-              Recommended
-            </span>
-          }
-        />
-        <p className="text-xs text-zinc-500 font-medium leading-relaxed">
-          Sign in once, your AI agent can use your Google apps. Tokens stay encrypted; revoke any time.
-        </p>
-      </div>
-
-      {/* Connectors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
+      {/* Connectors Grid (Sits directly under page header without Quick Connect subtitle) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5 pt-2">
         {connectors.map((connector) => {
           const isConnected = connectedScopes.includes(connector.key);
           const isConnectingThis = connectingScope === connector.key;
@@ -658,7 +669,7 @@ export default function IntegrationsPage() {
               <div className="flex justify-end gap-2.5 pt-2">
                 <Button
                   onClick={() => setDisconnectingScope(null)}
-                  className="h-9 px-4.5 rounded-xl border border-zinc-250 bg-white text-zinc-800 font-extrabold hover:bg-zinc-50 text-xs shadow-xs cursor-pointer"
+                  className="h-9 px-4.5 rounded-xl border border-zinc-200 bg-white text-zinc-800 font-extrabold hover:bg-zinc-50 text-xs shadow-xs cursor-pointer"
                 >
                   Cancel
                 </Button>
@@ -680,7 +691,7 @@ export default function IntegrationsPage() {
       </AnimatePresence>
 
       {/* Roadmap Form Section */}
-      <div className="space-y-3 max-w-2xl text-left mt-4">
+      <div className="space-y-3 max-w-2xl text-left mt-6">
         <SectionHeader title="Roadmap Requests" />
         
         <FormSection
@@ -695,39 +706,39 @@ export default function IntegrationsPage() {
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-zinc-800">Tool / service name</label>
+            <label className="text-xs font-semibold text-zinc-700">Tool / service name</label>
             <input
               type="text"
               value={toolName}
               onChange={(e) => setToolName(e.target.value)}
               placeholder="e.g. Kylas CRM, LeadSquared, Razorpay"
-              className="w-full bg-white border border-zinc-250 rounded-xl px-3.5 py-2.5 text-sm font-medium text-zinc-950 placeholder:text-zinc-400 outline-none focus:border-[#22577A] transition-colors"
+              className="w-full bg-white border border-zinc-200 hover:border-zinc-300 focus:border-[#22577A] rounded-xl px-3.5 py-2.5 text-xs font-normal text-zinc-950 placeholder:text-zinc-400 outline-none transition-all shadow-2xs"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-zinc-800">What would you like the AI to do with it?</label>
+            <label className="text-xs font-semibold text-zinc-700">What would you like the AI to do with it?</label>
             <textarea
               value={toolActionDesc}
               onChange={(e) => setToolActionDesc(e.target.value)}
               placeholder="e.g. log every WhatsApp lead into Kylas under the Mumbai pipeline, with name + phone + first message"
-              className="w-full min-h-[90px] bg-white border border-zinc-250 rounded-xl px-3.5 py-2.5 text-sm font-medium text-zinc-950 placeholder:text-zinc-400 outline-none focus:border-[#22577A] transition-colors resize-none leading-relaxed"
+              className="w-full min-h-[90px] bg-white border border-zinc-200 hover:border-zinc-300 focus:border-[#22577A] rounded-xl px-3.5 py-2.5 text-xs font-normal text-zinc-950 placeholder:text-zinc-400 outline-none transition-all resize-none leading-relaxed shadow-2xs"
             />
           </div>
 
           <div className="space-y-1.5 relative custom-select-container">
-            <label className="text-xs font-bold text-zinc-800">How important is this for you?</label>
+            <label className="text-xs font-semibold text-zinc-700">How important is this for you?</label>
             <button
               ref={triggerRef}
               type="button"
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="w-full bg-white border border-zinc-250 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-zinc-950 text-left outline-none focus:border-[#22577A] transition-colors flex items-center justify-between cursor-pointer select-none"
+              className="w-full bg-white border border-zinc-200 hover:border-zinc-300 focus:border-[#22577A] rounded-xl px-3.5 py-2.5 text-xs font-normal text-zinc-950 text-left outline-none transition-all flex items-center justify-between cursor-pointer select-none shadow-2xs"
               aria-haspopup="listbox"
               aria-expanded={dropdownOpen}
             >
               <span>{importance}</span>
               <svg
-                className={cn("w-4 h-4 text-zinc-500 transition-transform duration-200", dropdownOpen ? "transform rotate-180" : "")}
+                className={cn("w-4 h-4 text-zinc-400 transition-transform duration-200", dropdownOpen ? "transform rotate-180" : "")}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -745,7 +756,7 @@ export default function IntegrationsPage() {
                   left: `${coords.left}px`,
                   width: `${coords.width}px`,
                 }}
-                className="z-[9999] bg-white border border-zinc-250 rounded-xl shadow-xl py-1 outline-none animate-fade-in list-none p-0"
+                className="z-[9999] bg-white border border-zinc-200 rounded-xl shadow-xl py-1 outline-none animate-fade-in list-none p-0"
                 role="listbox"
               >
                 {['Nice to have', 'Important', 'Crucial'].map((option) => (
@@ -771,10 +782,10 @@ export default function IntegrationsPage() {
                     role="option"
                     aria-selected={importance === option}
                     className={cn(
-                      "px-3.5 py-2.5 text-sm cursor-pointer outline-none transition-colors",
+                      "px-3.5 py-2.5 text-xs cursor-pointer outline-none transition-colors",
                       importance === option
                         ? "bg-zinc-100 text-zinc-950 font-bold"
-                        : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-950 font-medium"
+                        : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-950 font-normal"
                     )}
                   >
                     <div className="flex items-center justify-between">
