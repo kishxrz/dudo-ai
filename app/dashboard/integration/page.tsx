@@ -445,14 +445,21 @@ export default function IntegrationsPage() {
   return (
     <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-5 px-6 pb-16 box-border">
       
-      {/* Clean Page Header (No SECURE OAUTH badge, no top pills) */}
-      <div className="border-b border-zinc-200/60 pb-4 pt-1 text-left space-y-1 select-none">
-        <h1 className="text-xl md:text-2xl font-extrabold text-zinc-950 tracking-tight leading-none">
-          Google Workspace Integrations
-        </h1>
-        <p className="text-xs md:text-sm text-zinc-700 font-medium leading-relaxed max-w-2xl">
-          Connect Gmail, Calendar, Drive, Docs, and Sheets so your AI employee can read emails, book appointments, and log data.
-        </p>
+      {/* 1. Page Header matching Learning Page style with Plug Icon */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/50 pb-5 text-left select-none">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#22577A]/10 flex items-center justify-center shrink-0 text-[#22577A] mt-1">
+            <Plug size={20} />
+          </div>
+          <div>
+            <h1 className="text-[28px] font-bold text-zinc-950 tracking-tight leading-none mb-2">
+              Integrations
+            </h1>
+            <p className="text-sm text-zinc-500 max-w-2xl leading-relaxed">
+              Connect Gmail, Calendar, Drive, Docs, and Sheets so your AI employee can read emails, book appointments, and log data.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Dismissible App-Specific Success Banner */}
@@ -487,7 +494,7 @@ export default function IntegrationsPage() {
       </AnimatePresence>
 
       {/* Quick Connect Subheading */}
-      <div className="space-y-1.5 text-left pt-1">
+      <div className="space-y-1.5 text-left pt-1 select-none">
         <SectionHeader 
           title="Quick Connect" 
           actions={
@@ -496,7 +503,7 @@ export default function IntegrationsPage() {
             </span>
           }
         />
-        <p className="text-xs text-zinc-800 font-semibold leading-relaxed">
+        <p className="text-xs text-zinc-500 font-medium leading-relaxed">
           Sign in once, your AI agent can use your Google apps. Tokens stay encrypted; revoke any time.
         </p>
       </div>
@@ -538,7 +545,7 @@ export default function IntegrationsPage() {
                   <h3 className="text-sm font-black text-zinc-950 tracking-tight">
                     {connector.name}
                   </h3>
-                  <p className="text-[11.5px] text-zinc-700 font-medium leading-relaxed">
+                  <p className="text-[11.5px] text-zinc-500 font-normal leading-relaxed">
                     {connector.desc}
                   </p>
                 </div>
@@ -555,11 +562,11 @@ export default function IntegrationsPage() {
                     className="mt-3.5 pt-3 border-t border-zinc-150 flex flex-col gap-1.5 text-[11px] font-semibold text-left overflow-hidden"
                   >
                     <div className="flex justify-between items-center">
-                      <span className="text-zinc-600">Connected as</span>
+                      <span className="text-zinc-500">Connected as</span>
                       <span className="text-zinc-900 font-extrabold truncate max-w-[140px]">{googleEmail || 'Authorized Account'}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-zinc-600">Status</span>
+                      <span className="text-zinc-500">Status</span>
                       <span className="text-emerald-700 font-extrabold flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
                       </span>
@@ -583,7 +590,7 @@ export default function IntegrationsPage() {
                     <Button
                       type="button"
                       onClick={() => setDisconnectingScope(connector.key)}
-                      className="h-9 px-3 rounded-xl bg-white hover:bg-red-50 text-red-650 hover:text-red-700 font-extrabold border border-zinc-250 hover:border-red-200 text-xs cursor-pointer transition-all"
+                      className="h-9 px-4 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 font-extrabold border border-red-200/80 text-xs cursor-pointer transition-all shadow-xs shrink-0"
                     >
                       Disconnect
                     </Button>
@@ -645,7 +652,7 @@ export default function IntegrationsPage() {
               <h3 className="text-lg font-bold text-zinc-950">
                 Disconnect {APP_NAME_MAP[disconnectingScope] || 'Google Integration'}?
               </h3>
-              <p className="text-xs text-zinc-700 font-medium leading-relaxed">
+              <p className="text-xs text-zinc-500 font-medium leading-relaxed">
                 Your AI employee will lose access to this Google service until you reconnect it.
               </p>
               <div className="flex justify-end gap-2.5 pt-2">
@@ -662,7 +669,7 @@ export default function IntegrationsPage() {
                     toast.info('Disconnecting...', 'Removing Google integration access...');
                     await handleDisconnect(scope);
                   }}
-                  className="h-9 px-4.5 rounded-xl bg-red-650 hover:bg-red-700 text-white font-extrabold border-none text-xs shadow-md shadow-red-650/10 cursor-pointer"
+                  className="h-9 px-4.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold border-none text-xs shadow-md shadow-red-600/10 cursor-pointer"
                 >
                   Disconnect
                 </Button>
