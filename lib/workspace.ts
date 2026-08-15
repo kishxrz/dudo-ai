@@ -69,7 +69,8 @@ export async function ensureWorkspace(
   // VIP testing grant for kishx.rzz@gmail.com
   if (isKishxVIP) {
     try {
-      const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year active
+      const sixMonthsMs = Math.round(182.5 * 24 * 60 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + sixMonthsMs); // 6 months (182.5 days) active
       const subRef = doc(db, 'workspaces', uid, 'billing', 'subscription');
       await setDoc(subRef, {
         planId: '6months',

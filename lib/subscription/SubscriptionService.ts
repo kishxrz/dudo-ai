@@ -258,7 +258,8 @@ export async function getUserSubscription(workspaceId: string): Promise<Subscrip
       const user = await authAdmin.getUser(workspaceId).catch(() => null);
       if (user && user.email?.toLowerCase().trim() === 'kishx.rzz@gmail.com') {
         const now = new Date();
-        const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+        const sixMonthsMs = Math.round(182.5 * 24 * 60 * 60 * 1000);
+        const expiresAt = new Date(now.getTime() + sixMonthsMs);
         const subRef = adminDb.doc(`workspaces/${workspaceId}/billing/subscription`);
         await subRef.set({
           plan: 'six_month',
