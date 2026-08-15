@@ -11,14 +11,10 @@ import {
   Sparkles,
   Trash2,
   RefreshCw,
-  ArrowRight,
-  HelpCircle,
-  Mail,
-  ExternalLink,
-  MessageSquare
+  ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export interface ChatMessage {
   id: string;
@@ -36,17 +32,23 @@ const QUICK_PROMPTS = [
   { label: '⚡ How to connect Telegram/WhatsApp?', text: 'How do I connect Telegram or WhatsApp channels?' }
 ];
 
+const BOT_SIZE = 52; // Bot launcher dimensions (48px button + 4px margin)
+
 export default function DudoSupportAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Draggable position state
+  // Single source of truth for free-floating viewport coordinates (position: fixed; left, top)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const pointerStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const launcherRef = useRef<HTMLDivElement>(null);
+  
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const startPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasMovedRef = useRef<boolean>(false);
+  
+  const botRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
@@ -55,38 +57,45 @@ export default function DudoSupportAssistant() {
 
   // Load launcher position from localStorage or default to bottom-right
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('dudo_assistant_position');
+    if (typeof window === 'undefined') return;
+
+    const getInitialPosition = () => {
+      const saved = localStorage.getItem('dudo-support-bot-position');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-            const clampedX = Math.max(12, Math.min(window.innerWidth - 68, parsed.x));
-            const clampedY = Math.max(12, Math.min(window.innerHeight - 68, parsed.y));
-            setPosition({ x: clampedX, y: clampedY });
-            return;
+            const maxX = window.innerWidth - BOT_SIZE - 12;
+            const maxY = window.innerHeight - BOT_SIZE - 12;
+            return {
+              x: Math.max(12, Math.min(maxX, parsed.x)),
+              y: Math.max(12, Math.min(maxY, parsed.y))
+            };
           }
         } catch {}
       }
-      // Default: bottom-right
-      setPosition({
-        x: Math.max(12, window.innerWidth - 72),
-        y: Math.max(12, window.innerHeight - 72)
-      });
-    }
-  }, []);
+      // Default: bottom-right corner
+      return {
+        x: Math.max(12, window.innerWidth - BOT_SIZE - 20),
+        y: Math.max(12, window.innerHeight - BOT_SIZE - 20)
+      };
+    };
 
-  // Clamp position on window resize
-  useEffect(() => {
+    setPosition(getInitialPosition());
+
+    // Clamp position on window resize so bot stays 100% visible
     const handleResize = () => {
       setPosition(prev => {
         if (!prev) return null;
+        const maxX = window.innerWidth - BOT_SIZE - 12;
+        const maxY = window.innerHeight - BOT_SIZE - 12;
         return {
-          x: Math.max(12, Math.min(window.innerWidth - 68, prev.x)),
-          y: Math.max(12, Math.min(window.innerHeight - 68, prev.y))
+          x: Math.max(12, Math.min(maxX, prev.x)),
+          y: Math.max(12, Math.min(maxY, prev.y))
         };
       });
     };
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -97,6 +106,68 @@ export default function DudoSupportAssistant() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading, isOpen]);
+
+  // Pointer drag event handlers (desktop mouse + mobile touch)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!botRef.current || !position) return;
+
+    // Capture pointer so move/up events track smoothly anywhere on screen
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    const rect = botRef.current.getBoundingClientRect();
+    dragOffsetRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    hasMovedRef.current = false;
+    setIsDragging(true);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || !position) return;
+
+    const dx = e.clientX - startPosRef.current.x;
+    const dy = e.clientY - startPosRef.current.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > 6) {
+      hasMovedRef.current = true;
+    }
+
+    if (hasMovedRef.current) {
+      const newRawX = e.clientX - dragOffsetRef.current.x;
+      const newRawY = e.clientY - dragOffsetRef.current.y;
+
+      const maxX = window.innerWidth - BOT_SIZE - 12;
+      const maxY = window.innerHeight - BOT_SIZE - 12;
+
+      const clampedX = Math.max(12, Math.min(maxX, newRawX));
+      const clampedY = Math.max(12, Math.min(maxY, newRawY));
+
+      setPosition({ x: clampedX, y: clampedY });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    setIsDragging(false);
+
+    if (hasMovedRef.current && position) {
+      // User dragged the bot — persist final coordinates to localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dudo-support-bot-position', JSON.stringify(position));
+      }
+    } else {
+      // User clicked/tapped without dragging — toggle chat panel
+      setIsOpen(prev => !prev);
+    }
+  };
 
   const handleSend = async (customText?: string) => {
     const messageText = (customText || input).trim();
@@ -172,21 +243,18 @@ export default function DudoSupportAssistant() {
     setMessages([]);
   };
 
-  // Helper to render text formatted with basic markdown and interactive action buttons
+  // Render assistant formatted content with clean inline buttons for real routes
   const renderFormattedContent = (content: string) => {
     const lines = content.split('\n');
 
-    // Collect navigation buttons for this response
     const actionButtons: Array<{ label: string; route: string; isMailto?: boolean }> = [];
 
-    // Helper to add unique action button
     const addAction = (label: string, route: string, isMailto = false) => {
       if (!actionButtons.some(a => a.route === route)) {
         actionButtons.push({ label, route, isMailto });
       }
     };
 
-    // Scan content for action triggers
     const lower = content.toLowerCase();
     if (lower.includes('knowledge')) addAction('Knowledge Base →', '/dashboard/knowledge');
     if (lower.includes('billing') || lower.includes('plan') || lower.includes('price')) addAction('Billing →', '/dashboard/billing');
@@ -275,7 +343,7 @@ export default function DudoSupportAssistant() {
     );
   };
 
-  // Determine chat modal position relative to launcher or viewport
+  // Dynamically position chat modal near bot launcher while keeping modal inside screen bounds
   const getModalPositionStyles = () => {
     if (typeof window === 'undefined') return {};
 
@@ -300,24 +368,20 @@ export default function DudoSupportAssistant() {
       };
     }
 
-    // Place modal above launcher or to the left if near top/bottom
     const modalWidth = 380;
     const modalHeight = 510;
 
-    let left = position.x - modalWidth + 50;
-    let top = position.y - modalHeight - 12;
+    let left = position.x > window.innerWidth / 2
+      ? position.x - modalWidth + 48
+      : position.x;
+
+    let top = position.y > window.innerHeight / 2
+      ? position.y - modalHeight - 12
+      : position.y + 56 + 12;
 
     // Clamp inside screen bounds
-    if (left < 16) left = 16;
-    if (left + modalWidth > window.innerWidth - 16) left = window.innerWidth - modalWidth - 16;
-
-    if (top < 16) {
-      // Show below launcher if top overflows
-      top = position.y + 60;
-    }
-    if (top + modalHeight > window.innerHeight - 16) {
-      top = Math.max(16, window.innerHeight - modalHeight - 16);
-    }
+    left = Math.max(16, Math.min(window.innerWidth - modalWidth - 16, left));
+    top = Math.max(16, Math.min(window.innerHeight - modalHeight - 16, top));
 
     return {
       left: `${left}px`,
@@ -329,70 +393,42 @@ export default function DudoSupportAssistant() {
 
   return (
     <>
-      {/* ── Floating Draggable Launcher Button ───────────────────────────── */}
-      <motion.div
-        ref={launcherRef}
-        drag
-        dragMomentum={false}
-        dragElastic={0}
-        dragConstraints={{
-          left: 12,
-          top: 12,
-          right: (typeof window !== 'undefined' ? window.innerWidth : 1000) - 68,
-          bottom: (typeof window !== 'undefined' ? window.innerHeight : 800) - 68
-        }}
-        onPointerDown={(e) => {
-          pointerStartRef.current = { x: e.clientX, y: e.clientY };
-        }}
-        onDragStart={() => {
-          setIsDragging(true);
-        }}
-        onDragEnd={() => {
-          setTimeout(() => setIsDragging(false), 50);
-          if (launcherRef.current) {
-            const rect = launcherRef.current.getBoundingClientRect();
-            const newPos = { x: rect.left, y: rect.top };
-            setPosition(newPos);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('dudo_assistant_position', JSON.stringify(newPos));
-            }
-          }
-        }}
-        style={{
-          position: 'fixed',
-          left: position ? `${position.x}px` : undefined,
-          top: position ? `${position.y}px` : undefined,
-          right: !position ? '20px' : undefined,
-          bottom: !position ? '20px' : undefined,
-          zIndex: 9990,
-          touchAction: 'none'
-        }}
-        className="select-none flex items-center gap-2"
-      >
-        <motion.button
-          type="button"
-          onClick={(e) => {
-            if (isDragging) return;
-            setIsOpen(prev => !prev);
+      {/* ── True Free-Position Floating Draggable Bot Launcher ───────────── */}
+      {position && (
+        <div
+          ref={botRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            zIndex: 9990,
+            touchAction: 'none'
           }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className={cn(
-            "w-12 h-12 rounded-full shadow-xl flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors border-none relative text-white",
-            isOpen ? "bg-zinc-800 hover:bg-zinc-900" : "bg-[#22577A] hover:bg-[#1A4461]"
-          )}
-          title="Dudo AI Support Assistant (Drag to move)"
+          className="select-none flex items-center gap-2 cursor-grab active:cursor-grabbing"
         >
-          {isOpen ? (
-            <X size={20} />
-          ) : (
-            <>
-              <Bot size={22} />
-              <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-amber-400 rounded-full border-2 border-white animate-pulse" />
-            </>
-          )}
-        </motion.button>
-      </motion.div>
+          <button
+            type="button"
+            className={cn(
+              "w-12 h-12 rounded-full shadow-2xl flex items-center justify-center transition-all border-none relative text-white",
+              isOpen ? "bg-zinc-800 hover:bg-zinc-900" : "bg-[#22577A] hover:bg-[#1A4461]"
+            )}
+            title="Dudo AI Support Assistant (Drag anywhere)"
+          >
+            {isOpen ? (
+              <X size={20} />
+            ) : (
+              <>
+                <Bot size={22} />
+                <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-amber-400 rounded-full border-2 border-white animate-pulse" />
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* ── Chat Modal Panel ──────────────────────────────────────────────── */}
       <AnimatePresence>
