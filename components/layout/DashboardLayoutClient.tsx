@@ -480,19 +480,26 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           {/* Right side: AI status + logout (visible on mobile; desktop shows nothing extra) */}
           <div className="flex items-center gap-2 shrink-0">
 
-            {/* AI Status Indicator */}
+            {/* AI Status Radar Indicator with Continuous Pulse */}
             <div
               className={cn(
-                "flex items-center justify-center w-7 h-7 rounded-full border bg-white select-none shadow-xs transition-all",
+                "relative flex items-center justify-center w-7 h-7 rounded-full border bg-white select-none shadow-xs transition-all shrink-0 cursor-pointer",
                 statusCfg.ring
               )}
               title={`AI Status: ${statusCfg.label}`}
             >
+              {/* Outer continuous radar ping ring */}
               <span
                 className={cn(
-                  "w-2.5 h-2.5 rounded-full shrink-0",
-                  statusCfg.dot,
-                  statusCfg.pulse && "animate-pulse"
+                  "absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping",
+                  statusCfg.dot
+                )}
+              />
+              {/* Inner core pulsating dot */}
+              <span
+                className={cn(
+                  "relative inline-flex w-2.5 h-2.5 rounded-full shrink-0 animate-pulse",
+                  statusCfg.dot
                 )}
               />
             </div>
