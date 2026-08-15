@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,15 +11,17 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import SaveButton from '@/components/ui/SaveButton';
-
-// Core UI components
-import { PageLayout } from '@/components/ui/PageLayout';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { SectionHeader } from '@/components/ui/SectionHeader';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ShieldAlert, CreditCard, Bell, Building, Check, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function SettingsPage() {
   const { currentUser } = useAuth();
   const { workspaceId } = useWorkspace();
+  const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
 
   const [businessName, setBusinessName] = useState('');
@@ -53,6 +54,8 @@ export default function SettingsPage() {
     { id: 'help', enabled: true },
     { id: 'weekly', enabled: false },
   ]);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     async function loadSettings() {
@@ -194,34 +197,50 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <PageLayout className="max-w-4xl">
-        <LoadingSpinner size="lg" text="Loading settings" />
-      </PageLayout>
+      <div className="max-w-[1250px] w-full mx-auto px-6 py-12 flex flex-col justify-center items-center min-h-[450px]">
+        <LoadingSpinner size="lg" text="Loading settings..." />
+      </div>
     );
   }
 
   return (
-    <PageLayout className="max-w-4xl">
-      <PageHeader
-        title="Settings"
-        description="Manage your account and business profile"
-        breadcrumbs={[{ label: 'Settings' }]}
-        actions={
+    <div className="max-w-[1250px] w-full mx-auto px-6 py-8 space-y-7 box-border text-left select-none pb-16">
+      
+      {/* 1. Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/60 pb-5">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-950 tracking-tight leading-none mb-1.5">
+            Settings
+          </h1>
+          <p className="text-xs md:text-sm text-zinc-500 font-medium leading-relaxed max-w-2xl">
+            Manage your account, business profile, notifications and subscription.
+          </p>
+        </div>
+
+        <div className="shrink-0">
           <SaveButton
             onClick={handleSave}
             isDirty={!saved}
             label="Save Changes"
             successToastTitle="Workspace settings updated"
             successToastDescription="Your profile changes have been saved."
-            className="h-8.5 rounded-xl text-xs"
+            className="h-9 px-4.5 rounded-xl text-xs font-bold shadow-sm"
           />
-        }
-      />
+        </div>
+      </div>
 
-      {/* Business Profile */}
-      <div className="bg-white border border-zinc-200/60 rounded-2xl p-5 shadow-sm space-y-4 text-left select-none">
-        <SectionHeader title="Business Profile" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 2. Business Profile */}
+      <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-2xs space-y-5">
+        <div>
+          <h2 className="text-base font-bold text-zinc-950 tracking-tight mb-0.5">
+            Business Profile
+          </h2>
+          <p className="text-xs text-zinc-500 font-medium">
+            Your business information and account details.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 pt-1">
           {[
             { label: 'Business Name', value: businessName, setter: setBusinessName, placeholder: 'Your Business Name' },
             { label: 'Owner Name', value: ownerName, setter: setOwnerName, placeholder: 'Your Name' },
@@ -230,40 +249,54 @@ export default function SettingsPage() {
             { label: 'Industry', value: industry, setter: setIndustry, placeholder: 'Your Industry' },
             { label: 'Timezone', value: timezone, setter: setTimezone, placeholder: 'Your Timezone' },
           ].map(({ label, value, setter, placeholder }) => (
-            <div key={label} className="space-y-1">
-              <Label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">{label}</Label>
+            <div key={label} className="space-y-1.5">
+              <Label className="text-[10.5px] font-bold text-zinc-600 uppercase tracking-wider block">
+                {label}
+              </Label>
               <Input 
                 value={value} 
                 onChange={e => setter(e.target.value)} 
                 placeholder={placeholder}
-                className="h-9 text-xs border-zinc-200 bg-white font-semibold rounded-xl text-zinc-800"
+                className="h-10 text-xs font-semibold text-zinc-950 bg-zinc-50/50 hover:bg-white border border-zinc-200/90 rounded-xl focus:border-[#22577A] focus:bg-white transition-all shadow-2xs px-3.5"
               />
             </div>
           ))}
         </div>
       </div>
 
-      {/* Notification Preferences */}
-      <div className="bg-white border border-zinc-200/60 rounded-2xl p-5 shadow-sm space-y-4 text-left select-none">
-        <SectionHeader title="Notification Preferences" />
-        <div className="flex flex-col gap-4">
+      {/* 3. Notification Preferences */}
+      <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-2xs space-y-5">
+        <div>
+          <h2 className="text-base font-bold text-zinc-950 tracking-tight mb-0.5">
+            Notification Preferences
+          </h2>
+          <p className="text-xs text-zinc-500 font-medium">
+            Choose which events you want Dudo to notify you about.
+          </p>
+        </div>
+
+        <div className="divide-y divide-zinc-150/80 pt-1">
           {notifications.map((n, index) => (
-            <div key={n.id} className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-xs font-bold text-zinc-800">{n.label}</div>
-                <div className="text-[11px] text-zinc-500 font-semibold mt-0.5">{n.desc}</div>
+            <div 
+              key={n.id} 
+              className="flex items-center justify-between gap-4 py-4 first:pt-1 last:pb-1 hover:bg-zinc-50/60 px-3 -mx-3 rounded-xl transition-colors duration-150"
+            >
+              <div className="space-y-0.5">
+                <div className="text-xs font-bold text-zinc-950">{n.label}</div>
+                <div className="text-[11.5px] text-zinc-500 font-medium leading-relaxed">{n.desc}</div>
               </div>
               <button 
+                type="button"
                 onClick={() => toggleNotification(index)}
                 className={cn(
-                  "w-10 h-[22px] rounded-full border-none cursor-pointer relative flex-shrink-0 transition-colors duration-200",
-                  n.enabled ? "bg-[#22577A]" : "bg-zinc-200"
+                  "w-11 h-6 rounded-full border-none cursor-pointer relative shrink-0 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#22577A]/20",
+                  n.enabled ? "bg-[#22577A]" : "bg-zinc-250"
                 )}
               >
                 <div 
                   className={cn(
-                    "w-[16px] h-[16px] rounded-full bg-white absolute top-[3px] transition-all duration-200 shadow-sm",
-                    n.enabled ? "left-[21px]" : "left-[3px]"
+                    "w-4.5 h-4.5 rounded-full bg-white absolute top-0.75 transition-all duration-200 shadow-sm",
+                    n.enabled ? "left-[22px]" : "left-0.75"
                   )} 
                 />
               </button>
@@ -272,38 +305,100 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Billing & Subscription Quick Link */}
-      <div className="bg-white border border-zinc-200/60 rounded-2xl p-5 shadow-sm space-y-4 text-left select-none">
-        <SectionHeader title="Billing & Subscription" />
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="text-xs font-bold text-zinc-800">Manage Billing</div>
-            <div className="text-[11px] text-zinc-500 font-semibold mt-0.5">View your invoices, update payment methods, or upgrade your subscription plan.</div>
+      {/* 4. Billing & Subscription */}
+      <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-2xs space-y-5">
+        <div>
+          <h2 className="text-base font-bold text-zinc-950 tracking-tight mb-0.5">
+            Billing & Subscription
+          </h2>
+          <p className="text-xs text-zinc-500 font-medium">
+            Manage your plan, invoices and payment settings.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-1">
+          <div className="space-y-0.5">
+            <div className="text-xs font-bold text-zinc-950">Manage Billing</div>
+            <div className="text-xs text-zinc-500 font-medium leading-relaxed">
+              View your invoices, update payment methods, or upgrade your subscription plan.
+            </div>
           </div>
           <Button 
-            onClick={() => window.location.href = '/dashboard/settings/billing'}
-            className="h-8.5 px-4 bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 font-bold rounded-xl shadow-sm text-xs cursor-pointer"
+            onClick={() => router.push('/dashboard/billing')}
+            className="h-9 px-4.5 bg-white hover:bg-zinc-50 text-zinc-800 font-bold border border-zinc-250 rounded-xl shadow-xs text-xs cursor-pointer transition-all hover:scale-[1.01] shrink-0"
           >
             Go to Billing Settings
           </Button>
         </div>
       </div>
 
-      {/* Danger Zone */}
-      <div className="bg-red-50/70 border border-red-200/80 rounded-[20px] p-5 text-left select-none">
-        <div className="text-xs font-extrabold text-red-700 uppercase tracking-wider mb-2">Danger Zone</div>
+      {/* 5. Danger Zone */}
+      <div className="bg-red-50/40 border border-red-200/70 rounded-2xl p-6 space-y-4">
+        <div className="text-xs font-bold text-red-600 uppercase tracking-wider">
+          Danger Zone
+        </div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="text-xs font-bold text-zinc-900">Delete Account</div>
-            <div className="text-[11px] text-zinc-600 font-medium mt-0.5">Permanently delete your account and all data. This cannot be undone.</div>
+          <div className="space-y-0.5">
+            <div className="text-xs font-bold text-zinc-950">Delete Account</div>
+            <div className="text-xs text-zinc-600 font-medium leading-relaxed">
+              Permanently delete your account and all data. This cannot be undone.
+            </div>
           </div>
           <Button 
-            className="h-8.5 px-4 bg-white hover:bg-red-100 border border-red-300 text-red-600 font-extrabold rounded-xl shadow-xs text-xs cursor-pointer transition-all hover:scale-[1.01]"
+            onClick={() => setShowDeleteModal(true)}
+            className="h-9 px-4.5 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 font-bold border border-red-300 rounded-xl text-xs shadow-xs cursor-pointer transition-all hover:scale-[1.01] shrink-0"
           >
             Delete Account
           </Button>
         </div>
       </div>
-    </PageLayout>
+
+      {/* Delete Account Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteModal(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', duration: 0.3 }}
+              className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-2xl max-w-sm w-full relative z-10 flex flex-col gap-4 text-left select-none"
+            >
+              <h3 className="text-lg font-bold text-zinc-950">
+                Delete Account?
+              </h3>
+              <p className="text-xs text-zinc-500 font-medium leading-relaxed">
+                Permanently delete your account and all data. This cannot be undone. Please contact support or confirm below.
+              </p>
+              <div className="flex justify-end gap-2.5 pt-2">
+                <Button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="h-9 px-4.5 rounded-xl border border-zinc-250 bg-white text-zinc-800 font-extrabold hover:bg-zinc-50 text-xs shadow-xs cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    toast.info('Account Deletion', 'Contact support to finalize full workspace removal.');
+                  }}
+                  className="h-9 px-4.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold border-none text-xs shadow-md shadow-red-600/10 cursor-pointer"
+                >
+                  Delete Account
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+    </div>
   );
 }
