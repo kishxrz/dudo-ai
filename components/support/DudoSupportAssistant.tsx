@@ -114,11 +114,11 @@ export default function DudoSupportAssistant() {
       window.open(targetPath, '_blank');
     } else if (targetPath.startsWith('mailto:')) {
       window.location.href = targetPath;
+    } else if (targetPath === 'dudo-bug-modal' || targetPath === '/dashboard/report-bug') {
+      // Directly trigger bug modal popup without navigating away (prevents 404)
+      window.dispatchEvent(new CustomEvent('dudo-open-bug-modal'));
     } else {
       router.push(targetPath);
-      if (targetPath === '/dashboard/report-bug') {
-        window.dispatchEvent(new CustomEvent('dudo-open-bug-modal'));
-      }
     }
   };
 
@@ -274,8 +274,8 @@ export default function DudoSupportAssistant() {
     if (lower.includes('talk to dudo') || lower.includes('business ai') || lower.includes('whatsapp bot')) {
       addAction('Talk to Dudo →', WHATSAPP_SUPPORT_URL);
     }
-    if (lower.includes('contact support') || lower.includes('report bug') || lower.includes('bug')) {
-      addAction('Contact Support →', '/dashboard/report-bug');
+    if (lower.includes('contact support') || lower.includes('report bug') || lower.includes('bug') || lower.includes('contact / report')) {
+      addAction('Contact Support →', 'dudo-bug-modal');
     }
     if (lower.includes('help center') || lower.includes('documentation') || lower.includes('docs')) {
       addAction('Help Center →', '/dashboard/documentation');
@@ -685,8 +685,8 @@ function getNavigationPath(boldText: string): string | null {
   if (normalized.includes('help center') || normalized === 'documentation') {
     return '/dashboard/documentation';
   }
-  if (normalized.includes('contact support') || normalized === 'contact' || normalized === 'report bug') {
-    return '/dashboard/report-bug';
+  if (normalized.includes('contact support') || normalized === 'contact' || normalized === 'report bug' || normalized.includes('report a bug') || normalized === 'bug') {
+    return 'dudo-bug-modal';
   }
 
   return null;
