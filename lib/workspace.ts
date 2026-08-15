@@ -50,6 +50,8 @@ export async function ensureWorkspace(
       id: 'assistant-1',
       workspaceId: uid,
       name: `${finalBizName}'s AI Assistant`,
+      hasCustomName: false,
+      generalCompleted: false,
       description: 'A helpful AI assistant for customer support',
       systemPrompt: 'You are a helpful assistant. Answer questions clearly and concisely.',
       personality: 'friendly',

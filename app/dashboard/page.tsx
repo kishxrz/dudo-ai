@@ -29,6 +29,8 @@ import { cn } from '@/lib/utils';
 
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
+import { getUserFirstName, getAgentDisplayName, GENERIC_NAMES } from '@/lib/agent-name-utils';
+
 const assistantId = 'assistant-1';
 
 export default function DashboardPage() {
@@ -45,6 +47,7 @@ export default function DashboardPage() {
 
   const [assistantDetails, setAssistantDetails] = useState({
     name: "",
+    hasCustomName: false,
     status: mockAssistant.status,
     provider: 'Not configured',
     model: 'Not configured',
@@ -79,6 +82,7 @@ export default function DashboardPage() {
       let isPublished = false;
 
       let name = "";
+      let hasCustomName = false;
       let status = mockAssistant.status;
       let providerName = 'Not configured';
       let modelName = 'Not configured';
@@ -114,8 +118,9 @@ export default function DashboardPage() {
           if (snap.exists()) {
             const data = snap.data();
             name = data.name || name;
+            hasCustomName = !!data.hasCustomName;
             status = data.status || status;
-            isGeneral = !!data.generalCompleted || !!data.setupProgress?.generalCompleted;
+            isGeneral = !!data.hasCustomName || !!data.generalCompleted || !!data.setupProgress?.generalCompleted;
             isPublished = data.status === 'live';
           }
         } catch (e) {
@@ -136,7 +141,8 @@ export default function DashboardPage() {
           try {
             const parsed = JSON.parse(localAss);
             name = parsed.name || name;
-            isGeneral = !!parsed.generalCompleted || !!parsed.setupProgress?.generalCompleted;
+            hasCustomName = !!parsed.hasCustomName || hasCustomName;
+            isGeneral = isGeneral || !!parsed.hasCustomName || !!parsed.generalCompleted || !!parsed.setupProgress?.generalCompleted;
           } catch(e){}
         }
       }
@@ -228,6 +234,7 @@ export default function DashboardPage() {
 
       setAssistantDetails({
         name,
+        hasCustomName,
         status,
         provider: providerName,
         model: modelName,
@@ -319,34 +326,8 @@ export default function DashboardPage() {
     );
   }
 
-  const userDisplayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
-  const userFirstName = userDisplayName.split(/[-\s._]/)[0];
-  const capitalisedFirst = userFirstName.charAt(0).toUpperCase() + userFirstName.slice(1);
-  const userPersonalisedName = `${capitalisedFirst}'s AI Assistant`;
-
-  const formatAssistantName = (name: string): string => {
-    if (!name) return '';
-    if (name.endsWith('AI Assistant') && !name.endsWith("'s AI Assistant") && !name.endsWith("s' AI Assistant")) {
-      const prefix = name.slice(0, -12).trim();
-      if (prefix.endsWith("'s") || prefix.endsWith("s'")) {
-        return `${prefix} AI Assistant`;
-      }
-      return `${prefix}'s AI Assistant`;
-    }
-    return name;
-  };
-
-  const finalName = formatAssistantName(
-    assistantDetails.name && 
-    assistantDetails.name !== 'My AI Assistant' &&
-    assistantDetails.name !== 'My Assistant' &&
-    assistantDetails.name !== 'Assistant' &&
-    assistantDetails.name !== 'Dudo AI' &&
-    assistantDetails.name !== 'Dudo' &&
-    assistantDetails.name !== 'Your AI Assistant'
-      ? assistantDetails.name
-      : userPersonalisedName
-  );
+  const userFirstName = getUserFirstName(currentUser?.displayName, currentUser?.email);
+  const finalName = getAgentDisplayName(assistantDetails.name, assistantDetails.hasCustomName, userFirstName);
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-5 select-none pb-8 pt-4 md:pt-6 px-4 lg:px-6 min-w-0">

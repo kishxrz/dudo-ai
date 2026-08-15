@@ -14,7 +14,7 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import { useSubscriptionContext } from '@/contexts/SubscriptionContext';
 import { LockedPage } from '@/components/subscription/FeatureGate';
 import { motion, AnimatePresence } from 'framer-motion';
-import Logo from '@/components/ui/logo';
+import { getUserFirstName, getAgentDisplayName } from '@/lib/agent-name-utils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import DudoSupportAssistant from '@/components/support/DudoSupportAssistant';
 
@@ -128,28 +128,18 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function loadAssistant() {
-      // Build a personalised default from the logged-in user's name or email
-      const rawDisplay = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'My';
-      const firstName = rawDisplay.split(/[-\s._]/)[0];
-      const capitalised = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-      const userPersonalisedDefault = `${capitalised}'s AI Assistant`;
-
-      // Generic/placeholder names that should be replaced with the user's personalised name
-      const GENERIC_NAMES = [
-        'My AI Assistant', 'My Assistant', 'Assistant',
-        'Dudo AI', 'Dudo', 'dudo ai', 'dudo',
-        'Your AI Assistant'
-      ];
-
-      let name = userPersonalisedDefault;
+      const userFirstName = getUserFirstName(currentUser?.displayName, currentUser?.email);
+      let rawName = '';
+      let hasCustomName = false;
       
       if (db && workspaceId) {
         try {
           const docRef = doc(db, 'workspaces', workspaceId, 'assistants', 'assistant-1');
           const snap = await getDoc(docRef);
           if (snap.exists()) {
-            const saved = snap.data().name || '';
-            name = GENERIC_NAMES.includes(saved.trim()) ? userPersonalisedDefault : (saved || userPersonalisedDefault);
+            const data = snap.data();
+            rawName = data.name || '';
+            hasCustomName = !!data.hasCustomName;
           }
         } catch (e) {}
       }
@@ -159,12 +149,14 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
         if (localAss) {
           try {
             const parsed = JSON.parse(localAss);
-            const saved = parsed.name || '';
-            name = GENERIC_NAMES.includes(saved.trim()) ? userPersonalisedDefault : (saved || name);
+            if (parsed.name) rawName = parsed.name;
+            if (parsed.hasCustomName !== undefined) hasCustomName = !!parsed.hasCustomName;
           } catch(e){}
         }
       }
-      setAssistantName(name);
+
+      const computedName = getAgentDisplayName(rawName, hasCustomName, userFirstName);
+      setAssistantName(computedName);
     }
 
     if (workspaceId) {
@@ -175,7 +167,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener('dudo-config-changed', loadAssistant);
     };
-  }, [workspaceId]);
+  }, [workspaceId, currentUser]);
 
   // Load channel/knowledge/AI status for popover
   useEffect(() => {

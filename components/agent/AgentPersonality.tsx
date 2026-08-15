@@ -28,6 +28,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import SaveButton from '@/components/ui/SaveButton';
 
+import { getUserFirstName, getAgentDisplayName, GENERIC_NAMES } from '@/lib/agent-name-utils';
+
 const assistantId = 'assistant-1';
 const MAX_GENERATIONS = 3;
 
@@ -228,6 +230,9 @@ export default function AgentPersonality() {
   useEffect(() => {
     async function loadData() {
       if (!workspaceId) return;
+      const userFirstName = getUserFirstName(currentUser?.displayName, currentUser?.email);
+      let rawName = '';
+      let hasCustomName = false;
       let savedName = mockAssistant.name;
       let savedSysPrompt = mockAssistant.systemPrompt;
       let savedTz = 'Asia/Kolkata';
@@ -243,7 +248,8 @@ export default function AgentPersonality() {
           const snap = await getDoc(docRef);
           if (snap.exists()) {
             const data = snap.data();
-            savedName = data.name || savedName;
+            rawName = data.name || '';
+            hasCustomName = !!data.hasCustomName;
             savedSysPrompt = data.systemPrompt || savedSysPrompt;
             savedTz = data.timezone || savedTz;
             savedWa = data.whatsappAdmins || savedWa;
@@ -277,7 +283,8 @@ export default function AgentPersonality() {
         if (local) {
           try {
             const parsed = JSON.parse(local);
-            savedName = parsed.name || savedName;
+            rawName = parsed.name || '';
+            hasCustomName = !!parsed.hasCustomName;
             savedSysPrompt = parsed.systemPrompt || savedSysPrompt;
             savedTz = parsed.timezone || savedTz;
             savedWa = parsed.whatsappAdmins || savedWa;
@@ -304,6 +311,8 @@ export default function AgentPersonality() {
         }
       }
 
+      savedName = getAgentDisplayName(rawName, hasCustomName, userFirstName);
+
       setName(savedName);
       setDbName(savedName);
       setSystemPrompt(savedSysPrompt);
@@ -318,7 +327,7 @@ export default function AgentPersonality() {
       setLoading(false);
     }
     loadData();
-  }, [workspaceId]);
+  }, [workspaceId, currentUser]);
 
   // Real-time Firestore subscriptions for Boss Access and Takeover Audits
   useEffect(() => {
@@ -569,6 +578,7 @@ export default function AgentPersonality() {
 
   const handleSaveName = () => saveSection({ 
     name: name.trim(),
+    hasCustomName: true,
     generalCompleted: true,
     'setupProgress.generalCompleted': true
   }, () => setDbName(name.trim()));
