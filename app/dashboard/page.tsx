@@ -349,10 +349,10 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-5 select-none pb-8 px-4 lg:px-6 min-w-0">
+    <div className="max-w-[1400px] mx-auto space-y-5 select-none pb-8 pt-4 md:pt-6 px-4 lg:px-6 min-w-0">
       
       {/* 1. TOP SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200/50 pb-3 text-left">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200/50 pb-4 text-left">
         <div>
           <h1 className="text-xl font-extrabold text-zinc-950 tracking-tight leading-none mb-0.5">
             {finalName}

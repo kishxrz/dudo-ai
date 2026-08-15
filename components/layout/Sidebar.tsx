@@ -269,7 +269,7 @@ export default function Sidebar({
         </div>
 
         {/* Navigation items list */}
-        <div className="flex-1 overflow-hidden pt-13 pb-2 px-2 flex flex-col justify-between">
+        <div className="flex-1 overflow-hidden pt-2 pb-2 px-2 flex flex-col justify-between">
           <nav className="flex flex-col gap-1.5">
             {mainNavItems.map((item) => {
               const Icon = item.icon;

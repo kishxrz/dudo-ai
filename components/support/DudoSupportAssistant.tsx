@@ -68,10 +68,13 @@ export default function DudoSupportAssistant() {
           if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
             const maxX = window.innerWidth - BOT_SIZE - 12;
             const maxY = window.innerHeight - BOT_SIZE - 12;
-            return {
-              x: Math.max(12, Math.min(maxX, parsed.x)),
-              y: Math.max(12, Math.min(maxY, parsed.y))
-            };
+            // Ignore top-left header overlapping coordinates (< 80px top/left)
+            if (parsed.y >= 80 && parsed.x >= 80) {
+              return {
+                x: Math.max(12, Math.min(maxX, parsed.x)),
+                y: Math.max(12, Math.min(maxY, parsed.y))
+              };
+            }
           }
         } catch {}
       }

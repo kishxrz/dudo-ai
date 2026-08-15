@@ -677,7 +677,8 @@ export default function DocumentationPage() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[#F7F8FA] font-sans select-none overflow-hidden rounded-2xl border border-zinc-200/80 shadow-sm">
+    <div className="p-4 md:p-6 bg-[#FFF8F0] min-h-full flex flex-col justify-start box-border">
+      <div className="flex flex-col h-[calc(100vh-176px)] min-h-0 bg-[#F7F8FA] font-sans select-none overflow-hidden rounded-2xl border border-zinc-200/80 shadow-sm w-full">
 
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-zinc-200/60 px-6 py-4">
@@ -1098,5 +1099,6 @@ export default function DocumentationPage() {
         </main>
       </div>
     </div>
-  );
+  </div>
+);
 }

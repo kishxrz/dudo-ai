@@ -367,10 +367,11 @@ export default function ConversationsPage() {
 
   // ─── Layout ───────────────────────────────────────────────────────────────
   return (
-    <div
-      className="flex h-[calc(100vh-148px)] bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm w-full"
-      style={{ fontFamily: 'var(--font-geist-sans), system-ui, sans-serif' }}
-    >
+    <div className="p-4 md:p-6 bg-[#FFF8F0] min-h-full flex flex-col justify-start box-border">
+      <div
+        className="flex h-[calc(100vh-176px)] bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm w-full"
+        style={{ fontFamily: 'var(--font-geist-sans), system-ui, sans-serif' }}
+      >
       {/* ══════════════════════════════════════════════════════════════════
           LEFT PANEL — Conversation List
       ══════════════════════════════════════════════════════════════════ */}
@@ -841,7 +842,8 @@ export default function ConversationsPage() {
         )}
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 // ─── Small helper component ───────────────────────────────────────────────────
