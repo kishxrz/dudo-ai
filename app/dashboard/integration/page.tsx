@@ -11,23 +11,15 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/contexts/ToastContext';
 import Logo from '@/components/ui/logo';
+import { db } from '@/lib/firebase';
+import { collection, doc, onSnapshot, getDoc } from 'firebase/firestore';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { FormSection } from '@/components/ui/FormSection';
 
 // High-fidelity SVG Logos for Google Workspace products
-const GoogleLogo = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
-    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC04" />
-    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-  </svg>
-);
-
 const GmailLogo = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 256 193" xmlns="http://www.w3.org/2000/svg" {...props}>
     <g>
@@ -89,6 +81,16 @@ const GoogleDocsLogo = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const APP_NAME_MAP: Record<string, string> = {
+  gmail: 'Gmail',
+  calendar: 'Google Calendar',
+  sheets: 'Google Sheets',
+  drive: 'Google Drive',
+  docs: 'Google Docs',
+  identity: 'Google Workspace',
+  google: 'Google Workspace',
+};
+
 export default function IntegrationsPage() {
   const { workspaceId } = useWorkspace();
   const toast = useToast();
@@ -97,6 +99,7 @@ export default function IntegrationsPage() {
   const [connectedScopes, setConnectedScopes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [connectedAppTitle, setConnectedAppTitle] = useState('Google Workspace');
   const [connectingScope, setConnectingScope] = useState<string | null>(null);
   const [disconnectingScope, setDisconnectingScope] = useState<string | null>(null);
 
@@ -160,48 +163,50 @@ export default function IntegrationsPage() {
   }, [dropdownOpen]);
 
   // Status check on mount / workspaceId change
-  useEffect(() => {
-    async function checkStatus() {
-      if (!workspaceId) return;
-
-      // Restore loading state if OAuth redirect is in flight
-      if (typeof window !== 'undefined') {
-        const storedScope = localStorage.getItem('dudo_connecting_google_scope');
-        if (storedScope) {
-          setConnectingScope(storedScope);
-        }
-      }
-
-      try {
-        const { canUseFeature } = await import('@/lib/billing-entitlements');
-        const allowed = await canUseFeature(workspaceId, 'booking');
-        if (!allowed) {
-          setIsLocked(true);
-          setIsLoading(false);
-          return;
-        }
-        setIsLocked(false);
-        const res = await fetch(`/api/integrations/google/status?workspaceId=${workspaceId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setGoogleConnected(data.connected);
-          setGoogleEmail(data.email || '');
-          setConnectedScopes(data.scopes || []);
-          
-          // Clear active loading state if successfully loaded
-          const storedScope = localStorage.getItem('dudo_connecting_google_scope');
-          if (storedScope && data.scopes?.includes(storedScope)) {
-            localStorage.removeItem('dudo_connecting_google_scope');
-            setConnectingScope(null);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load Google status:', e);
-      } finally {
+  const fetchStatus = async () => {
+    if (!workspaceId) return;
+    try {
+      const { canUseFeature } = await import('@/lib/billing-entitlements');
+      const allowed = await canUseFeature(workspaceId, 'booking');
+      if (!allowed) {
+        setIsLocked(true);
         setIsLoading(false);
+        return;
       }
+      setIsLocked(false);
+      const res = await fetch(`/api/integrations/google/status?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGoogleConnected(data.connected);
+        setGoogleEmail(data.email || '');
+        setConnectedScopes(data.scopes || []);
+        
+        // Clear active loading state if successfully loaded
+        const storedScope = localStorage.getItem('dudo_connecting_google_scope');
+        if (storedScope && data.scopes?.includes(storedScope)) {
+          localStorage.removeItem('dudo_connecting_google_scope');
+          setConnectingScope(null);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load Google status:', e);
+    } finally {
+      setIsLoading(false);
     }
-    checkStatus();
+  };
+
+  useEffect(() => {
+    fetchStatus();
+  }, [workspaceId]);
+
+  // Real-time Firestore listener for workspace integrations updates
+  useEffect(() => {
+    if (!db || !workspaceId) return;
+    const collRef = collection(db, 'workspaces', workspaceId, 'integrations');
+    const unsub = onSnapshot(collRef, () => {
+      fetchStatus();
+    });
+    return () => unsub();
   }, [workspaceId]);
 
   // Handle URL redirect query parameters
@@ -210,14 +215,20 @@ export default function IntegrationsPage() {
       const searchParams = new URLSearchParams(window.location.search);
       const successVal = searchParams.get('success');
       const errorVal = searchParams.get('error');
+      const appKey = searchParams.get('app') || localStorage.getItem('dudo_connecting_google_scope') || 'google';
 
       if (successVal === 'true') {
+        const appName = APP_NAME_MAP[appKey] || 'Google Workspace';
+        setConnectedAppTitle(appName);
         setShowSuccessBanner(true);
-        toast.success('Google successfully connected.', 'Your AI employee can now access this service.');
+        toast.success(`${appName} connected successfully`, 'Your AI employee can now access this service.');
         localStorage.removeItem('dudo_connecting_google_scope');
         setConnectingScope(null);
 
-        // Clear query parameters
+        // Immediate status refresh
+        fetchStatus();
+
+        // Clear query parameters from address bar cleanly
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
       } else if (errorVal) {
@@ -225,12 +236,11 @@ export default function IntegrationsPage() {
         localStorage.removeItem('dudo_connecting_google_scope');
         setConnectingScope(null);
 
-        // Clear query parameters
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
       }
     }
-  }, [toast]);
+  }, [workspaceId, toast]);
 
   const handleConnect = async (scope: string) => {
     if (!workspaceId) return;
@@ -238,10 +248,9 @@ export default function IntegrationsPage() {
     localStorage.setItem('dudo_connecting_google_scope', scope);
     toast.info('Opening Google Authorization...', 'Redirecting to secure login...');
     
-    // Smooth transition delay to enjoy the loading state before redirect
     setTimeout(() => {
       window.location.href = `/api/integrations/google/auth?workspaceId=${workspaceId}&scope=${scope}`;
-    }, 850);
+    }, 750);
   };
 
   const handleDisconnect = async (scope: string) => {
@@ -255,15 +264,10 @@ export default function IntegrationsPage() {
         body: JSON.stringify({ workspaceId, scope }),
       });
       if (res.ok) {
-        setConnectedScopes((prev) => {
-          const updated = prev.filter((s) => s !== scope);
-          if (scope === 'identity') {
-            setGoogleConnected(false);
-            setGoogleEmail('');
-          }
-          return updated;
-        });
-        toast.success('Google integration removed.', 'Access credentials revoked successfully.');
+        setConnectedScopes((prev) => prev.filter((s) => s !== scope));
+        fetchStatus();
+        const appName = APP_NAME_MAP[scope] || 'Google integration';
+        toast.success(`${appName} disconnected.`, 'Access credentials revoked successfully.');
       } else {
         toast.error('Connection failed. Please try again.', 'Could not disconnect from Google.');
       }
@@ -340,7 +344,7 @@ export default function IntegrationsPage() {
             🔒
           </div>
           <h2 className="text-lg font-bold text-zinc-900 leading-none">Upgrade to Unlock Integrations</h2>
-          <p className="text-xs text-zinc-500 leading-normal">
+          <p className="text-xs text-zinc-600 font-medium leading-normal">
             Google Calendar, sheets, docs, gmail, and drive integrations are only available on the Monthly Plan or 6-Month Pack.
           </p>
           <Link href="/dashboard/billing" className="no-underline">
@@ -356,17 +360,17 @@ export default function IntegrationsPage() {
   const renderStatusBadge = (status: 'not_connected' | 'connecting' | 'connected') => {
     const badges = {
       not_connected: {
-        bg: 'bg-zinc-50 text-zinc-500 border-zinc-200/80',
-        dot: 'border-zinc-300 bg-white',
+        bg: 'bg-zinc-100/90 text-zinc-700 border-zinc-300 font-bold',
+        dot: 'border-zinc-400 bg-zinc-300',
         text: 'Not Connected',
       },
       connecting: {
-        bg: 'bg-blue-50/70 text-blue-600 border-blue-150 animate-pulse',
+        bg: 'bg-blue-50 text-blue-700 border-blue-200 font-extrabold animate-pulse',
         dot: 'bg-blue-500 border-none',
         text: 'Connecting...',
       },
       connected: {
-        bg: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+        bg: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-extrabold',
         dot: 'bg-emerald-500 border-none',
         text: 'Connected',
       },
@@ -375,7 +379,7 @@ export default function IntegrationsPage() {
     const config = badges[status];
 
     return (
-      <div className={cn("text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 select-none shrink-0 transition-all duration-300", config.bg)}>
+      <div className={cn("text-[10.5px] px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 select-none shrink-0 transition-all duration-200", config.bg)}>
         <span className={cn("w-1.5 h-1.5 rounded-full shrink-0 border", config.dot)} />
         <span>{config.text}</span>
       </div>
@@ -384,37 +388,47 @@ export default function IntegrationsPage() {
 
   return (
     <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-5 px-6 pb-16 box-border">
-      {/* Premium Hero Header Card */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 mb-2">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-[#22577A]/10 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
-        
-        <div className="space-y-4 max-w-2xl relative z-10 text-left">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-blue-400 tracking-widest uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 select-none">
-              <span className="w-1 h-1 rounded-full bg-blue-400 animate-ping" />
+      
+      {/* Clean Dudo Branded Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/60 pb-4 pt-1 text-left">
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] font-black text-[#22577A] tracking-wider uppercase bg-[#22577A]/10 border border-[#22577A]/20 px-2.5 py-0.5 rounded-full select-none">
               🔒 Secure OAuth 2.0
             </span>
           </div>
-          <div>
-            <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight leading-none mb-2">
-              Google Workspace Integrations
-            </h1>
-            <p className="text-xs md:text-sm text-zinc-400 leading-relaxed max-w-xl">
-              Securely connect Gmail, Calendar, Drive, Docs and Sheets so your AI employee can work for you.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] font-bold text-zinc-300">
-            {['Gmail', 'Calendar', 'Drive', 'Docs', 'Sheets'].map((item) => (
-              <span key={item} className="flex items-center gap-1 bg-zinc-800/40 border border-zinc-700/50 px-2 py-0.5 rounded-md select-none">
-                <Check size={11} className="text-emerald-400" /> {item}
+          <h1 className="text-xl md:text-2xl font-extrabold text-zinc-950 tracking-tight leading-none mb-1.5">
+            Google Workspace Integrations
+          </h1>
+          <p className="text-xs md:text-sm text-zinc-700 font-medium leading-relaxed max-w-2xl">
+            Connect Gmail, Calendar, Drive, Docs, and Sheets so your AI employee can read emails, book appointments, and log data.
+          </p>
+        </div>
+
+        {/* Connected Apps Pill Summary */}
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0 select-none">
+          {['Gmail', 'Calendar', 'Drive', 'Docs', 'Sheets'].map((item) => {
+            const keyMap: Record<string, string> = { Gmail: 'gmail', Calendar: 'calendar', Drive: 'drive', Docs: 'docs', Sheets: 'sheets' };
+            const isConn = connectedScopes.includes(keyMap[item]);
+            return (
+              <span
+                key={item}
+                className={cn(
+                  "text-[10.5px] font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-all",
+                  isConn
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-extrabold"
+                    : "bg-zinc-100/90 text-zinc-700 border-zinc-250"
+                )}
+              >
+                <Check size={11} className={isConn ? "text-emerald-600 stroke-[3]" : "text-zinc-400"} />
+                {item}
               </span>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Dismissible Success Banner */}
+      {/* Dismissible App-Specific Success Banner */}
       <AnimatePresence>
         {showSuccessBanner && (
           <motion.div
@@ -422,20 +436,22 @@ export default function IntegrationsPage() {
             animate={{ opacity: 1, height: 'auto', y: 0 }}
             exit={{ opacity: 0, height: 0, y: -10 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-950 p-4 rounded-2xl flex items-start justify-between gap-3 text-left relative z-10 mb-2 overflow-hidden shadow-sm"
+            className="bg-emerald-50 border border-emerald-250 text-emerald-950 p-4 rounded-2xl flex items-start justify-between gap-3 text-left relative z-10 mb-1 overflow-hidden shadow-sm"
           >
             <div className="flex gap-2.5">
-              <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <CheckCircle2 size={18} className="text-emerald-650 shrink-0 mt-0.5" />
               <div className="space-y-0.5">
-                <h4 className="text-xs font-extrabold text-emerald-950">Google connected successfully</h4>
-                <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
-                  Your AI employee can now access this service.
+                <h4 className="text-xs font-black text-emerald-950">
+                  {connectedAppTitle} connected successfully
+                </h4>
+                <p className="text-[11.5px] text-emerald-800 leading-relaxed font-semibold">
+                  Your AI employee can now access {connectedAppTitle} for automated workflows.
                 </p>
               </div>
             </div>
             <button 
               onClick={() => setShowSuccessBanner(false)}
-              className="text-emerald-500 hover:text-emerald-800 transition-colors p-0.5 rounded-lg hover:bg-emerald-500/10 border-none cursor-pointer"
+              className="text-emerald-700 hover:text-emerald-950 transition-colors p-1 rounded-lg hover:bg-emerald-100 border-none cursor-pointer"
             >
               <X size={15} />
             </button>
@@ -444,7 +460,7 @@ export default function IntegrationsPage() {
       </AnimatePresence>
 
       {/* Quick Connect Subheading */}
-      <div className="space-y-2 text-left">
+      <div className="space-y-1.5 text-left pt-1">
         <SectionHeader 
           title="Quick Connect" 
           actions={
@@ -453,13 +469,13 @@ export default function IntegrationsPage() {
             </span>
           }
         />
-        <p className="text-xs text-zinc-650 font-medium leading-relaxed">
+        <p className="text-xs text-zinc-800 font-semibold leading-relaxed">
           Sign in once, your AI agent can use your Google apps. Tokens stay encrypted; revoke any time.
         </p>
       </div>
 
       {/* Connectors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
         {connectors.map((connector) => {
           const isConnected = connectedScopes.includes(connector.key);
           const isConnectingThis = connectingScope === connector.key;
@@ -468,18 +484,19 @@ export default function IntegrationsPage() {
           return (
             <motion.div
               key={connector.key}
-              whileHover={{ y: -4, scale: 1.015, boxShadow: '0 12px 24px -10px rgba(0,0,0,0.06)' }}
+              whileHover={{ y: -3, boxShadow: '0 10px 20px -8px rgba(0,0,0,0.06)' }}
               whileTap={{ scale: 0.995 }}
               transition={{ type: 'spring', stiffness: 350, damping: 25 }}
               className={cn(
-                "bg-white border border-zinc-200/80 rounded-2xl p-5 flex flex-col justify-between h-full select-none transition-opacity duration-300 relative overflow-hidden text-left",
+                "bg-white border rounded-2xl p-5 flex flex-col justify-between h-full select-none transition-all duration-200 relative overflow-hidden text-left",
+                isConnected ? "border-emerald-250 shadow-sm" : "border-zinc-200/90",
                 isConnectingThis ? "opacity-95" : isAnyConnecting ? "opacity-60 pointer-events-none" : ""
               )}
             >
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Header: Icon & Status Badges */}
-                <div className="flex justify-between items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-zinc-50 border border-zinc-150 flex items-center justify-center shrink-0">
+                <div className="flex justify-between items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
                     <connector.icon className="w-6 h-6 transition-transform group-hover:scale-105" />
                   </div>
                   
@@ -490,17 +507,17 @@ export default function IntegrationsPage() {
                 </div>
 
                 {/* Content */}
-                <div className="space-y-1.5 text-left">
-                  <h3 className="text-sm font-extrabold text-zinc-950 tracking-tight">
+                <div className="space-y-1 text-left">
+                  <h3 className="text-sm font-black text-zinc-950 tracking-tight">
                     {connector.name}
                   </h3>
-                  <p className="text-[11px] text-zinc-500 font-semibold leading-relaxed">
+                  <p className="text-[11.5px] text-zinc-700 font-medium leading-relaxed">
                     {connector.desc}
                   </p>
                 </div>
               </div>
 
-              {/* Connection Info Detail (Spring animate height) */}
+              {/* Connection Info Detail */}
               <AnimatePresence>
                 {isConnected && (
                   <motion.div
@@ -508,50 +525,53 @@ export default function IntegrationsPage() {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                    className="mt-4 pt-3.5 border-t border-zinc-100 flex flex-col gap-2 text-[11px] text-zinc-500 font-semibold text-left overflow-hidden"
+                    className="mt-3.5 pt-3 border-t border-zinc-150 flex flex-col gap-1.5 text-[11px] font-semibold text-left overflow-hidden"
                   >
                     <div className="flex justify-between items-center">
-                      <span className="text-zinc-400">Connected as</span>
-                      <span className="text-zinc-700 font-bold truncate max-w-[140px]">{googleEmail || 'Authorized Account'}</span>
+                      <span className="text-zinc-600">Connected as</span>
+                      <span className="text-zinc-900 font-extrabold truncate max-w-[140px]">{googleEmail || 'Authorized Account'}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-zinc-400">Last synced</span>
-                      <span className="text-zinc-700 font-bold">Just now</span>
+                      <span className="text-zinc-600">Status</span>
+                      <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
+                      </span>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Actions Section */}
-              <div className="mt-5 space-y-2">
+              <div className="mt-4 pt-1 space-y-2">
                 {isConnected ? (
                   <div className="flex gap-2">
                     <Button
                       type="button"
-                      onClick={() => handleConnect(connector.key)}
-                      className="flex-1 h-9 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-700 font-extrabold border border-zinc-200 text-xs cursor-pointer"
+                      disabled={true}
+                      className="flex-1 h-9 rounded-xl bg-emerald-50 text-emerald-800 font-extrabold border border-emerald-300 text-xs flex items-center justify-center gap-1.5 opacity-100 cursor-default"
                     >
-                      Manage
+                      <Check size={14} className="text-emerald-600 stroke-[3]" />
+                      Connected
                     </Button>
                     <Button
                       type="button"
                       onClick={() => setDisconnectingScope(connector.key)}
-                      className="h-9 px-3 rounded-xl bg-white hover:bg-red-50 text-red-650 hover:text-red-700 font-extrabold border border-zinc-200 hover:border-red-200 text-xs cursor-pointer"
+                      className="h-9 px-3 rounded-xl bg-white hover:bg-red-50 text-red-650 hover:text-red-700 font-extrabold border border-zinc-250 hover:border-red-200 text-xs cursor-pointer transition-all"
                     >
                       Disconnect
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     <Button
                       type="button"
                       disabled={isAnyConnecting}
                       onClick={() => handleConnect(connector.key)}
                       className={cn(
-                        "w-full h-9 rounded-xl font-extrabold text-xs cursor-pointer border-none transition-all flex items-center justify-center gap-2",
+                        "w-full h-9 rounded-xl font-extrabold text-xs cursor-pointer border-none transition-all flex items-center justify-center gap-2 shadow-sm",
                         isConnectingThis
-                          ? "bg-zinc-100 text-zinc-400"
-                          : "bg-[#22577A] hover:bg-[#1A4461] text-white shadow-md shadow-[#22577A]/10 hover:scale-[1.01]"
+                          ? "bg-zinc-150 text-zinc-600"
+                          : "bg-[#22577A] hover:bg-[#1A4461] text-white shadow-[#22577A]/10 hover:scale-[1.01]"
                       )}
                     >
                       {isConnectingThis ? (
@@ -569,19 +589,6 @@ export default function IntegrationsPage() {
                         <span>Connect</span>
                       )}
                     </Button>
-
-                    <AnimatePresence>
-                      {isConnectingThis && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          className="text-[10px] text-zinc-400 font-bold leading-normal text-center space-y-0.5"
-                        >
-                          <div>Opening Google securely...</div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </div>
                 )}
               </div>
@@ -606,18 +613,18 @@ export default function IntegrationsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: 'spring', duration: 0.3 }}
-              className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-2xl max-w-sm w-full relative z-10 flex flex-col gap-4 text-left"
+              className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-2xl max-w-sm w-full relative z-10 flex flex-col gap-4 text-left select-none"
             >
               <h3 className="text-lg font-bold text-zinc-950">
-                Disconnect {connectors.find(c => c.key === disconnectingScope)?.name || 'Google Integration'}?
+                Disconnect {APP_NAME_MAP[disconnectingScope] || 'Google Integration'}?
               </h3>
-              <p className="text-xs text-zinc-500 leading-relaxed font-semibold">
+              <p className="text-xs text-zinc-700 font-medium leading-relaxed">
                 Your AI employee will lose access to this Google service until you reconnect it.
               </p>
               <div className="flex justify-end gap-2.5 pt-2">
                 <Button
                   onClick={() => setDisconnectingScope(null)}
-                  className="h-9 px-4.5 rounded-xl border border-zinc-200 bg-white text-zinc-700 font-extrabold hover:bg-zinc-50 text-xs shadow-sm cursor-pointer"
+                  className="h-9 px-4.5 rounded-xl border border-zinc-250 bg-white text-zinc-800 font-extrabold hover:bg-zinc-50 text-xs shadow-xs cursor-pointer"
                 >
                   Cancel
                 </Button>
@@ -647,46 +654,46 @@ export default function IntegrationsPage() {
           description="Don't see your CRM, ERP, social channel, or any other app? Tell us and we'll add it to the roadmap."
         >
           {requestStatus === 'success' && (
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs font-bold text-green-700 flex items-center gap-2 animate-fade-in">
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs font-bold text-green-800 flex items-center gap-2 animate-fade-in">
               <Check size={14} className="text-green-600" />
               Roadmap request submitted successfully! We'll look into adding this tool.
             </div>
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-zinc-700">Tool / service name</label>
+            <label className="text-xs font-bold text-zinc-800">Tool / service name</label>
             <input
               type="text"
               value={toolName}
               onChange={(e) => setToolName(e.target.value)}
               placeholder="e.g. Kylas CRM, LeadSquared, Razorpay"
-              className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-sm font-normal text-zinc-900 placeholder:text-zinc-500 outline-none focus:border-[#22577A] transition-colors"
+              className="w-full bg-white border border-zinc-250 rounded-xl px-3.5 py-2.5 text-sm font-medium text-zinc-950 placeholder:text-zinc-400 outline-none focus:border-[#22577A] transition-colors"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-zinc-700">What would you like the AI to do with it?</label>
+            <label className="text-xs font-bold text-zinc-800">What would you like the AI to do with it?</label>
             <textarea
               value={toolActionDesc}
               onChange={(e) => setToolActionDesc(e.target.value)}
               placeholder="e.g. log every WhatsApp lead into Kylas under the Mumbai pipeline, with name + phone + first message"
-              className="w-full min-h-[90px] bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-sm font-normal text-zinc-900 placeholder:text-zinc-500 outline-none focus:border-[#22577A] transition-colors resize-none leading-relaxed"
+              className="w-full min-h-[90px] bg-white border border-zinc-250 rounded-xl px-3.5 py-2.5 text-sm font-medium text-zinc-950 placeholder:text-zinc-400 outline-none focus:border-[#22577A] transition-colors resize-none leading-relaxed"
             />
           </div>
 
           <div className="space-y-1.5 relative custom-select-container">
-            <label className="text-xs font-semibold text-zinc-700">How important is this for you?</label>
+            <label className="text-xs font-bold text-zinc-800">How important is this for you?</label>
             <button
               ref={triggerRef}
               type="button"
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-sm font-normal text-zinc-900 text-left outline-none focus:border-[#22577A] transition-colors flex items-center justify-between cursor-pointer select-none"
+              className="w-full bg-white border border-zinc-250 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-zinc-950 text-left outline-none focus:border-[#22577A] transition-colors flex items-center justify-between cursor-pointer select-none"
               aria-haspopup="listbox"
               aria-expanded={dropdownOpen}
             >
               <span>{importance}</span>
               <svg
-                className={cn("w-4 h-4 text-zinc-400 transition-transform duration-200", dropdownOpen ? "transform rotate-180" : "")}
+                className={cn("w-4 h-4 text-zinc-500 transition-transform duration-200", dropdownOpen ? "transform rotate-180" : "")}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -704,7 +711,7 @@ export default function IntegrationsPage() {
                   left: `${coords.left}px`,
                   width: `${coords.width}px`,
                 }}
-                className="z-[9999] bg-white border border-zinc-200/90 rounded-xl shadow-xl py-1 outline-none animate-fade-in list-none p-0"
+                className="z-[9999] bg-white border border-zinc-250 rounded-xl shadow-xl py-1 outline-none animate-fade-in list-none p-0"
                 role="listbox"
               >
                 {['Nice to have', 'Important', 'Crucial'].map((option) => (
@@ -732,14 +739,14 @@ export default function IntegrationsPage() {
                     className={cn(
                       "px-3.5 py-2.5 text-sm cursor-pointer outline-none transition-colors",
                       importance === option
-                        ? "bg-zinc-50 text-zinc-950 font-medium"
-                        : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800"
+                        ? "bg-zinc-100 text-zinc-950 font-bold"
+                        : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-950 font-medium"
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <span>{option}</span>
                       {importance === option && (
-                        <Check size={14} className="text-zinc-800" />
+                        <Check size={14} className="text-zinc-900" />
                       )}
                     </div>
                   </div>

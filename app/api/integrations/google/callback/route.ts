@@ -129,9 +129,10 @@ export async function GET(req: NextRequest) {
       await setDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'), legacyPayload, { merge: true });
     }
 
-    // Redirect to integration page with success status
+    // Redirect to integration page with success status and specific connected app scope
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-    return NextResponse.redirect(`${baseUrl}/dashboard/integration?success=true`);
+    const appScope = initialScope || 'google';
+    return NextResponse.redirect(`${baseUrl}/dashboard/integration?success=true&app=${appScope}`);
   } catch (err: any) {
     console.error('Error in Google callback route:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });

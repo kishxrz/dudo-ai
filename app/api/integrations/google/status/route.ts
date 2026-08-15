@@ -45,23 +45,42 @@ export async function GET(req: NextRequest) {
 
     const activeScopes: string[] = [];
     let googleEmail = '';
-    let isIdentityConnected = false;
 
     keys.forEach((key, idx) => {
       const data = results[idx];
       if (data && data.connected) {
         activeScopes.push(key);
-        if (key === 'identity') {
-          isIdentityConnected = true;
-        }
         if (data.email && !googleEmail) {
           googleEmail = data.email;
         }
       }
     });
 
+    // Check legacy google doc as fallback
+    let legacyData: any = null;
+    if (adminDb) {
+      const snap = await adminDb.doc(`workspaces/${workspaceId}/integrations/google`).get();
+      if (snap.exists) legacyData = snap.data();
+    } else if (db) {
+      const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', 'google'));
+      if (snap.exists()) legacyData = snap.data();
+    }
+
+    if (legacyData?.connected !== false && legacyData?.status === 'connected') {
+      if (legacyData.scopes && Array.isArray(legacyData.scopes)) {
+        legacyData.scopes.forEach((sc: string) => {
+          if (!activeScopes.includes(sc)) activeScopes.push(sc);
+        });
+      }
+      if (legacyData.email && !googleEmail) {
+        googleEmail = legacyData.email;
+      }
+    }
+
+    const isConnected = activeScopes.length > 0 || (legacyData?.status === 'connected');
+
     return NextResponse.json({
-      connected: isIdentityConnected,
+      connected: isConnected,
       email: googleEmail,
       scopes: activeScopes,
     });
