@@ -206,6 +206,20 @@ How to Upgrade or Renew:
     `.trim()
   },
   {
+    id: 'support-and-help',
+    category: 'Support & Contact',
+    title: 'Contacting Support & Help Options',
+    keywords: ['contact', 'contact support', 'bug', 'report bug', 'help center', 'documentation', 'talk to dudo', 'email support', 'dudosupport@gmail.com'],
+    route: '/dashboard/report-bug',
+    content: `
+Dudo Platform Support Options:
+- **Contact / Report a Bug**: Go to **Contact / Report a Bug** (/dashboard/report-bug) to send a direct message or bug report to our support team.
+- **Help Center & Documentation**: Go to **Help Center** (/dashboard/documentation) for platform documentation and guides.
+- **Talk to Dudo**: Click **Talk to Dudo** from the sidebar to open our official support WhatsApp channel.
+- **Email Support**: You can email us anytime at \`dudosupport@gmail.com\`.
+    `.trim()
+  },
+  {
     id: 'troubleshooting-guide',
     category: 'Troubleshooting',
     title: 'Troubleshooting Common Issues',

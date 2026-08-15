@@ -134,6 +134,16 @@ export default function Sidebar({
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [showProfilePopup]);
 
+  useEffect(() => {
+    const handleOpenBugModal = () => {
+      setBugName(profileName && profileName !== 'Rahul Khanna' && profileName !== 'User' ? profileName : displayName);
+      setBugEmail(displayEmail && displayEmail !== 'rahul.khanna@dudo.com' ? displayEmail : (currentUser?.email || ''));
+      setShowBugModal(true);
+    };
+    window.addEventListener('dudo-open-bug-modal', handleOpenBugModal);
+    return () => window.removeEventListener('dudo-open-bug-modal', handleOpenBugModal);
+  }, [profileName, displayName, displayEmail, currentUser]);
+
   const [isClickClosed, setIsClickClosed] = useState(false);
 
   const updateExpanded = (value: boolean) => {

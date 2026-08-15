@@ -33,6 +33,7 @@ const QUICK_PROMPTS = [
 ];
 
 const BOT_SIZE = 52; // Bot launcher dimensions (48px button + 4px margin)
+const WHATSAPP_SUPPORT_URL = 'https://api.whatsapp.com/send/?phone=916374385901&text=Hi+Dudo+support%2C+I+need+help+with&type=phone_number&app_absent=0';
 
 export default function DudoSupportAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -106,6 +107,20 @@ export default function DudoSupportAssistant() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading, isOpen]);
+
+  // Unified navigation & external link dispatcher
+  const executeNavigation = (targetPath: string) => {
+    if (targetPath.startsWith('http://') || targetPath.startsWith('https://')) {
+      window.open(targetPath, '_blank');
+    } else if (targetPath.startsWith('mailto:')) {
+      window.location.href = targetPath;
+    } else {
+      router.push(targetPath);
+      if (targetPath === '/dashboard/report-bug') {
+        window.dispatchEvent(new CustomEvent('dudo-open-bug-modal'));
+      }
+    }
+  };
 
   // Pointer drag event handlers (desktop mouse + mobile touch)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -247,25 +262,45 @@ export default function DudoSupportAssistant() {
   const renderFormattedContent = (content: string) => {
     const lines = content.split('\n');
 
-    const actionButtons: Array<{ label: string; route: string; isMailto?: boolean }> = [];
+    const actionButtons: Array<{ label: string; route: string }> = [];
 
-    const addAction = (label: string, route: string, isMailto = false) => {
+    const addAction = (label: string, route: string) => {
       if (!actionButtons.some(a => a.route === route)) {
-        actionButtons.push({ label, route, isMailto });
+        actionButtons.push({ label, route });
       }
     };
 
     const lower = content.toLowerCase();
-    if (lower.includes('knowledge')) addAction('Knowledge Base →', '/dashboard/knowledge');
-    if (lower.includes('billing') || lower.includes('plan') || lower.includes('price')) addAction('Billing →', '/dashboard/billing');
-    if (lower.includes('channel') || lower.includes('telegram') || lower.includes('whatsapp')) addAction('Channels Setup →', '/dashboard/agent?tab=channels');
-    if (lower.includes('api key') || lower.includes('groq') || lower.includes('openai')) addAction('API Keys →', '/dashboard/agent?tab=api-keys');
-    if (lower.includes('personality') || lower.includes('system prompt') || lower.includes('instructions')) addAction('Personality →', '/dashboard/agent?tab=personality');
-    if (lower.includes('testing') || lower.includes('playground')) addAction('Agent Playground →', '/dashboard/agent?tab=testing');
-    if (lower.includes('skill')) addAction('Agent Skills →', '/dashboard/agent?tab=skills');
-    if (lower.includes('help center') || lower.includes('documentation') || lower.includes('docs')) addAction('Help Center →', '/dashboard/documentation');
-    if (lower.includes('contact support') || lower.includes('report bug') || lower.includes('bug')) addAction('Contact Support →', '/dashboard/report-bug');
-    if (lower.includes('dudosupport@gmail.com') || lower.includes('email us')) addAction('Email Support ✉', 'mailto:dudosupport@gmail.com', true);
+    if (lower.includes('talk to dudo') || lower.includes('business ai') || lower.includes('whatsapp bot')) {
+      addAction('Talk to Dudo →', WHATSAPP_SUPPORT_URL);
+    }
+    if (lower.includes('contact support') || lower.includes('report bug') || lower.includes('bug')) {
+      addAction('Contact Support →', '/dashboard/report-bug');
+    }
+    if (lower.includes('help center') || lower.includes('documentation') || lower.includes('docs')) {
+      addAction('Help Center →', '/dashboard/documentation');
+    }
+    if (lower.includes('knowledge')) {
+      addAction('Knowledge Base →', '/dashboard/knowledge');
+    }
+    if (lower.includes('billing') || lower.includes('plan') || lower.includes('price')) {
+      addAction('Billing →', '/dashboard/billing');
+    }
+    if (lower.includes('channel') || lower.includes('telegram') || lower.includes('whatsapp')) {
+      addAction('Channels Setup →', '/dashboard/agent?tab=channels');
+    }
+    if (lower.includes('api key') || lower.includes('groq') || lower.includes('openai')) {
+      addAction('API Keys →', '/dashboard/agent?tab=api-keys');
+    }
+    if (lower.includes('personality') || lower.includes('system prompt')) {
+      addAction('Personality →', '/dashboard/agent?tab=personality');
+    }
+    if (lower.includes('testing') || lower.includes('playground')) {
+      addAction('Agent Playground →', '/dashboard/agent?tab=testing');
+    }
+    if (lower.includes('dudosupport@gmail.com') || lower.includes('email us')) {
+      addAction('Email Support ✉', 'mailto:dudosupport@gmail.com');
+    }
 
     return (
       <div className="space-y-1.5 text-xs leading-relaxed">
@@ -291,13 +326,7 @@ export default function DudoSupportAssistant() {
                         <button
                           key={pIdx}
                           type="button"
-                          onClick={() => {
-                            if (navPath.startsWith('mailto:')) {
-                              window.location.href = navPath;
-                            } else {
-                              router.push(navPath);
-                            }
-                          }}
+                          onClick={() => executeNavigation(navPath)}
                           className="inline-flex items-center gap-0.5 px-1.5 py-0.5 my-0.5 mx-0.5 bg-[#22577A]/10 hover:bg-[#22577A]/20 text-[#22577A] font-bold rounded text-[10px] cursor-pointer transition-all border border-[#22577A]/20 leading-none align-baseline"
                           title={`Go to ${p.text}`}
                         >
@@ -325,13 +354,7 @@ export default function DudoSupportAssistant() {
               <button
                 key={aIdx}
                 type="button"
-                onClick={() => {
-                  if (act.isMailto) {
-                    window.location.href = act.route;
-                  } else {
-                    router.push(act.route);
-                  }
-                }}
+                onClick={() => executeNavigation(act.route)}
                 className="h-6 px-2.5 bg-[#22577A] hover:bg-[#1A4461] text-white text-[10px] font-bold rounded-lg cursor-pointer transition-all shadow-2xs flex items-center gap-1 leading-none"
               >
                 <span>{act.label}</span>
@@ -343,7 +366,7 @@ export default function DudoSupportAssistant() {
     );
   };
 
-  // Dynamically position chat modal near bot launcher while keeping modal inside screen bounds
+  // Dynamically position chat modal near bot launcher while respecting sidebar boundary on desktop
   const getModalPositionStyles = () => {
     if (typeof window === 'undefined') return {};
 
@@ -355,21 +378,24 @@ export default function DudoSupportAssistant() {
         right: '16px',
         width: 'calc(100vw - 32px)',
         height: '490px',
-        maxHeight: '80vh'
+        maxHeight: '80vh',
+        zIndex: 35
       };
     }
+
+    const MIN_LEFT = 72; // Desktop sidebar width is 60px (collapsed) — keep clear of sidebar!
+    const modalWidth = 380;
+    const modalHeight = 510;
 
     if (!position) {
       return {
         bottom: '80px',
         right: '20px',
-        width: '380px',
-        height: '510px'
+        width: `${modalWidth}px`,
+        height: `${modalHeight}px`,
+        zIndex: 35
       };
     }
-
-    const modalWidth = 380;
-    const modalHeight = 510;
 
     let left = position.x > window.innerWidth / 2
       ? position.x - modalWidth + 48
@@ -379,21 +405,22 @@ export default function DudoSupportAssistant() {
       ? position.y - modalHeight - 12
       : position.y + 56 + 12;
 
-    // Clamp inside screen bounds
-    left = Math.max(16, Math.min(window.innerWidth - modalWidth - 16, left));
+    // Clamp inside screen bounds respecting sidebar minimum left (72px)
+    left = Math.max(MIN_LEFT, Math.min(window.innerWidth - modalWidth - 16, left));
     top = Math.max(16, Math.min(window.innerHeight - modalHeight - 16, top));
 
     return {
       left: `${left}px`,
       top: `${top}px`,
       width: `${modalWidth}px`,
-      height: `${modalHeight}px`
+      height: `${modalHeight}px`,
+      zIndex: 35
     };
   };
 
   return (
     <>
-      {/* ── True Free-Position Floating Draggable Bot Launcher ───────────── */}
+      {/* ── True Free-Position Floating Draggable Bot Launcher (z-30 < Sidebar z-50) ── */}
       {position && (
         <div
           ref={botRef}
@@ -405,7 +432,7 @@ export default function DudoSupportAssistant() {
             position: 'fixed',
             left: `${position.x}px`,
             top: `${position.y}px`,
-            zIndex: 9990,
+            zIndex: 30,
             touchAction: 'none'
           }}
           className="select-none flex items-center gap-2 cursor-grab active:cursor-grabbing"
@@ -430,7 +457,7 @@ export default function DudoSupportAssistant() {
         </div>
       )}
 
-      {/* ── Chat Modal Panel ──────────────────────────────────────────────── */}
+      {/* ── Chat Modal Panel (z-35 < Sidebar z-50) ────────────────────────── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -439,7 +466,7 @@ export default function DudoSupportAssistant() {
             exit={{ opacity: 0, y: 15, scale: 0.95 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             style={getModalPositionStyles()}
-            className="fixed z-[9995] bg-white border border-zinc-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-left"
+            className="fixed bg-white border border-zinc-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-left"
           >
             {/* Header */}
             <div className="bg-[#22577A] text-white p-3 px-4 flex items-center justify-between shrink-0 select-none shadow-xs">
@@ -625,6 +652,9 @@ function parseInlineMarkdown(text: string): MarkdownToken[] {
 function getNavigationPath(boldText: string): string | null {
   const normalized = boldText.toLowerCase().trim();
 
+  if (normalized.includes('talk to dudo')) {
+    return WHATSAPP_SUPPORT_URL;
+  }
   if (normalized.includes('agent → skills') || normalized === 'skills') {
     return '/dashboard/agent?tab=skills';
   }
@@ -655,7 +685,7 @@ function getNavigationPath(boldText: string): string | null {
   if (normalized.includes('help center') || normalized === 'documentation') {
     return '/dashboard/documentation';
   }
-  if (normalized.includes('contact support') || normalized === 'contact') {
+  if (normalized.includes('contact support') || normalized === 'contact' || normalized === 'report bug') {
     return '/dashboard/report-bug';
   }
 
