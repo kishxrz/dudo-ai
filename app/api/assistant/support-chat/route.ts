@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/firebase-admin';
-import { buildSupportRAGContext, retrieveRelevantSupportDocs } from '@/lib/support/dudoSupportRAG';
+import { buildSupportRAGContext } from '@/lib/support/dudoSupportRAG';
 import { buildDudoSupportSystemPrompt } from '@/lib/support/supportPrompt';
 import { resolveActiveProvider } from '@/lib/ai/ServerProviderResolver';
 
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Parse request payload
     const body = await req.json().catch(() => ({}));
-    const { message, history, route, workspaceId } = body;
+    const { message, history, workspaceId } = body;
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return NextResponse.json(
@@ -76,21 +76,17 @@ export async function POST(req: NextRequest) {
     if (!groqApiKey) {
       return NextResponse.json({
         success: true,
-        reply: "Hey! Groq API Key is not configured yet bro. Please add your Groq API key under **Agent → API Keys** or set `GROQ_API_KEY` in environment variables to enable the AI Support Assistant.",
-        sources: []
+        reply: "Hey! Groq API Key is not configured yet bro. Please add your Groq API key under **Agent → API Keys** or set `GROQ_API_KEY` in environment variables to enable the AI Support Assistant."
       });
     }
 
-    // 4. Retrieve Grounded Knowledge via RAG
-    const ragContext = buildSupportRAGContext(message, route);
-    const relevantDocs = retrieveRelevantSupportDocs(message, route);
-    const sources = relevantDocs.map(d => ({ title: d.title, category: d.category }));
+    // 4. Retrieve Grounded Knowledge via RAG (intent-driven, query only)
+    const ragContext = buildSupportRAGContext(message);
 
     // 5. Construct System Prompt
     const systemPrompt = buildDudoSupportSystemPrompt(ragContext, {
       userDisplayName,
-      workspaceId: activeWorkspaceId,
-      currentRoute: route
+      workspaceId: activeWorkspaceId
     });
 
     // 6. Format chat history (limit to last 8 messages)
@@ -128,8 +124,7 @@ export async function POST(req: NextRequest) {
       console.error(`[DudoSupportAssistant] Groq API error (${groqRes.status}):`, errText);
       return NextResponse.json({
         success: true,
-        reply: "Sorry bro! The AI model encountered a temporary issue responding right now. Please check your Groq API key in **Agent → API Keys** or try again in a moment.",
-        sources: []
+        reply: "Sorry bro! The AI model encountered a temporary issue responding right now. Please check your Groq API key in **Agent → API Keys** or try again in a moment."
       });
     }
 
@@ -138,8 +133,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      reply,
-      sources
+      reply
     });
 
   } catch (error: unknown) {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import {
@@ -11,22 +11,20 @@ import {
   Sparkles,
   Trash2,
   RefreshCw,
-  MessageSquare,
-  HelpCircle,
-  ChevronDown,
-  Compass,
   ArrowRight,
-  ShieldAlert
+  HelpCircle,
+  Mail,
+  ExternalLink,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
-  sources?: Array<{ title: string; category: string }>;
   isError?: boolean;
 }
 
@@ -43,30 +41,55 @@ export default function DudoSupportAssistant() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Draggable position state
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const pointerStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const launcherRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const { currentUser } = useAuth();
   const { workspaceId } = useWorkspace();
 
-  const currentTab = searchParams.get('tab');
-  const fullRoute = currentTab ? `${pathname}?tab=${currentTab}` : pathname;
-
-  // Format nice route label for header
-  const getRouteLabel = (path: string, tab: string | null) => {
-    if (path.includes('/agent')) {
-      return `Agent / ${tab ? tab.charAt(0).toUpperCase() + tab.slice(1) : 'Overview'}`;
+  // Load launcher position from localStorage or default to bottom-right
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dudo_assistant_position');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+            const clampedX = Math.max(12, Math.min(window.innerWidth - 68, parsed.x));
+            const clampedY = Math.max(12, Math.min(window.innerHeight - 68, parsed.y));
+            setPosition({ x: clampedX, y: clampedY });
+            return;
+          }
+        } catch {}
+      }
+      // Default: bottom-right
+      setPosition({
+        x: Math.max(12, window.innerWidth - 72),
+        y: Math.max(12, window.innerHeight - 72)
+      });
     }
-    if (path.includes('/knowledge')) return 'Knowledge Base';
-    if (path.includes('/billing')) return 'Billing & Plans';
-    if (path.includes('/appointments')) return 'Appointments';
-    if (path.includes('/profile')) return 'Profile';
-    return 'Dashboard';
-  };
+  }, []);
 
-  const routeLabel = getRouteLabel(pathname, currentTab);
+  // Clamp position on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition(prev => {
+        if (!prev) return null;
+        return {
+          x: Math.max(12, Math.min(window.innerWidth - 68, prev.x)),
+          y: Math.max(12, Math.min(window.innerHeight - 68, prev.y))
+        };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -103,7 +126,6 @@ export default function DudoSupportAssistant() {
         body: JSON.stringify({
           message: messageText,
           history: messages.slice(-8).map(m => ({ role: m.role, content: m.content })),
-          route: fullRoute,
           workspaceId
         })
       });
@@ -118,8 +140,7 @@ export default function DudoSupportAssistant() {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
         content: data.reply || "Sorry, I couldn't process your request.",
-        timestamp: Date.now(),
-        sources: data.sources
+        timestamp: Date.now()
       };
 
       setMessages(prev => [...prev, assistantMsg]);
@@ -151,22 +172,42 @@ export default function DudoSupportAssistant() {
     setMessages([]);
   };
 
-  // Helper to render text formatted with basic markdown and interactive navigation links
+  // Helper to render text formatted with basic markdown and interactive action buttons
   const renderFormattedContent = (content: string) => {
-    // Split into paragraphs
     const lines = content.split('\n');
+
+    // Collect navigation buttons for this response
+    const actionButtons: Array<{ label: string; route: string; isMailto?: boolean }> = [];
+
+    // Helper to add unique action button
+    const addAction = (label: string, route: string, isMailto = false) => {
+      if (!actionButtons.some(a => a.route === route)) {
+        actionButtons.push({ label, route, isMailto });
+      }
+    };
+
+    // Scan content for action triggers
+    const lower = content.toLowerCase();
+    if (lower.includes('knowledge')) addAction('Knowledge Base →', '/dashboard/knowledge');
+    if (lower.includes('billing') || lower.includes('plan') || lower.includes('price')) addAction('Billing →', '/dashboard/billing');
+    if (lower.includes('channel') || lower.includes('telegram') || lower.includes('whatsapp')) addAction('Channels Setup →', '/dashboard/agent?tab=channels');
+    if (lower.includes('api key') || lower.includes('groq') || lower.includes('openai')) addAction('API Keys →', '/dashboard/agent?tab=api-keys');
+    if (lower.includes('personality') || lower.includes('system prompt') || lower.includes('instructions')) addAction('Personality →', '/dashboard/agent?tab=personality');
+    if (lower.includes('testing') || lower.includes('playground')) addAction('Agent Playground →', '/dashboard/agent?tab=testing');
+    if (lower.includes('skill')) addAction('Agent Skills →', '/dashboard/agent?tab=skills');
+    if (lower.includes('help center') || lower.includes('documentation') || lower.includes('docs')) addAction('Help Center →', '/dashboard/documentation');
+    if (lower.includes('contact support') || lower.includes('report bug') || lower.includes('bug')) addAction('Contact Support →', '/dashboard/report-bug');
+    if (lower.includes('dudosupport@gmail.com') || lower.includes('email us')) addAction('Email Support ✉', 'mailto:dudosupport@gmail.com', true);
 
     return (
       <div className="space-y-1.5 text-xs leading-relaxed">
         {lines.map((line, idx) => {
           if (!line.trim()) return <div key={idx} className="h-1" />;
 
-          // List item
           const isBullet = line.trim().startsWith('- ') || line.trim().startsWith('* ');
           const isNum = /^\d+\.\s/.test(line.trim());
           const cleanLine = isBullet ? line.trim().substring(2) : isNum ? line.trim().replace(/^\d+\.\s/, '') : line;
 
-          // Parse **bold** and `code`
           const parts = parseInlineMarkdown(cleanLine);
 
           return (
@@ -176,16 +217,21 @@ export default function DudoSupportAssistant() {
               <div className="flex-1 flex-wrap">
                 {parts.map((p, pIdx) => {
                   if (p.type === 'bold') {
-                    // Check if bold text is a navigation path like "Agent → Skills" or "Knowledge"
                     const navPath = getNavigationPath(p.text);
                     if (navPath) {
                       return (
                         <button
                           key={pIdx}
                           type="button"
-                          onClick={() => router.push(navPath)}
+                          onClick={() => {
+                            if (navPath.startsWith('mailto:')) {
+                              window.location.href = navPath;
+                            } else {
+                              router.push(navPath);
+                            }
+                          }}
                           className="inline-flex items-center gap-0.5 px-1.5 py-0.5 my-0.5 mx-0.5 bg-[#22577A]/10 hover:bg-[#22577A]/20 text-[#22577A] font-bold rounded text-[10px] cursor-pointer transition-all border border-[#22577A]/20 leading-none align-baseline"
-                          title={`Navigate to ${p.text}`}
+                          title={`Go to ${p.text}`}
                         >
                           <span>{p.text}</span>
                           <ArrowRight size={9} />
@@ -203,39 +249,139 @@ export default function DudoSupportAssistant() {
             </div>
           );
         })}
+
+        {/* Action Buttons row if relevant navigation matches */}
+        {actionButtons.length > 0 && (
+          <div className="pt-2 flex flex-wrap gap-1.5 border-t border-zinc-100 mt-2">
+            {actionButtons.slice(0, 3).map((act, aIdx) => (
+              <button
+                key={aIdx}
+                type="button"
+                onClick={() => {
+                  if (act.isMailto) {
+                    window.location.href = act.route;
+                  } else {
+                    router.push(act.route);
+                  }
+                }}
+                className="h-6 px-2.5 bg-[#22577A] hover:bg-[#1A4461] text-white text-[10px] font-bold rounded-lg cursor-pointer transition-all shadow-2xs flex items-center gap-1 leading-none"
+              >
+                <span>{act.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
 
+  // Determine chat modal position relative to launcher or viewport
+  const getModalPositionStyles = () => {
+    if (typeof window === 'undefined') return {};
+
+    const isMobile = window.innerWidth < 640;
+    if (isMobile) {
+      return {
+        bottom: '16px',
+        left: '16px',
+        right: '16px',
+        width: 'calc(100vw - 32px)',
+        height: '490px',
+        maxHeight: '80vh'
+      };
+    }
+
+    if (!position) {
+      return {
+        bottom: '80px',
+        right: '20px',
+        width: '380px',
+        height: '510px'
+      };
+    }
+
+    // Place modal above launcher or to the left if near top/bottom
+    const modalWidth = 380;
+    const modalHeight = 510;
+
+    let left = position.x - modalWidth + 50;
+    let top = position.y - modalHeight - 12;
+
+    // Clamp inside screen bounds
+    if (left < 16) left = 16;
+    if (left + modalWidth > window.innerWidth - 16) left = window.innerWidth - modalWidth - 16;
+
+    if (top < 16) {
+      // Show below launcher if top overflows
+      top = position.y + 60;
+    }
+    if (top + modalHeight > window.innerHeight - 16) {
+      top = Math.max(16, window.innerHeight - modalHeight - 16);
+    }
+
+    return {
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${modalWidth}px`,
+      height: `${modalHeight}px`
+    };
+  };
+
   return (
     <>
-      {/* ── Floating Launcher Button ────────────────────────────────────────── */}
-      <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2 select-none">
-        <AnimatePresence>
-          {!isOpen && (
-            <motion.div
-              initial={{ opacity: 0, x: 10, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 10, scale: 0.9 }}
-              className="hidden sm:flex items-center gap-1.5 bg-white border border-[#EED9B4] text-[#22577A] text-[11px] font-bold px-3 py-1.5 rounded-full shadow-md cursor-pointer hover:bg-[#FFF8F0] transition-all"
-              onClick={() => setIsOpen(true)}
-            >
-              <Sparkles size={13} className="text-amber-500 animate-pulse" />
-              <span>Ask Dudo AI</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+      {/* ── Floating Draggable Launcher Button ───────────────────────────── */}
+      <motion.div
+        ref={launcherRef}
+        drag
+        dragMomentum={false}
+        dragElastic={0}
+        dragConstraints={{
+          left: 12,
+          top: 12,
+          right: (typeof window !== 'undefined' ? window.innerWidth : 1000) - 68,
+          bottom: (typeof window !== 'undefined' ? window.innerHeight : 800) - 68
+        }}
+        onPointerDown={(e) => {
+          pointerStartRef.current = { x: e.clientX, y: e.clientY };
+        }}
+        onDragStart={() => {
+          setIsDragging(true);
+        }}
+        onDragEnd={() => {
+          setTimeout(() => setIsDragging(false), 50);
+          if (launcherRef.current) {
+            const rect = launcherRef.current.getBoundingClientRect();
+            const newPos = { x: rect.left, y: rect.top };
+            setPosition(newPos);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('dudo_assistant_position', JSON.stringify(newPos));
+            }
+          }
+        }}
+        style={{
+          position: 'fixed',
+          left: position ? `${position.x}px` : undefined,
+          top: position ? `${position.y}px` : undefined,
+          right: !position ? '20px' : undefined,
+          bottom: !position ? '20px' : undefined,
+          zIndex: 9990,
+          touchAction: 'none'
+        }}
+        className="select-none flex items-center gap-2"
+      >
         <motion.button
           type="button"
-          onClick={() => setIsOpen(prev => !prev)}
+          onClick={(e) => {
+            if (isDragging) return;
+            setIsOpen(prev => !prev);
+          }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className={cn(
-            "w-12 h-12 rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-all border-none relative text-white",
+            "w-12 h-12 rounded-full shadow-xl flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors border-none relative text-white",
             isOpen ? "bg-zinc-800 hover:bg-zinc-900" : "bg-[#22577A] hover:bg-[#1A4461]"
           )}
-          title="Dudo AI Support Assistant"
+          title="Dudo AI Support Assistant (Drag to move)"
         >
           {isOpen ? (
             <X size={20} />
@@ -246,20 +392,21 @@ export default function DudoSupportAssistant() {
             </>
           )}
         </motion.button>
-      </div>
+      </motion.div>
 
       {/* ── Chat Modal Panel ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 15, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            exit={{ opacity: 0, y: 15, scale: 0.95 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed bottom-20 right-4 sm:right-5 z-40 w-[calc(100vw-32px)] sm:w-[390px] h-[520px] max-h-[80vh] bg-white border border-zinc-200/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-left"
+            style={getModalPositionStyles()}
+            className="fixed z-[9995] bg-white border border-zinc-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-left"
           >
             {/* Header */}
-            <div className="bg-[#22577A] text-white p-3.5 px-4 flex items-center justify-between shrink-0 select-none shadow-xs">
+            <div className="bg-[#22577A] text-white p-3 px-4 flex items-center justify-between shrink-0 select-none shadow-xs">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/20 shrink-0">
                   <Bot size={18} className="text-amber-300" />
@@ -269,10 +416,9 @@ export default function DudoSupportAssistant() {
                     <h3 className="text-xs font-bold tracking-tight truncate leading-none">Dudo Support Assistant</h3>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   </div>
-                  <div className="flex items-center gap-1 mt-1 text-[10px] text-white/80 font-medium truncate">
-                    <Compass size={10} className="shrink-0 text-amber-300" />
-                    <span className="truncate">{routeLabel}</span>
-                  </div>
+                  <p className="text-[10px] text-white/80 font-medium mt-0.5 truncate">
+                    Ask anything about Dudo AI
+                  </p>
                 </div>
               </div>
 
@@ -307,7 +453,7 @@ export default function DudoSupportAssistant() {
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-zinc-900 leading-snug">
-                      Hey there! How can I help you with Dudo today?
+                      Vanakkam! How can I help you with Dudo today?
                     </h4>
                     <p className="text-[11px] text-zinc-500 font-medium mt-1">
                       Ask in English, Tanglish, Hinglish, Tamil, Hindi, or any language!
@@ -357,16 +503,6 @@ export default function DudoSupportAssistant() {
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       )}
                     </div>
-
-                    {/* Sources Badge */}
-                    {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-1 flex items-center gap-1 text-[9px] text-zinc-400 font-medium px-1">
-                        <span>📚 Docs:</span>
-                        <span className="truncate max-w-[200px]">
-                          {msg.sources.map(s => s.title).join(', ')}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 ))
               )}
@@ -375,14 +511,14 @@ export default function DudoSupportAssistant() {
               {isLoading && (
                 <div className="mr-auto items-start max-w-[88%] flex items-center gap-2 p-3 bg-white border border-zinc-200 rounded-2xl rounded-bl-xs text-xs text-zinc-500 font-semibold shadow-2xs">
                   <RefreshCw size={13} className="animate-spin text-[#22577A] shrink-0" />
-                  <span>Searching Dudo docs &amp; thinking...</span>
+                  <span>Thinking...</span>
                 </div>
               )}
 
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Bar */}
+            {/* Clean Input Bar */}
             <div className="p-2.5 bg-white border-t border-zinc-200/80 shrink-0">
               <div className="flex items-center gap-2 bg-[#FFF8F0] border border-zinc-200 focus-within:border-[#22577A] focus-within:ring-1 focus-within:ring-[#22577A] rounded-xl p-1.5 transition-all">
                 <textarea
@@ -477,8 +613,14 @@ function getNavigationPath(boldText: string): string | null {
   if (normalized.includes('appointments') || normalized === 'calendar') {
     return '/dashboard/appointments';
   }
-  if (normalized.includes('billing') || normalized === 'plans') {
+  if (normalized.includes('billing') || normalized === 'plans' || normalized === 'pricing') {
     return '/dashboard/billing';
+  }
+  if (normalized.includes('help center') || normalized === 'documentation') {
+    return '/dashboard/documentation';
+  }
+  if (normalized.includes('contact support') || normalized === 'contact') {
+    return '/dashboard/report-bug';
   }
 
   return null;
