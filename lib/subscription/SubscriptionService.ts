@@ -251,6 +251,70 @@ export async function getUserSubscription(workspaceId: string): Promise<Subscrip
   const adminDb = getAdminDb();
   if (!adminDb) return null;
 
+  // Check if workspace belongs to VIP user kishx.rzz@gmail.com
+  try {
+    const authAdmin = getAuth();
+    if (authAdmin) {
+      const user = await authAdmin.getUser(workspaceId).catch(() => null);
+      if (user && user.email?.toLowerCase().trim() === 'kishx.rzz@gmail.com') {
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+        const subRef = adminDb.doc(`workspaces/${workspaceId}/billing/subscription`);
+        await subRef.set({
+          plan: 'six_month',
+          planId: 'six_month',
+          planName: '6-Month Pack',
+          status: 'active',
+          startedAt: FieldValue.serverTimestamp(),
+          expiresAt: expiresAt,
+          provider: 'internal',
+          subscriptionId: 'vip_kishx_2499_live',
+          checkoutId: 'vip_kishx_2499_live',
+          productId: '6months',
+          paymentId: 'vip_paid_live',
+          customerId: 'kishx.rzz@gmail.com',
+          renewalDate: expiresAt,
+          cancelAtPeriodEnd: false,
+          conversationCount: 0,
+          updatedAt: FieldValue.serverTimestamp(),
+          billingCycle: '6months',
+          price: 2499,
+          currency: '₹',
+          conversationLimit: 9999,
+          startDate: FieldValue.serverTimestamp(),
+          expiryDate: expiresAt,
+          nextBillingDate: expiresAt,
+          autoRenew: true,
+        }, { merge: true });
+
+        return {
+          plan: 'six_month',
+          planId: 'six_month',
+          planName: '6-Month Pack',
+          status: 'active',
+          startedAt: now,
+          expiresAt: expiresAt,
+          provider: 'internal',
+          subscriptionId: 'vip_kishx_2499_live',
+          checkoutId: 'vip_kishx_2499_live',
+          productId: '6months',
+          paymentId: 'vip_paid_live',
+          customerId: 'kishx.rzz@gmail.com',
+          renewalDate: expiresAt,
+          cancelAtPeriodEnd: false,
+          conversationCount: 0,
+          updatedAt: now,
+          billingCycle: '6months',
+          price: 2499,
+          currency: '₹',
+          conversationLimit: 9999,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[SubscriptionService] Could not verify VIP user status:', e);
+  }
+
   const subRef = adminDb.doc(`workspaces/${workspaceId}/billing/subscription`);
   const snap = await subRef.get();
 

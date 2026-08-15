@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         // Ensure workspace exists every time user signs in
-        await ensureWorkspace(user.uid, user.displayName);
+        await ensureWorkspace(user.uid, user.displayName, undefined, user.email);
       }
       setCurrentUser(user);
       setLoading(false);
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     if (!auth) throw new Error('Firebase Auth is not initialized');
     const { user } = await signInWithEmailAndPassword(auth, email, password);
-    await ensureWorkspace(user.uid, user.displayName);
+    await ensureWorkspace(user.uid, user.displayName, undefined, user.email || email);
     try {
       await triggerLifecycleEventClient(user.uid, 'security_new_device', {
         email: user.email || email,
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!auth) throw new Error('Firebase Auth is not initialized');
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName: name });
-    const isNew = await ensureWorkspace(user.uid, name, businessName);
+    const isNew = await ensureWorkspace(user.uid, name, businessName, user.email || email);
     if (isNew) {
       try {
         await triggerLifecycleEventClient(user.uid, 'signup', {
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const { user } = await signInWithPopup(auth, provider);
-    const isNew = await ensureWorkspace(user.uid, user.displayName);
+    const isNew = await ensureWorkspace(user.uid, user.displayName, undefined, user.email);
     if (isNew && user.email) {
       try {
         await triggerLifecycleEventClient(user.uid, 'google_login_first', {

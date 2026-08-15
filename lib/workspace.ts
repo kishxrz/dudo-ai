@@ -12,24 +12,34 @@ export function getWorkspaceId(uid: string): string {
 /**
  * Call this once after sign-up / first sign-in.
  * Creates the workspace + default assistant doc if they don't exist yet.
- * Also provisions the 30-minute free trial subscription via the server API.
+ * Provisions 6-Month Pack (₹2,499) for kishx.rzz@gmail.com or 30-minute free trial subscription for others.
  * Safe to call multiple times (idempotent).
  */
-export async function ensureWorkspace(uid: string, displayName?: string | null, businessName?: string | null): Promise<boolean> {
+export async function ensureWorkspace(
+  uid: string,
+  displayName?: string | null,
+  businessName?: string | null,
+  email?: string | null
+): Promise<boolean> {
   if (!db) return false;
 
   const wsRef = doc(db, 'workspaces', uid);
   const wsSnap = await getDoc(wsRef);
 
   const finalBizName = businessName?.trim() || displayName || 'My';
+  const userEmail = email?.toLowerCase().trim();
+  const isKishxVIP = userEmail === 'kishx.rzz@gmail.com';
+
+  let createdNew = false;
 
   if (!wsSnap.exists()) {
     // Create workspace
     await setDoc(wsRef, {
       id: uid,
       ownerId: uid,
+      ownerEmail: userEmail || '',
       name: businessName?.trim() ? `${businessName.trim()} Workspace` : `${displayName ?? 'My'} Workspace`,
-      plan: 'trial',
+      plan: isKishxVIP ? 'six_month' : 'trial',
       timezone: 'Asia/Kolkata',
       createdAt: serverTimestamp(),
     });
@@ -53,8 +63,36 @@ export async function ensureWorkspace(uid: string, displayName?: string | null, 
       updatedAt: serverTimestamp(),
     });
 
-    // Provision free trial subscription via server-side API
-    // (client SDK can't import 'server-only' modules directly)
+    createdNew = true;
+  }
+
+  // VIP testing grant for kishx.rzz@gmail.com
+  if (isKishxVIP) {
+    try {
+      const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year active
+      const subRef = doc(db, 'workspaces', uid, 'billing', 'subscription');
+      await setDoc(subRef, {
+        planId: '6months',
+        plan: 'six_month',
+        planName: '6-Month Pack',
+        price: 2499,
+        currency: '₹',
+        billingCycle: '6months',
+        status: 'active',
+        startDate: serverTimestamp(),
+        expiryDate: expiresAt,
+        nextBillingDate: expiresAt,
+        autoRenew: true,
+        conversationLimit: 9999,
+        campaignLimit: 0,
+        subscriptionId: 'vip_kishx_2499_live',
+        customerId: 'kishx.rzz@gmail.com'
+      }, { merge: true });
+    } catch (err) {
+      console.warn('[ensureWorkspace] Failed to set VIP subscription for kishx.rzz@gmail.com:', err);
+    }
+  } else if (createdNew) {
+    // Provision free trial subscription via server-side API for standard users
     try {
       const baseUrl =
         typeof window !== 'undefined'
@@ -66,10 +104,9 @@ export async function ensureWorkspace(uid: string, displayName?: string | null, 
         body: JSON.stringify({ workspaceId: uid }),
       });
     } catch (e) {
-      // Non-fatal: SubscriptionService also auto-inits on first subscription check
       console.warn('[ensureWorkspace] Trial init API call failed (non-fatal):', e);
     }
-    return true;
   }
-  return false;
+
+  return createdNew;
 }
