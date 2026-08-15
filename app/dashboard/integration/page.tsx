@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/contexts/ToastContext';
 import Logo from '@/components/ui/logo';
 import { db } from '@/lib/firebase';
-import { collection, doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // Core UI components
 import { PageLayout } from '@/components/ui/PageLayout';
@@ -162,9 +162,26 @@ export default function IntegrationsPage() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [dropdownOpen]);
 
-  // Status check on mount / workspaceId change
+  // Comprehensive status check (combines API, direct client Firestore, and local state)
   const fetchStatus = async () => {
     if (!workspaceId) return;
+    
+    // 1. Initial client-side local storage & URL check
+    let activeScopes: string[] = [];
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`dudo_google_scopes_${workspaceId}`);
+      if (saved) {
+        try { activeScopes = JSON.parse(saved); } catch {}
+      }
+      const searchParams = new URLSearchParams(window.location.search);
+      const appKey = searchParams.get('app') || localStorage.getItem('dudo_connecting_google_scope');
+      if ((searchParams.get('success') === 'true' || searchParams.get('connected') === 'true') && appKey) {
+        if (!activeScopes.includes(appKey)) {
+          activeScopes.push(appKey);
+        }
+      }
+    }
+
     try {
       const { canUseFeature } = await import('@/lib/billing-entitlements');
       const allowed = await canUseFeature(workspaceId, 'booking');
@@ -174,23 +191,51 @@ export default function IntegrationsPage() {
         return;
       }
       setIsLocked(false);
+
+      // 2. Fetch from backend API
       const res = await fetch(`/api/integrations/google/status?workspaceId=${workspaceId}`);
       if (res.ok) {
         const data = await res.json();
         setGoogleConnected(data.connected);
-        setGoogleEmail(data.email || '');
-        setConnectedScopes(data.scopes || []);
-        
-        // Clear active loading state if successfully loaded
-        const storedScope = localStorage.getItem('dudo_connecting_google_scope');
-        if (storedScope && data.scopes?.includes(storedScope)) {
-          localStorage.removeItem('dudo_connecting_google_scope');
-          setConnectingScope(null);
+        if (data.email) setGoogleEmail(data.email);
+        if (Array.isArray(data.scopes)) {
+          data.scopes.forEach((s: string) => {
+            if (!activeScopes.includes(s)) activeScopes.push(s);
+          });
+        }
+      }
+
+      // 3. Direct Firestore client SDK check for scope docs
+      if (db) {
+        const scopeDocs: Record<string, string> = {
+          gmail: 'gmailIntegration',
+          calendar: 'calendarIntegration',
+          sheets: 'sheetsIntegration',
+          drive: 'driveIntegration',
+          docs: 'docsIntegration',
+        };
+
+        for (const [scopeKey, docName] of Object.entries(scopeDocs)) {
+          try {
+            const snap = await getDoc(doc(db, 'workspaces', workspaceId, 'integrations', docName));
+            if (snap.exists() && snap.data()?.connected !== false) {
+              if (!activeScopes.includes(scopeKey)) {
+                activeScopes.push(scopeKey);
+              }
+              if (snap.data()?.email) {
+                setGoogleEmail(snap.data().email);
+              }
+            }
+          } catch (err) {}
         }
       }
     } catch (e) {
       console.error('Failed to load Google status:', e);
     } finally {
+      setConnectedScopes(activeScopes);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`dudo_google_scopes_${workspaceId}`, JSON.stringify(activeScopes));
+      }
       setIsLoading(false);
     }
   };
@@ -221,6 +266,15 @@ export default function IntegrationsPage() {
         const appName = APP_NAME_MAP[appKey] || 'Google Workspace';
         setConnectedAppTitle(appName);
         setShowSuccessBanner(true);
+
+        // Force appKey into connectedScopes state immediately
+        if (appKey && appKey !== 'google') {
+          setConnectedScopes((prev) => Array.from(new Set([...prev, appKey])));
+          if (workspaceId) {
+            localStorage.setItem(`dudo_google_scopes_${workspaceId}`, JSON.stringify(Array.from(new Set([...connectedScopes, appKey]))));
+          }
+        }
+
         toast.success(`${appName} connected successfully`, 'Your AI employee can now access this service.');
         localStorage.removeItem('dudo_connecting_google_scope');
         setConnectingScope(null);
@@ -264,7 +318,9 @@ export default function IntegrationsPage() {
         body: JSON.stringify({ workspaceId, scope }),
       });
       if (res.ok) {
-        setConnectedScopes((prev) => prev.filter((s) => s !== scope));
+        const updated = connectedScopes.filter((s) => s !== scope);
+        setConnectedScopes(updated);
+        localStorage.setItem(`dudo_google_scopes_${workspaceId}`, JSON.stringify(updated));
         fetchStatus();
         const appName = APP_NAME_MAP[scope] || 'Google integration';
         toast.success(`${appName} disconnected.`, 'Access credentials revoked successfully.');
@@ -389,43 +445,14 @@ export default function IntegrationsPage() {
   return (
     <PageLayout className="max-w-[1150px] w-full text-left mx-auto gap-5 px-6 pb-16 box-border">
       
-      {/* Clean Dudo Branded Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/60 pb-4 pt-1 text-left">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[10px] font-black text-[#22577A] tracking-wider uppercase bg-[#22577A]/10 border border-[#22577A]/20 px-2.5 py-0.5 rounded-full select-none">
-              🔒 Secure OAuth 2.0
-            </span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-extrabold text-zinc-950 tracking-tight leading-none mb-1.5">
-            Google Workspace Integrations
-          </h1>
-          <p className="text-xs md:text-sm text-zinc-700 font-medium leading-relaxed max-w-2xl">
-            Connect Gmail, Calendar, Drive, Docs, and Sheets so your AI employee can read emails, book appointments, and log data.
-          </p>
-        </div>
-
-        {/* Connected Apps Pill Summary */}
-        <div className="flex flex-wrap items-center gap-1.5 shrink-0 select-none">
-          {['Gmail', 'Calendar', 'Drive', 'Docs', 'Sheets'].map((item) => {
-            const keyMap: Record<string, string> = { Gmail: 'gmail', Calendar: 'calendar', Drive: 'drive', Docs: 'docs', Sheets: 'sheets' };
-            const isConn = connectedScopes.includes(keyMap[item]);
-            return (
-              <span
-                key={item}
-                className={cn(
-                  "text-[10.5px] font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-all",
-                  isConn
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-extrabold"
-                    : "bg-zinc-100/90 text-zinc-700 border-zinc-250"
-                )}
-              >
-                <Check size={11} className={isConn ? "text-emerald-600 stroke-[3]" : "text-zinc-400"} />
-                {item}
-              </span>
-            );
-          })}
-        </div>
+      {/* Clean Page Header (No SECURE OAUTH badge, no top pills) */}
+      <div className="border-b border-zinc-200/60 pb-4 pt-1 text-left space-y-1 select-none">
+        <h1 className="text-xl md:text-2xl font-extrabold text-zinc-950 tracking-tight leading-none">
+          Google Workspace Integrations
+        </h1>
+        <p className="text-xs md:text-sm text-zinc-700 font-medium leading-relaxed max-w-2xl">
+          Connect Gmail, Calendar, Drive, Docs, and Sheets so your AI employee can read emails, book appointments, and log data.
+        </p>
       </div>
 
       {/* Dismissible App-Specific Success Banner */}
@@ -489,7 +516,7 @@ export default function IntegrationsPage() {
               transition={{ type: 'spring', stiffness: 350, damping: 25 }}
               className={cn(
                 "bg-white border rounded-2xl p-5 flex flex-col justify-between h-full select-none transition-all duration-200 relative overflow-hidden text-left",
-                isConnected ? "border-emerald-250 shadow-sm" : "border-zinc-200/90",
+                isConnected ? "border-emerald-300 shadow-sm bg-emerald-50/20" : "border-zinc-200/90",
                 isConnectingThis ? "opacity-95" : isAnyConnecting ? "opacity-60 pointer-events-none" : ""
               )}
             >
@@ -548,9 +575,9 @@ export default function IntegrationsPage() {
                     <Button
                       type="button"
                       disabled={true}
-                      className="flex-1 h-9 rounded-xl bg-emerald-50 text-emerald-800 font-extrabold border border-emerald-300 text-xs flex items-center justify-center gap-1.5 opacity-100 cursor-default"
+                      className="flex-1 h-9 rounded-xl bg-emerald-100 text-emerald-900 font-extrabold border border-emerald-300 text-xs flex items-center justify-center gap-1.5 opacity-100 cursor-default shadow-xs"
                     >
-                      <Check size={14} className="text-emerald-600 stroke-[3]" />
+                      <Check size={14} className="text-emerald-700 stroke-[3]" />
                       Connected
                     </Button>
                     <Button
