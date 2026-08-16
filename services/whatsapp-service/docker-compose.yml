@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  dudo-whatsapp-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dudo-whatsapp-service:latest
+    container_name: dudo-whatsapp-service
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+      - WHATSAPP_SESSION_PATH=/data/whatsapp-sessions
+    volumes:
+      # Mount DigitalOcean VPS host persistent storage to container session path
+      - /opt/dudo/whatsapp-sessions:/data/whatsapp-sessions
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

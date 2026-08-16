@@ -50,7 +50,7 @@ async function authenticate(req: Request, res: Response, next: NextFunction) {
 
   // Log Firebase Admin Project ID
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'unknown';
-  console.log(`[Diagnostic] Railway Firebase Admin project_id: ${projectId}`);
+  console.log(`[Diagnostic] Firebase Admin project_id: ${projectId}`);
 
   // 2. User Firebase ID token check
   const authHeader = req.headers.authorization;
@@ -236,12 +236,12 @@ function unpackDirectory(targetDir: string, filesMap: Record<string, string>) {
 }
 
 async function backupSessionToFirestore(workspaceId: string): Promise<void> {
-  console.log(`[Session Backup] Skipping Firestore backup because Railway durable volume is active.`);
+  console.log(`[Session Backup] Skipping Firestore backup because local persistent volume is active.`);
   return;
 }
 
 async function restoreSessionFromFirestore(workspaceId: string): Promise<boolean> {
-  console.log(`[Session Restore] Skipping Firestore restore since local Railway volume storage is active.`);
+  console.log(`[Session Restore] Skipping Firestore restore since local persistent volume storage is active.`);
   return false;
 }
 

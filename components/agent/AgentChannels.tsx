@@ -217,7 +217,7 @@ export default function AgentChannels() {
               console.error('[AgentChannels] Failed to verify Firestore channel status during disconnected fallback:', err);
             }
           }
-          console.warn('[AgentChannels] Railway returned disconnected but Firestore says connected — keeping connected state (Railway may be restarting).');
+          console.warn('[AgentChannels] Service returned disconnected but Firestore says connected — keeping connected state (service may be restarting).');
           // Don't update UI — keep showing connected from Firestore
           return;
         }

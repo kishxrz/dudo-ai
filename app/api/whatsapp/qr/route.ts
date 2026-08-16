@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid Authorization header' }, { status: 401 });
     }
 
-    const serviceUrl = process.env.WHATSAPP_SERVICE_URL || 'https://dudo-ai-production.up.railway.app';
+    const serviceUrl = process.env.WHATSAPP_SERVICE_URL || 'http://localhost:4000';
     const internalSecret = process.env.WHATSAPP_INTERNAL_SECRET || process.env.WHATSAPP_SERVICE_SECRET || '948ae6bcb0f8421c1e060aadee9d08d3cd75c366946fdc966ee290f7262ee7f1';
     if (!serviceUrl || !internalSecret) {
       return NextResponse.json({ error: 'WhatsApp service is not configured' }, { status: 500 });
