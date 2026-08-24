@@ -8,21 +8,25 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables for Puppeteer and Node production runtime
+# Set Puppeteer env vars (NOT NODE_ENV yet — keep it dev so npm ci installs devDependencies for TS build)
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    PORT=4000 \
-    NODE_ENV=production
+    PORT=4000
 
 WORKDIR /usr/src/app
 
 COPY package*.json tsconfig.json ./
 
+# Install ALL dependencies including devDependencies (@types/*) needed for TypeScript compilation
 RUN npm ci
 
 COPY src ./src
 
+# Compile TypeScript
 RUN npm run build
+
+# Now set production env for runtime (after build is done)
+ENV NODE_ENV=production
 
 EXPOSE 4000
 

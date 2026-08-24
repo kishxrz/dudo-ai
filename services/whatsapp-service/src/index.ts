@@ -437,11 +437,10 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: puppeteerArgs,
-      protocolTimeout: 60000
+      protocolTimeout: 120000  // Increased to 2 min for slower environments
     },
     webVersionCache: {
-      type: 'remote',
-      remotePath: 'https://raw.githubusercontent.com/wwebjs/web-whatsapp-html/main/html/2.3000.1014111620-v2.html'
+      type: 'local'  // Use local cache — avoids slow remote GitHub download from Singapore
     },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
   });
@@ -915,8 +914,8 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const elapsed = now - state.startupTime;
 
-    // 1. Stuck in connecting/initialize recovery (more than 45 seconds)
-    if (state.status === 'connecting' && elapsed > 45) {
+    // 1. Stuck in connecting/initialize recovery (more than 150 seconds — Fly.io needs more time)
+    if (state.status === 'connecting' && elapsed > 150) {
       console.log(`[Watchdog] Client stuck in connecting/initialize for ${elapsed}s. Destroying and restarting...`);
       if (state.watchdogInterval) clearInterval(state.watchdogInterval);
       
@@ -1326,7 +1325,7 @@ process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 // Start Server
-export const server = app.listen(PORT, () => {
+export const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`==================================================`);
   console.log(`Dudo WhatsApp Microservice running on port ${PORT}`);
   console.log(`Session path: ${WHATSAPP_SESSION_PATH}`);

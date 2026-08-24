@@ -17,6 +17,14 @@ function hasApplicationDefaultEnv(): boolean {
   return !!(process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CLOUD_PROJECT);
 }
 
+function formatPrivateKey(key: string): string {
+  let k = key.trim();
+  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
+    k = k.slice(1, -1).trim();
+  }
+  return k.replace(/\\n/g, '\n');
+}
+
 export function getAdminDb(): Firestore | null {
   if (cachedDb !== null) {
     return cachedDb;
@@ -25,7 +33,7 @@ export function getAdminDb(): Firestore | null {
   try {
     if (getApps().length === 0) {
       if (hasExplicitServiceAccountEnv()) {
-        const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY!.replace(/\\n/g, '\n');
+        const privateKey = formatPrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY!);
         initializeApp({
           credential: cert({
             projectId: process.env.FIREBASE_ADMIN_PROJECT_ID!,
