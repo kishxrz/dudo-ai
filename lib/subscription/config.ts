@@ -98,9 +98,10 @@ export function getPlanIdFromProductId(productId: string): PlanId {
 
 export function normalizePlanId(raw: string | undefined | null): PlanId {
   if (!raw) return 'monthly';
-  if (raw === '6months' || raw === 'six_month') return 'six_month';
-  if (raw === 'monthly') return 'monthly';
-  if (raw === 'trial') return 'trial';
+  const norm = raw.toLowerCase().trim();
+  if (norm.includes('6-month') || norm.includes('6month') || norm === 'six_month' || norm === '6months' || norm === '6_months' || norm === 'six_months') return 'six_month';
+  if (norm.includes('month') || norm === 'monthly') return 'monthly';
+  if (norm === 'trial') return 'trial';
   return 'monthly';
 }
 

@@ -73,9 +73,12 @@ function parseDate(val: unknown): Date | null {
 }
 
 function normalizePlan(raw: string | undefined | null): ClientPlanId {
-  if (raw === '6months' || raw === 'six_month') return 'six_month';
-  if (raw === 'monthly') return 'monthly';
-  return 'trial';
+  if (!raw) return 'monthly';
+  const norm = raw.toLowerCase().trim();
+  if (norm.includes('6-month') || norm.includes('6month') || norm === 'six_month' || norm === '6months' || norm === '6_months' || norm === 'six_months') return 'six_month';
+  if (norm.includes('month') || norm === 'monthly') return 'monthly';
+  if (norm === 'trial') return 'trial';
+  return 'monthly';
 }
 
 function formatRemaining(ms: number): string {

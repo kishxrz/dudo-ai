@@ -19,7 +19,8 @@ function hasApplicationDefaultEnv(): boolean {
 
 function formatPrivateKey(key: string): string {
   let k = key.trim();
-  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
+  k = k.replace(/\\"/g, '"').replace(/\\'/g, "'");
+  while ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
     k = k.slice(1, -1).trim();
   }
   return k.replace(/\\n/g, '\n');

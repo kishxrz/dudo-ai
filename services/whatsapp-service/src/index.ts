@@ -405,6 +405,8 @@ async function initializeNewClient(workspaceId: string): Promise<void> {
     '--disable-accelerated-2d-canvas',
     '--no-first-run',
     '--no-zygote',
+    '--single-process',
+    '--blink-settings=imagesEnabled=false',
     '--disable-gpu',
     '--js-flags="--max-old-space-size=384 --expose-gc"',
     '--disable-extensions',
